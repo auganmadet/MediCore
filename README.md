@@ -1,4 +1,4 @@
-# 🏥 MediCore - ELT Pipeline pour Data Warehouse Pharmacie
+# 🏥 MediCore - Pipeline ELT pour Data Warehouse Pharmacie
 **Framework d'ingestion de données MEDIPRIX permettant une industrialisation complète avec audit et gouvernance.**
 
 ## Vision

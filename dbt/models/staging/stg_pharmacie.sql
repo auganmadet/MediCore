@@ -1,28 +1,58 @@
+-- {{
+--     config(
+--         materialized='table',
+--         schema='STAGING',
+--         unique_key=['PHA_ID'],
+--         tags=['staging', 'pharmacie', 'ref']
+--     )
+-- }}
+
+-- with dedup_cdc as (
+--     select *,
+--         row_number() over (
+--             partition by PHA_ID
+--             order by cdc_timestamp desc nulls last
+--         ) as rn
+--     from {{ ref('raw_pharmacie') }}
+--     where cdc_operation != 'D'
+-- )
+
+-- select
+--     PHA_ID,
+--     upper(trim(PHA_IDNAT)) as PHA_IDNAT,
+--     upper(trim(PHA_GERS))  as PHA_GERS,
+--     upper(trim(PHA_NOM))   as PHA_NOM,
+--     PHA_DATE_INSTAL_WP,
+--     cdc_timestamp as loaded_at
+-- from dedup_cdc
+-- where rn = 1
+
+
 {{
     config(
         materialized='table',
-        schema='STAGING',
+        incremental_strategy='merge',
         unique_key=['PHA_ID'],
-        tags=['staging', 'pharmacie', 'ref']
+        schema='STAGING',
+        tags=['staging', 'pharmacie', 'ref', 'incremental']
     )
 }}
 
-with dedup_cdc as (
+with source_data as (
+    select * from {{ ref('raw_pharmacie') }}
+    where cdc_operation != 'D'
+    {% if is_incremental() %}
+      and cdc_timestamp >= (select coalesce(max(loaded_at), '1900-01-01') from {{ this }})
+    {% endif %}
+),
+dedup_cdc as (
     select *,
         row_number() over (
             partition by PHA_ID
             order by cdc_timestamp desc nulls last
         ) as rn
-    from {{ ref('raw_pharmacie') }}
-    where cdc_operation != 'D'
+    from source_data
 )
-
-select
-    PHA_ID,
-    upper(trim(PHA_IDNAT)) as PHA_IDNAT,
-    upper(trim(PHA_GERS))  as PHA_GERS,
-    upper(trim(PHA_NOM))   as PHA_NOM,
-    PHA_DATE_INSTAL_WP,
-    cdc_timestamp as loaded_at
-from dedup_cdc
-where rn = 1
+select PHA_ID, upper(trim(PHA_IDNAT)) as PHA_IDNAT, upper(trim(PHA_GERS)) as PHA_GERS,
+    upper(trim(PHA_NOM)) as PHA_NOM, PHA_DATE_INSTAL_WP, cdc_timestamp as loaded_at
+from dedup_cdc where rn = 1
