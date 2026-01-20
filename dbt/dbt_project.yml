@@ -1,0 +1,49 @@
+# dbt project MediCore - Pharmacie ELT Pipeline
+name: 'medicore'
+version: '1.0.0'
+config-version: 2
+
+profile: 'medicore'
+
+model-paths: ["models"]
+analysis-paths: ["analysis"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  medicore:
+    raw:
+      +materialized: view
+      +schema: RAW
+      +tags: ['raw']
+    staging:
+      +materialized: table
+      +schema: STAGING
+      +unique_key: '{{ unique_key }}'  # Hérité des modèles
+    marts:
+      +materialized: table
+      +schema: MARTS
+      +cluster_by: ['pharmacie_sk', 'date_vente']
+      +tags: ['marts']
+
+vars:
+  # Variables globales pour tous les modèles
+  pharmacie_sk: "{{ md5(PHA_ID::string || loaded_at::string) }}"
+  produit_sk: "{{ md5(PHA_ID::string || PRD_ID::string) }}"
+  
+# Configuration Snowflake spécifique
++snowflake_warehouse: "{{ var('warehouse', 'MEDIcore_WH') }}"
++threads: 4
+
+# Sélecteurs pour orchestration
+dispatch:
+  - name: 'high_volume'
+    tags: ['high_volume']
+    warehouse_size: 'MEDIUM'

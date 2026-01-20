@@ -1,0 +1,27 @@
+# Configuration Snowflake pour Python connector
+snowflake:
+  account: "${SNOWFLAKE_ACCOUNT}"
+  user: "${SNOWFLAKE_USER}"
+  password: "${SNOWFLAKE_PASSWORD}"
+  role: "MEDIcore_DBT_EXECUTOR"
+  database: "MEDIcore"
+  warehouse: "MEDIcore_WH"
+  schema: "RAW"
+  
+# Targets par environnement
+environments:
+  dev:
+    warehouse: "MEDIcore_WH"
+    schema: "RAW_DEV"
+  prod:
+    warehouse: "MEDIcore_WH_XL"
+    schema: "RAW_PROD"
+  
+# Tables à surveiller pour CDC
+cdc_tables:
+  - COMMANDES
+  - FACTURES
+  - MODSTOCK
+  - ORDERS
+  - HISTORY
+  - DAYBYDAY

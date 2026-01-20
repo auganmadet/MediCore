@@ -1,0 +1,122 @@
+version: '3.8'
+
+services:
+  # 🧠 Pipeline MediCore (dbt + Python)
+  medicore-elt-batch:
+    build: .                        # Build Dockerfile local
+    container_name: medicore_elt_batch
+    env_file:
+      - .env
+    environment:
+      # - DBT_PROFILES_DIR=/app/dbt   # déclaré dans .env
+      - ENV=dev
+      # - BATCH_INTERVAL_MIN=5        # 5min pour DEV, déclaré dans .env
+      # - BATCH_MODE=true             # Mode batch quotidien
+      # - KAFKA_BOOTSTRAP_SERVERS: kafka:9092   # pour kafka-python lib, déclaré dans .env
+    volumes:
+      - ./dbt:/app/dbt
+      - ./pipelines:/app/pipelines
+      - ./logs:/app/logs
+      - dbt_cache:/root/.dbt
+    depends_on:
+      # - dbt_deps
+      - kafka
+      - connect
+      - mysql_cdc
+    networks:
+      - medicore_net
+    restart: unless-stopped         # Container reste actif + exécute batch périodiquement
+    command: ./scripts/batch_loop.sh ${ENV:-dev}
+
+  # dbt_deps:
+  #   build: .
+  #   container_name: medicore_dbt_deps
+  #   volumes:
+  #     - dbt_cache:/root/.dbt
+  #   command: dbt deps
+  #   profiles: ["dbt"]
+
+# 🐘 MySQL de démo pour CDC (équivalent Winstat local)
+  mysql_cdc:
+    image: debezium/example-mysql:2.7
+    container_name: mysql_cdc
+    environment:
+      - MYSQL_ROOT_PASSWORD=debezium
+      - MYSQL_USER=cdc_user
+      - MYSQL_PASSWORD=cdc_password
+      - MYSQL_DATABASE=winstat
+    ports:
+      - "3307:3306"   # accès local optionnel
+    networks:
+      - medicore_net
+
+  # 🦍 Zookeeper (nécessaire pour Kafka classique)
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - medicore_net
+
+  # 📬 Kafka broker
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    ports:
+      - "9092:9092"
+    networks:
+      - medicore_net
+
+  # 🔌 Kafka Connect + Debezium MySQL connector (publie MySQL → Kafka)
+  # connect (Debezium) se connecte à mysql_cdc et publie les événements binlog sur Kafka 
+  # (topics dbserver1.winstat.COMMANDES, etc.)
+  connect:
+    image: debezium/connect:2.7
+    container_name: kafka_connect
+    depends_on:
+      - kafka
+      - mysql_cdc
+    environment:
+      BOOTSTRAP_SERVERS: kafka:9092         # nécessaire pour dépendance avec medicore-elt-batch, ne pas confondre avec KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      GROUP_ID: 1
+      CONFIG_STORAGE_TOPIC: connect-configs
+      OFFSET_STORAGE_TOPIC: connect-offsets
+      STATUS_STORAGE_TOPIC: connect-status
+      KEY_CONVERTER_SCHEMAS_ENABLE: "false"
+      VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+      CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      STATUS_STORAGE_REPLICATION_FACTOR: 1
+    ports:
+      - "8083:8083"   # API Kafka Connect
+    networks:
+      - medicore_net
+
+  # 🧭 Kafdrop (UI pour voir les topics Kafka)
+  kafdrop:
+    image: obsidiandynamics/kafdrop:4.0.1
+    container_name: kafdrop
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BROKERCONNECT: kafka:9092
+    ports:
+      - "9000:9000"
+    networks:
+      - medicore_net
+
+volumes:
+  dbt_cache:
+
+networks:
+  medicore_net:
+    driver: bridge

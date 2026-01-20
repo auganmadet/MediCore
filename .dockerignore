@@ -1,0 +1,12 @@
+.git
+.gitignore
+README.md
+docs/
+*.md
+.nyc_output
+coverage/
+.nyc_output
+target/
+logs/
+.env
+.pytest_cache/
