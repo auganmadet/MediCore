@@ -1,4 +1,8 @@
 #!/bin/bash
+
+#Version ancienne (Python local) sans Docker
+# à supprimer par la suite
+
 echo "🏗️  Setup MediCore ELT Pipeline"
 
 # 1. Installation dépendances

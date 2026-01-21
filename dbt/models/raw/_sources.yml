@@ -352,6 +352,8 @@ sources:
           
       # MODSTOCK (14 colonnes)
       - name: RAW_MODSTOCK
+        freshness:
+          warn_after: {count: 12, period: hour}
         columns:
           - name: PHA_ID
             description: "ID pharmacie"
@@ -395,6 +397,8 @@ sources:
 
       # ORDERS (26 colonnes)
       - name: RAW_ORDERS
+        freshness:
+          warn_after: {count: 6, period: hour}
         columns:
           - name: PHA_ID
             description: "ID pharmacie"
