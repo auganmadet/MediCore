@@ -1,4 +1,9 @@
-"""CDC Ingestion via MySQL binlog avec Debezium + masquage PII"""
+"""
+CDC Ingestion via MySQL binlog avec Debezium + masquage PII
+Exécuté en boucle infinie
+Kafka consumer permanent → Snowflake temps réel
+Conçu pour streaming (non utilisé) --> à supprimer
+"""
 import json
 import logging
 import os
