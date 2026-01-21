@@ -3,7 +3,7 @@
         materialized='incremental',
         schema='MART',
         unique_key='pharmacie_sk',
-        tags=['dim', 'pharmacie']
+        tags=[marts, 'dim', 'pharmacie']
     )
 }}
 

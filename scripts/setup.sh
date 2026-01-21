@@ -14,6 +14,7 @@ print('✅ Snowflake OK')
 
 # 2. Configurer Debezium connector
 echo "🔌 Config Debezium..."
+# curl -X POST http://localhost:8083/connectors \
 curl -X POST http://localhost:8083/connectors \
   -H "Content-Type: application/json" \
   -d '{
@@ -33,7 +34,7 @@ curl -X POST http://localhost:8083/connectors \
 
 # 3. Création des objets Snowflake (Warehouse, rôles, tables...)
 echo "🏗️ Création tables RAW Snowflake..."
-docker exec medicore_elt_batch snowsql -f /app/sql/DDL_TABLES.sql
 docker exec medicore_elt_batch snowsql -f /app/sql/DDL_WH.sql
+docker exec medicore_elt_batch snowsql -f /app/sql/DDL_TABLES.sql
 
 echo "🚀 Setup terminé ! docker compose up -d"
