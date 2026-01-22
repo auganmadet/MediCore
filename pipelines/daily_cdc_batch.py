@@ -116,60 +116,62 @@ class MediCoreCDC:
         
         return event
     
-def _mask_pii(self, event: Dict, table_name: str) -> Dict:
-    """🛡️ Masquage PII MediCore - RGPD compliant"""
-    masked = event.copy()
+    def _mask_pii(self, event: Dict, table_name: str) -> Dict:
+        """🛡️ Masquage PII MediCore - RGPD compliant"""
+        masked = event.copy()
     
-    # RAW_ORDERS : Patients + Opérateur
-    if 'ORDERS' in table_name.upper():
-        # Opérateur pharmacie
-        if 'ORD_OPERATEUR' in masked:
-            masked['ORD_OPERATEUR'] = f"USER_{hashlib.md5(str(masked['ORD_OPERATEUR']).encode()).hexdigest()[:4].upper()}"
+        # RAW_ORDERS : Patients + Opérateur
+        if 'ORDERS' in table_name.upper():
+            # Opérateur pharmacie
+            if 'ORD_OPERATEUR' in masked:
+                masked['ORD_OPERATEUR'] = f"USER_{hashlib.md5(str(masked['ORD_OPERATEUR']).encode()).hexdigest()[:4].upper()}"
         
-        # Âge patient → quartile anonyme
-        if 'ORD_CLIENT_AGE_MONTHS' in masked and masked['ORD_CLIENT_AGE_MONTHS']:
-            age_months = int(masked['ORD_CLIENT_AGE_MONTHS'])
-            quartile = (age_months // 36) * 36  # Par tranche 3 ans
-            masked['ORD_CLIENT_AGE_MONTHS'] = f"{quartile}-{quartile+35}m"
+            # Âge patient → quartile anonyme
+            if 'ORD_CLIENT_AGE_MONTHS' in masked and masked['ORD_CLIENT_AGE_MONTHS']:
+                age_months = int(masked['ORD_CLIENT_AGE_MONTHS'])
+                quartile = (age_months // 36) * 36  # Par tranche 3 ans
+                masked['ORD_CLIENT_AGE_MONTHS'] = f"{quartile}-{quartile+35}m"
         
-        # Département → masqué
-        if 'ORD_CLIENT_DEPARTEMENT' in masked:
-            masked['ORD_CLIENT_DEPARTEMENT'] = f"DEP{str(masked['ORD_CLIENT_DEPARTEMENT'])[:2]}***"
+            # Département → masqué
+            if 'ORD_CLIENT_DEPARTEMENT' in masked:
+                masked['ORD_CLIENT_DEPARTEMENT'] = f"DEP{str(masked['ORD_CLIENT_DEPARTEMENT'])[:2]}***"
     
-    # RAW_PHARMACIE : Nom officine
-    if 'PHARMACIE' in table_name.upper():
-        if 'PHA_NOM' in masked:
-            masked['PHA_NOM'] = f"PHARM_{hashlib.md5(str(masked['PHA_NOM']).encode()).hexdigest()[:4].upper()}"
+        # RAW_PHARMACIE : Nom officine
+        if 'PHARMACIE' in table_name.upper():
+            if 'PHA_NOM' in masked:
+                masked['PHA_NOM'] = f"PHARM_{hashlib.md5(str(masked['PHA_NOM']).encode()).hexdigest()[:4].upper()}"
     
-    # RAW_PHARMACIES : Coordonnées sensibles
-    if 'PHARMACIES' in table_name.upper():
-        # ADELI pharmacien
-        if 'adeli' in masked:
-            masked['adeli'] = f"***{masked['adeli'][-4:]}"
-        # Nom officine
-        if 'name' in masked:
-            masked['name'] = f"PHARM_{hashlib.md5(str(masked['name']).encode()).hexdigest()[:4].upper()}"
-        # Téléphone
-        if 'phone' in masked:
-            phone = str(masked['phone']).replace(' ', '').replace('.', '')
-            masked['phone'] = f"{phone[:2]}**{phone[-4:]}"
-        # Code postal
-        if 'postal_code' in masked:
-            masked['postal_code'] = f"{masked['postal_code'][:2]}***"
+        # RAW_PHARMACIES : Coordonnées sensibles
+        if 'PHARMACIES' in table_name.upper():
+            # ADELI pharmacien
+            if 'adeli' in masked:
+                masked['adeli'] = f"***{masked['adeli'][-4:]}"
+            # Nom officine
+            if 'name' in masked:
+                masked['name'] = f"PHARM_{hashlib.md5(str(masked['name']).encode()).hexdigest()[:4].upper()}"
+            # Téléphone
+            if 'phone' in masked:
+                phone = str(masked['phone']).replace(' ', '').replace('.', '')
+                masked['phone'] = f"{phone[:2]}**{phone[-4:]}"
+            # Code postal
+            if 'postal_code' in masked:
+                masked['postal_code'] = f"{masked['postal_code'][:2]}***"
     
-    # RAW_MEDIPRIX_FACTURES
-    if 'MEDIPRIX_FACTURES' in table_name.upper():
-        if 'ORD_OPERATEUR' in masked:
-            masked['ORD_OPERATEUR'] = f"USER_{hashlib.md5(str(masked['ORD_OPERATEUR']).encode()).hexdigest()[:4].upper()}"
-        if 'PHA_NOM' in masked:
-            masked['PHA_NOM'] = f"PHARM_{hashlib.md5(str(masked['PHA_NOM']).encode()).hexdigest()[:4].upper()}"
+        # RAW_MEDIPRIX_FACTURES
+        if 'MEDIPRIX_FACTURES' in table_name.upper():
+            if 'ORD_OPERATEUR' in masked:
+                masked['ORD_OPERATEUR'] = f"USER_{hashlib.md5(str(masked['ORD_OPERATEUR']).encode()).hexdigest()[:4].upper()}"
+            if 'PHA_NOM' in masked:
+                masked['PHA_NOM'] = f"PHARM_{hashlib.md5(str(masked['PHA_NOM']).encode()).hexdigest()[:4].upper()}"
     
-    # Fournisseurs B2B = public → NON masqué
-    if 'FOURNISSEURS' in table_name.upper():
-        pass  # Garder tel quel
+        # Fournisseurs B2B = public → NON masqué
+        if 'FOURNISSEURS' in table_name.upper():
+            pass  # Garder tel quel
     
-    return masked
+        return masked
     
+		
+
     def _insert_raw_event(self, table_name: str, event: Dict):
         """INSERT évènement dans Snowflake RAW_{table_name}"""
         cursor = self.sf_conn.cursor()
@@ -180,11 +182,12 @@ def _mask_pii(self, event: Dict, table_name: str) -> Dict:
         
         query = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
         
-        logger.debug(f"🔍 INSERT DEBUG:")
-        logger.debug(f"  Table: {table_name}")
-        logger.debug(f"  Columns: {columns[:100]}...")
-        logger.debug(f"  Values count: {len(values)}")
-        logger.debug(f"  Query preview: {query[:150]}...")
+        # logger.debug -> logger.info (plus light pour la PROD)
+        logger.info(f"🔍 INSERT DEBUG:")
+        logger.info(f"  Table: {table_name}")
+        logger.info(f"  Columns: {columns[:100]}...")
+        logger.info(f"  Values count: {len(values)}")
+        logger.info(f"  Query preview: {query[:150]}...")
         
         cursor.execute(query, values)
         
