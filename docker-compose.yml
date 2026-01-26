@@ -76,7 +76,7 @@ services:
     networks:
       - medicore_net
 
-  # 🔌 Kafka Connect + Debezium MySQL connector (publie MySQL → Kafka)
+  # 🔌 Kafka Connect + Debezium MySQL connector (publie MySQL → Kafka) + Snowflake Sink
   # connect (Debezium) se connecte à mysql_cdc et publie les événements binlog sur Kafka 
   # (topics dbserver1.winstat.COMMANDES, etc.)
   connect:
@@ -96,6 +96,7 @@ services:
       # CONFIG_STORAGE_REPLICATION_FACTOR: 1
       # OFFSET_STORAGE_REPLICATION_FACTOR: 1
       # STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components"    # Snowflake connector
     ports:
       - "8083:8083"   # API Kafka Connect
     volumes:

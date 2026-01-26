@@ -3,9 +3,9 @@ USE ROLE ACCOUNTADMIN;
 
 -- 1. Créer le Warehouse (taille SMALL pour tests, scale à MEDIUM/LARGE en prod)
 CREATE OR REPLACE WAREHOUSE MEDIcore_WH
-    WAREHOUSE_SIZE = 'SMALL'
+    WAREHOUSE_SIZE = 'XSMALL'
     WAREHOUSE_PADDING_POLICY = 'STANDARD'
-    AUTO_SUSPEND = 300		-- arrêt automatique du warehouse après 300 s d'inactivité (valeur optimisée)
+    AUTO_SUSPEND = 60		-- arrêt automatique du warehouse après 60 s d'inactivité (valeur optimisée)
     AUTO_RESUME = TRUE		-- Quand une nouvelle requête arrive sur un warehouse suspendu, il redémarre 	instantanément (< 2s de délai).
     INITIALLY_SUSPENDED = TRUE
     COMMENT = 'Warehouse dédié MediCore ELT pipeline';

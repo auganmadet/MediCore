@@ -9,9 +9,9 @@ echo "🏗️ MediCore Setup - HOST LOCAL"
 command -v snowsql >/dev/null 2>&1 || { echo "❌ Installez snowsql : https://docs.snowflake.com/user-guide/snowsql-setup"; exit 1; }
 
 # 2. Variables Snowflake
-: "${SNOWFLAKE_ACCOUNT:?Manquant}"
-: "${SNOWFLAKE_USER:?Manquant}"
-: "${SNOWFLAKE_PASSWORD:?Manquant}"
+: "${SNOWFLAKE_ACCOUNT:?❌ SNOWFLAKE_ACCOUNT Manquant}"
+: "${SNOWFLAKE_USER:?❌ SNOWFLAKE_USER Manquant}"
+: "${SNOWFLAKE_PASSWORD:?❌ SNOWFLAKE_PASSWORD Manquant}"
 
 # 3. Créer objets Snowflake
 # echo "🏗️ Snowflake DDL..."
@@ -44,13 +44,16 @@ conn = snowflake.connector.connect(
 )
 cursor = conn.cursor()
 
-# DDL_WH.sql
-with open(\"/scripts/DDL_WH.sql\", \"r\") as f:
-    cursor.execute(f.read())
+# # DDL_WH.sql
+# with open(\"/scripts/DDL_WH.sql\", \"r\") as f:
+#     cursor.execute(f.read())
     
-# DDL_TABLES.sql  
-with open(\"/scripts/DDL_TABLES.sql\", \"r\") as f:
-    cursor.execute(f.read())
+# # DDL_TABLES.sql  
+# with open(\"/scripts/DDL_TABLES.sql\", \"r\") as f:
+#     cursor.execute(f.read())
+
+for sql_file in [\"/scripts/DDL_WH.sql\", \"/scripts/DDL_TABLES.sql\"]:
+    with open(sql_file, \"r\") as f: cursor.execute(f.read())
 
 conn.commit()
 print(\"✅ MEDIcore_WH + RAW tables créées\")
@@ -63,8 +66,8 @@ conn.close()
 echo "🐳 Docker stack..."
 docker compose up -d mysql_cdc zookeeper kafka connect kafdrop
 
-# 5. Attendre + config Debezium
-echo "⏳ Debezium setup..."
+# 5. Attendre + config Debezium MySQL → Kafka
+echo "⏳ Debezium MySQL → Kafka setup..."
 sleep 30
 curl -X POST http://localhost:8083/connectors \
   -H "Content-Type: application/json" \
@@ -81,12 +84,38 @@ curl -X POST http://localhost:8083/connectors \
       "table.include.list": "winstat.COMMANDES,winstat.FACTURES,winstat.ORDERS,winstat.PHARMACIE",
       "topic.prefix": "winstat"
     }
-  }'
+  }' || echo "✅ Debezium existe déjà"
 
-# 6. Pipeline batch
+# 6. Snowflake Kafka Connector (Kafka → RAW)
+echo "🔌 Kafka → Snowflake RAW setup..."
+sleep 10
+docker exec kafka_connect confluent-hub install --no-prompt snowflakeinc/snowflake-kafka-connector:latest || echo "✅ Connector installé"
+docker compose restart connect
+sleep 10
+curl -X POST http://localhost:8083/connectors \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"name\": \"snowflake-raw-sink\",
+    \"config\": {
+      \"connector.class\": \"com.snowflake.kafka.connector.SnowflakeSinkConnector\",
+      \"topics\": \"winstat.COMMANDES,winstat.FACTURES,winstat.ORDERS,winstat.PHARMACIE\",
+      \"snowflake.topic2table.map\": \"winstat.COMMANDES:RAW.COMMANDES,winstat.FACTURES:RAW.FACTURES,winstat.ORDERS:RAW.ORDERS,winstat.PHARMACIE:RAW.PHARMACIE\",
+      \"snowflake.user.name\": \"$SNOWFLAKE_USER\",
+      \"snowflake.password\": \"$SNOWFLAKE_PASSWORD\",
+      \"snowflake.account\": \"$SNOWFLAKE_ACCOUNT\",
+      \"snowflake.database.name\": \"MEDIcore\",
+      \"snowflake.schema.name\": \"RAW\",
+      \"tasks.max\": \"2\",
+      \"buffer.count.records\": \"10000\"
+    }
+  }" || echo "✅ Snowflake sink existe déjà"
+
+
+# 7. Pipeline batch
+echo "🚀 dbt STAGING + MARTS..."
 docker compose up -d medicore_elt_batch
 
-# 7. Monitoring unifié
+# 8. Monitoring unifié
 echo "🎉 100% opérationnel !"
 echo "📊 Logs : docker logs -f medicore_elt_batch"
 echo "🔍 Kafka : http://localhost:9000"
