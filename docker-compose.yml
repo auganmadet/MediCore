@@ -91,13 +91,17 @@ services:
       CONFIG_STORAGE_TOPIC: connect-configs
       OFFSET_STORAGE_TOPIC: connect-offsets
       STATUS_STORAGE_TOPIC: connect-status
-      KEY_CONVERTER_SCHEMAS_ENABLE: "false"
-      VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
-      CONFIG_STORAGE_REPLICATION_FACTOR: 1
-      OFFSET_STORAGE_REPLICATION_FACTOR: 1
-      STATUS_STORAGE_REPLICATION_FACTOR: 1
+      # KEY_CONVERTER_SCHEMAS_ENABLE: "false"
+      # VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+      # CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      # OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      # STATUS_STORAGE_REPLICATION_FACTOR: 1
     ports:
       - "8083:8083"   # API Kafka Connect
+    volumes:
+      - connect_config:/kafka/connect-configs
+      - connect_offset:/kafka/connect-offsets  
+      - connect_status:/kafka/connect-statuses
     networks:
       - medicore_net
 
@@ -116,6 +120,9 @@ services:
 
 volumes:
   dbt_cache:
+  connect_config:
+  connect_offset:
+  connect_status:
 
 networks:
   medicore_net:

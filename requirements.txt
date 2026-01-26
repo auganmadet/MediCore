@@ -6,7 +6,7 @@ mysql-connector-python==8.2.0       # Connexion MySQL
 pymysql-replication==0.45           # Lecture du binlog (CDC)
 
 # Snowflake
-snowflake-connector-python==3.6.0   # Connexion Snowflake
+# snowflake-connector-python==3.6.0   # Connexion Snowflake # lib instalée par setup.sh en amont
 snowflake-connector-python[pandas]==3.7.2
 snowflake-sqlalchemy==1.5.1
 
