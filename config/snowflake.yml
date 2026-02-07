@@ -4,10 +4,10 @@ snowflake:
   account: "${SNOWFLAKE_ACCOUNT}"
   user: "${SNOWFLAKE_USER}"
   password: "${SNOWFLAKE_PASSWORD}"
-  role: "MEDIcore_DBT_EXECUTOR"
-  database: "MEDIcore"
-  warehouse: "MEDIcore_WH"
-  schema: "RAW"
+  role: "${SNOWFLAKE_ROLE_NAME}"
+  database: "${SNOWFLAKE_DATABASE}"
+  warehouse: "${SNOWFLAKE_WAREHOUSE_NAME}"
+  schema: "${SNOWFLAKE_PASSWORD}"
   
 # Targets par environnement
 environments:

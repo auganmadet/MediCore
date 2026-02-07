@@ -244,3 +244,13 @@ ETL (Ancien modèle)           ELT (Moderne - cas MediCore)
 🔄 Récalculs faciles (rejouer la transformation)
 
 📈 Séparation responsabilités (extraction ≠ transformation)
+
+
+**Prérequis :**
+# Installer jq
+# Une seule fois :
+mkdir -p ~/bin
+curl -L -o ~/bin/jq.exe https://github.com/jqlang/jq/releases/latest/download/jq-win64.exe
+echo 'export PATH="$HOME/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+jq --version  # doit afficher jq-1.x.x

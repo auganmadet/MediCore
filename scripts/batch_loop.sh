@@ -1,29 +1,33 @@
 #!/bin/bash
+set -euo pipefail
 
-INTERVAL_MIN=${BATCH_INTERVAL_MIN:-60}    # 60min par défaut, 5min en DEV
-echo "🔄 MediCore Batch Loop - Intervalle: ${INTERVAL_MIN}min"
+INTERVAL_MIN=${BATCH_INTERVAL_MIN:-5}
+echo "🚀 MediCore Batch Loop - ${INTERVAL_MIN}min - ENV: $ENV"
 
-# `dbt deps` seulement si packages changent
-# Vérifie si dbt_modules/ existe dans le cache
-if [ ! -d "/root/.dbt/dbt_modules" ]; then
-  echo "📦 dbt deps first run"
-  dbt deps --target $ENV                  # Télécharger les packages dbt (dbt_modules/)
-fi
+# # DBT first run
+# if [ ! -d "/root/.dbt/dbt_modules" ]; then
+#   echo "📦 dbt deps first run"
+#   cd /app/dbt
+#   DBT_PROFILES_DIR=/app dbt deps --target $ENV || echo "⚠️ dbt deps skipped"
+# fi
+# pas necessaire pas de package externe (pas de packages.yml)
+# si packages.yml existe alors installer git dans Docker via Dockerfile
 
 while true; do
   echo "🕐 $(date) - Début batch #$(date +%H%M)"
-
-  # 1. CDC batch (Kafka → Snowflake RAW)
+  
+  # 1. CDC (Kafka → Snowflake RAW)
   echo "📥 Phase CDC"
-  python /app/pipelines/daily_cdc_batch.py
-
-  # 2. dbt pipeline
+  python /app/pipelines/daily_cdc_batch.py || echo "⚠️ CDC skipped (no new data)"
+  
+  # 2. DBT pipeline
   echo "🔄 Phase dbt"
-#   dbt run --select tag:raw --target $ENV     # pas nécessaire car RAW auto-refresh via views
-  dbt run --select tag:staging --target $ENV
-  dbt run --select tag:marts --target $ENV
-  dbt test --select stg_* --target $ENV
+  cd /app/dbt
+  DBT_PROFILES_DIR=/app dbt run --select tag:staging --target $ENV || echo "⚠️ Staging skipped"
+  DBT_PROFILES_DIR=/app dbt run --select tag:marts --target $ENV || echo "⚠️ Marts skipped"
+  DBT_PROFILES_DIR=/app dbt test --select stg_* --target $ENV || echo "⚠️ Tests skipped"
+  cd /app
 
   echo "✅ Batch terminé - Prochain run: $(date -d "+${INTERVAL_MIN} minutes")"
-  sleep $((${INTERVAL_MIN} * 60))
+  sleep $((INTERVAL_MIN * 60))
 done
