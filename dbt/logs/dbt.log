@@ -1,0 +1,349 @@
+[0m16:40:58.804686 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x73105c6d0450>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x73105c8e1450>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x73105c704a10>]}
+
+
+============================== 16:40:58.808470 | 2a7f1837-e72d-494b-952f-9273cadb3d53 ==============================
+[0m16:40:58.808470 [info ] [MainThread]: Running with dbt=1.8.0
+[0m16:40:58.809497 [debug] [MainThread]: running dbt with arguments {'printer_width': '80', 'indirect_selection': 'eager', 'log_cache_events': 'False', 'write_json': 'True', 'partial_parse': 'True', 'cache_selected_only': 'False', 'warn_error': 'None', 'fail_fast': 'False', 'version_check': 'True', 'log_path': 'dbt/logs', 'profiles_dir': '/app', 'debug': 'False', 'use_colors': 'True', 'use_experimental_parser': 'False', 'no_print': 'None', 'quiet': 'False', 'log_format': 'default', 'invocation_command': 'dbt deps --project-dir dbt --profiles-dir /app --target dev', 'static_parser': 'True', 'introspect': 'True', 'target_path': 'None', 'warn_error_options': 'WarnErrorOptions(include=[], exclude=[])', 'send_anonymous_usage_stats': 'True'}
+[0m16:40:58.860022 [error] [MainThread]: Encountered an error:
+Runtime Error
+  at path []: Additional properties are not allowed ('+snowflake_warehouse', '+threads' were unexpected)
+
+Error encountered in dbt/dbt_project.yml
+[0m16:40:58.863488 [debug] [MainThread]: Resource report: {"command_name": "deps", "command_wall_clock_time": 0.10942266, "process_user_time": 0.979989, "process_kernel_time": 0.410588, "process_mem_max_rss": "96636", "process_in_blocks": "1000", "process_out_blocks": "1632", "command_success": false}
+[0m16:40:58.864809 [debug] [MainThread]: Command `dbt deps` failed at 16:40:58.864704 after 0.11 seconds
+[0m16:40:58.865677 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x731060bc59d0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x73105dadc110>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x73105dadc210>]}
+[0m16:40:58.866317 [debug] [MainThread]: Flushing usage events
+[0m16:41:10.501931 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x77789060d690>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x777890647b10>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x77789060d510>]}
+
+
+============================== 16:41:10.504974 | 66282b65-0dcd-4957-b922-96b0724368a3 ==============================
+[0m16:41:10.504974 [info ] [MainThread]: Running with dbt=1.8.0
+[0m16:41:10.505963 [debug] [MainThread]: running dbt with arguments {'printer_width': '80', 'indirect_selection': 'eager', 'log_cache_events': 'False', 'write_json': 'True', 'partial_parse': 'True', 'cache_selected_only': 'False', 'warn_error': 'None', 'version_check': 'True', 'profiles_dir': '/app', 'log_path': 'dbt/logs', 'fail_fast': 'False', 'debug': 'False', 'use_colors': 'True', 'use_experimental_parser': 'False', 'no_print': 'None', 'quiet': 'False', 'warn_error_options': 'WarnErrorOptions(include=[], exclude=[])', 'static_parser': 'True', 'invocation_command': 'dbt run --project-dir dbt --profiles-dir /app --select tag:staging --target dev', 'log_format': 'default', 'target_path': 'None', 'introspect': 'True', 'send_anonymous_usage_stats': 'True'}
+[0m16:41:10.509626 [error] [MainThread]: Encountered an error:
+Runtime Error
+  Could not find profile named 'medicore'
+[0m16:41:10.510969 [debug] [MainThread]: Resource report: {"command_name": "run", "command_wall_clock_time": 0.04875425, "process_user_time": 0.806726, "process_kernel_time": 0.078322, "process_mem_max_rss": "95028", "command_success": false, "process_in_blocks": "0", "process_out_blocks": "0"}
+[0m16:41:10.512112 [debug] [MainThread]: Command `dbt run` failed at 16:41:10.512009 after 0.05 seconds
+[0m16:41:10.512821 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x77789065fb90>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x77789065fb10>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7778905fbf10>]}
+[0m16:41:10.513480 [debug] [MainThread]: Flushing usage events
+[0m16:41:12.257656 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7d97e9e311d0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7d97e9f691d0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7d97e9e31690>]}
+
+
+============================== 16:41:12.260487 | 3d68a875-afc9-4874-a5b4-5e79b0a6a94d ==============================
+[0m16:41:12.260487 [info ] [MainThread]: Running with dbt=1.8.0
+[0m16:41:12.262504 [debug] [MainThread]: running dbt with arguments {'printer_width': '80', 'indirect_selection': 'eager', 'log_cache_events': 'False', 'write_json': 'True', 'partial_parse': 'True', 'cache_selected_only': 'False', 'warn_error': 'None', 'version_check': 'True', 'fail_fast': 'False', 'log_path': 'dbt/logs', 'debug': 'False', 'profiles_dir': '/app', 'use_colors': 'True', 'use_experimental_parser': 'False', 'no_print': 'None', 'quiet': 'False', 'warn_error_options': 'WarnErrorOptions(include=[], exclude=[])', 'invocation_command': 'dbt run --project-dir dbt --profiles-dir /app --select tag:marts --target dev', 'static_parser': 'True', 'log_format': 'default', 'target_path': 'None', 'introspect': 'True', 'send_anonymous_usage_stats': 'True'}
+[0m16:41:12.267164 [error] [MainThread]: Encountered an error:
+Runtime Error
+  Could not find profile named 'medicore'
+[0m16:41:12.268542 [debug] [MainThread]: Resource report: {"command_name": "run", "command_wall_clock_time": 0.059112903, "process_user_time": 0.882345, "process_kernel_time": 0.081987, "process_mem_max_rss": "95564", "command_success": false, "process_in_blocks": "0", "process_out_blocks": "0"}
+[0m16:41:12.269346 [debug] [MainThread]: Command `dbt run` failed at 16:41:12.269254 after 0.06 seconds
+[0m16:41:12.270015 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7d97e9e303d0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7d97eb248510>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7d97e9e1fbd0>]}
+[0m16:41:12.270748 [debug] [MainThread]: Flushing usage events
+[0m16:41:13.940782 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7db783988d50>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7db783982510>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7db783980b90>]}
+
+
+============================== 16:41:13.943807 | c4066b0d-d903-4fb7-a1f4-a8ed3b8fc362 ==============================
+[0m16:41:13.943807 [info ] [MainThread]: Running with dbt=1.8.0
+[0m16:41:13.945080 [debug] [MainThread]: running dbt with arguments {'printer_width': '80', 'indirect_selection': 'eager', 'log_cache_events': 'False', 'write_json': 'True', 'partial_parse': 'True', 'cache_selected_only': 'False', 'profiles_dir': '/app', 'fail_fast': 'False', 'warn_error': 'None', 'log_path': 'dbt/logs', 'debug': 'False', 'version_check': 'True', 'use_colors': 'True', 'use_experimental_parser': 'False', 'no_print': 'None', 'quiet': 'False', 'warn_error_options': 'WarnErrorOptions(include=[], exclude=[])', 'invocation_command': 'dbt test --project-dir dbt --profiles-dir /app --select stg_* --target dev', 'log_format': 'default', 'static_parser': 'True', 'target_path': 'None', 'introspect': 'True', 'send_anonymous_usage_stats': 'True'}
+[0m16:41:13.956411 [error] [MainThread]: Encountered an error:
+Runtime Error
+  Could not find profile named 'medicore'
+[0m16:41:13.958947 [debug] [MainThread]: Resource report: {"command_name": "test", "command_wall_clock_time": 0.10900256, "process_user_time": 0.873864, "process_kernel_time": 0.113641, "process_mem_max_rss": "95688", "command_success": false, "process_in_blocks": "0", "process_out_blocks": "0"}
+[0m16:41:13.961092 [debug] [MainThread]: Command `dbt test` failed at 16:41:13.960574 after 0.11 seconds
+[0m16:41:13.963214 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7db7839d7590>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7db7839d7510>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7db783976e10>]}
+[0m16:41:13.965175 [debug] [MainThread]: Flushing usage events
+[0m21:17:02.422635 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7707cfe9b150>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7707d041a790>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7707cfe9bad0>]}
+
+
+============================== 21:17:02.425531 | 90952543-cd45-429d-8944-c687f9bab31c ==============================
+[0m21:17:02.425531 [info ] [MainThread]: Running with dbt=1.8.0
+[0m21:17:02.426366 [debug] [MainThread]: running dbt with arguments {'printer_width': '80', 'indirect_selection': 'eager', 'log_cache_events': 'False', 'write_json': 'True', 'partial_parse': 'True', 'cache_selected_only': 'False', 'warn_error': 'None', 'fail_fast': 'False', 'version_check': 'True', 'log_path': 'dbt/logs', 'profiles_dir': '/app', 'debug': 'False', 'use_colors': 'True', 'use_experimental_parser': 'False', 'no_print': 'None', 'quiet': 'False', 'log_format': 'default', 'introspect': 'True', 'invocation_command': 'dbt run --project-dir dbt --profiles-dir /app --select tag:staging --target dev', 'static_parser': 'True', 'target_path': 'None', 'warn_error_options': 'WarnErrorOptions(include=[], exclude=[])', 'send_anonymous_usage_stats': 'True'}
+[0m21:17:02.429989 [error] [MainThread]: Encountered an error:
+Runtime Error
+  Could not find profile named 'medicore'
+[0m21:17:02.431108 [debug] [MainThread]: Resource report: {"command_name": "run", "command_wall_clock_time": 0.055790965, "process_user_time": 0.758727, "process_kernel_time": 0.127096, "process_mem_max_rss": "95416", "command_success": false, "process_in_blocks": "0", "process_out_blocks": "0"}
+[0m21:17:02.431836 [debug] [MainThread]: Command `dbt run` failed at 21:17:02.431752 after 0.06 seconds
+[0m21:17:02.432479 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7707cfe9b650>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7707cfe96850>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7707cfe96a50>]}
+[0m21:17:02.433210 [debug] [MainThread]: Flushing usage events
+[0m21:17:04.426225 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7700f64e3cd0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7700f64e31d0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7700f652f410>]}
+
+
+============================== 21:17:04.428982 | 03f2de2d-7215-4bb5-95c2-a8cea410687d ==============================
+[0m21:17:04.428982 [info ] [MainThread]: Running with dbt=1.8.0
+[0m21:17:04.429805 [debug] [MainThread]: running dbt with arguments {'printer_width': '80', 'indirect_selection': 'eager', 'log_cache_events': 'False', 'write_json': 'True', 'partial_parse': 'True', 'cache_selected_only': 'False', 'profiles_dir': '/app', 'fail_fast': 'False', 'debug': 'False', 'log_path': 'dbt/logs', 'warn_error': 'None', 'version_check': 'True', 'use_colors': 'True', 'use_experimental_parser': 'False', 'no_print': 'None', 'quiet': 'False', 'log_format': 'default', 'static_parser': 'True', 'invocation_command': 'dbt run --project-dir dbt --profiles-dir /app --select tag:marts --target dev', 'introspect': 'True', 'target_path': 'None', 'warn_error_options': 'WarnErrorOptions(include=[], exclude=[])', 'send_anonymous_usage_stats': 'True'}
+[0m21:17:04.434411 [error] [MainThread]: Encountered an error:
+Runtime Error
+  Could not find profile named 'medicore'
+[0m21:17:04.435811 [debug] [MainThread]: Resource report: {"command_name": "run", "command_wall_clock_time": 0.051571265, "process_user_time": 0.730127, "process_kernel_time": 0.165758, "process_mem_max_rss": "95948", "command_success": false, "process_in_blocks": "0", "process_out_blocks": "0"}
+[0m21:17:04.436875 [debug] [MainThread]: Command `dbt run` failed at 21:17:04.436782 after 0.05 seconds
+[0m21:17:04.437854 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7700f6533290>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7700f65327d0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7700f6530f50>]}
+[0m21:17:04.438525 [debug] [MainThread]: Flushing usage events
+[0m21:17:06.106372 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7619220fd250>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7619223db410>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7619222e0c90>]}
+
+
+============================== 21:17:06.115263 | 411f2896-89a3-46aa-8aa7-f8da4ce14d07 ==============================
+[0m21:17:06.115263 [info ] [MainThread]: Running with dbt=1.8.0
+[0m21:17:06.120395 [debug] [MainThread]: running dbt with arguments {'printer_width': '80', 'indirect_selection': 'eager', 'write_json': 'True', 'log_cache_events': 'False', 'partial_parse': 'True', 'cache_selected_only': 'False', 'warn_error': 'None', 'version_check': 'True', 'debug': 'False', 'log_path': 'dbt/logs', 'profiles_dir': '/app', 'fail_fast': 'False', 'use_colors': 'True', 'use_experimental_parser': 'False', 'no_print': 'None', 'quiet': 'False', 'warn_error_options': 'WarnErrorOptions(include=[], exclude=[])', 'invocation_command': 'dbt test --project-dir dbt --profiles-dir /app --select stg_* --target dev', 'static_parser': 'True', 'log_format': 'default', 'target_path': 'None', 'introspect': 'True', 'send_anonymous_usage_stats': 'True'}
+[0m21:17:06.133917 [error] [MainThread]: Encountered an error:
+Runtime Error
+  Could not find profile named 'medicore'
+[0m21:17:06.135226 [debug] [MainThread]: Resource report: {"command_name": "test", "command_wall_clock_time": 0.08040234, "process_user_time": 0.764265, "process_kernel_time": 0.07681, "process_mem_max_rss": "95556", "command_success": false, "process_in_blocks": "0", "process_out_blocks": "0"}
+[0m21:17:06.136640 [debug] [MainThread]: Command `dbt test` failed at 21:17:06.136500 after 0.08 seconds
+[0m21:17:06.138040 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7619220fc5d0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x76192676dc50>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7619220ebdd0>]}
+[0m21:17:06.139831 [debug] [MainThread]: Flushing usage events
+[0m21:22:08.111696 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7e0cf50f97d0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7e0cf54519d0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7e0cf5132ed0>]}
+
+
+============================== 21:22:08.114977 | a72185bc-d7b9-45be-ba71-e5a66d3525ae ==============================
+[0m21:22:08.114977 [info ] [MainThread]: Running with dbt=1.8.0
+[0m21:22:08.115772 [debug] [MainThread]: running dbt with arguments {'printer_width': '80', 'indirect_selection': 'eager', 'log_cache_events': 'False', 'write_json': 'True', 'partial_parse': 'True', 'cache_selected_only': 'False', 'warn_error': 'None', 'fail_fast': 'False', 'version_check': 'True', 'log_path': 'dbt/logs', 'profiles_dir': '/app', 'debug': 'False', 'use_colors': 'True', 'use_experimental_parser': 'False', 'no_print': 'None', 'quiet': 'False', 'warn_error_options': 'WarnErrorOptions(include=[], exclude=[])', 'invocation_command': 'dbt run --project-dir dbt --profiles-dir /app --select tag:staging --target dev', 'log_format': 'default', 'introspect': 'True', 'target_path': 'None', 'static_parser': 'True', 'send_anonymous_usage_stats': 'True'}
+[0m21:22:08.119060 [error] [MainThread]: Encountered an error:
+Runtime Error
+  Could not find profile named 'medicore'
+[0m21:22:08.120043 [debug] [MainThread]: Resource report: {"command_name": "run", "command_wall_clock_time": 0.05027951, "process_user_time": 0.781151, "process_kernel_time": 0.099558, "process_mem_max_rss": "95192", "command_success": false, "process_in_blocks": "0", "process_out_blocks": "0"}
+[0m21:22:08.120691 [debug] [MainThread]: Command `dbt run` failed at 21:22:08.120613 after 0.05 seconds
+[0m21:22:08.121201 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7e0cf514bcd0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7e0cf514b990>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7e0cf5124cd0>]}
+[0m21:22:08.121670 [debug] [MainThread]: Flushing usage events
+[0m21:22:09.954989 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7b33f8d63650>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7b33f8d62c90>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7b33f8d75050>]}
+
+
+============================== 21:22:09.957676 | 76232f60-1466-42e2-a5b2-1ee7a1402c74 ==============================
+[0m21:22:09.957676 [info ] [MainThread]: Running with dbt=1.8.0
+[0m21:22:09.959052 [debug] [MainThread]: running dbt with arguments {'printer_width': '80', 'indirect_selection': 'eager', 'write_json': 'True', 'log_cache_events': 'False', 'partial_parse': 'True', 'cache_selected_only': 'False', 'profiles_dir': '/app', 'version_check': 'True', 'warn_error': 'None', 'log_path': 'dbt/logs', 'debug': 'False', 'fail_fast': 'False', 'use_colors': 'True', 'use_experimental_parser': 'False', 'no_print': 'None', 'quiet': 'False', 'log_format': 'default', 'introspect': 'True', 'warn_error_options': 'WarnErrorOptions(include=[], exclude=[])', 'invocation_command': 'dbt run --project-dir dbt --profiles-dir /app --select tag:marts --target dev', 'target_path': 'None', 'static_parser': 'True', 'send_anonymous_usage_stats': 'True'}
+[0m21:22:09.964021 [error] [MainThread]: Encountered an error:
+Runtime Error
+  Could not find profile named 'medicore'
+[0m21:22:09.965014 [debug] [MainThread]: Resource report: {"command_name": "run", "command_wall_clock_time": 0.05201032, "process_user_time": 0.723509, "process_kernel_time": 0.065077, "process_mem_max_rss": "94884", "command_success": false, "process_in_blocks": "0", "process_out_blocks": "0"}
+[0m21:22:09.965685 [debug] [MainThread]: Command `dbt run` failed at 21:22:09.965590 after 0.05 seconds
+[0m21:22:09.966275 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7b33f8d74310>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7b33fb307310>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7b33f8d62b50>]}
+[0m21:22:09.966787 [debug] [MainThread]: Flushing usage events
+[0m21:22:11.619566 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7ae3454d1250>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7ae3480e8610>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7ae345503bd0>]}
+
+
+============================== 21:22:11.621738 | 2ff7e31c-da9a-45e7-886f-d887494c6e95 ==============================
+[0m21:22:11.621738 [info ] [MainThread]: Running with dbt=1.8.0
+[0m21:22:11.622609 [debug] [MainThread]: running dbt with arguments {'printer_width': '80', 'indirect_selection': 'eager', 'log_cache_events': 'False', 'write_json': 'True', 'partial_parse': 'True', 'cache_selected_only': 'False', 'profiles_dir': '/app', 'debug': 'False', 'fail_fast': 'False', 'log_path': 'dbt/logs', 'version_check': 'True', 'warn_error': 'None', 'use_colors': 'True', 'use_experimental_parser': 'False', 'no_print': 'None', 'quiet': 'False', 'warn_error_options': 'WarnErrorOptions(include=[], exclude=[])', 'invocation_command': 'dbt test --project-dir dbt --profiles-dir /app --select stg_* --target dev', 'log_format': 'default', 'introspect': 'True', 'target_path': 'None', 'static_parser': 'True', 'send_anonymous_usage_stats': 'True'}
+[0m21:22:11.626685 [error] [MainThread]: Encountered an error:
+Runtime Error
+  Could not find profile named 'medicore'
+[0m21:22:11.627856 [debug] [MainThread]: Resource report: {"command_name": "test", "command_wall_clock_time": 0.05281314, "process_user_time": 0.74245, "process_kernel_time": 0.093292, "process_mem_max_rss": "95440", "command_success": false, "process_in_blocks": "0", "process_out_blocks": "0"}
+[0m21:22:11.628707 [debug] [MainThread]: Command `dbt test` failed at 21:22:11.628600 after 0.05 seconds
+[0m21:22:11.629366 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7ae3454d0490>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7ae3454bf290>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7ae3454bed90>]}
+[0m21:22:11.629991 [debug] [MainThread]: Flushing usage events
+[0m21:27:11.480324 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7f76d8251cd0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7f76d85a9a50>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7f76d8251150>]}
+
+
+============================== 21:27:11.482732 | 6be3d9d3-7d05-4942-86a6-16f5805fcd56 ==============================
+[0m21:27:11.482732 [info ] [MainThread]: Running with dbt=1.8.0
+[0m21:27:11.483485 [debug] [MainThread]: running dbt with arguments {'printer_width': '80', 'indirect_selection': 'eager', 'write_json': 'True', 'log_cache_events': 'False', 'partial_parse': 'True', 'cache_selected_only': 'False', 'warn_error': 'None', 'version_check': 'True', 'profiles_dir': '/app', 'log_path': 'dbt/logs', 'debug': 'False', 'fail_fast': 'False', 'use_colors': 'True', 'use_experimental_parser': 'False', 'no_print': 'None', 'quiet': 'False', 'warn_error_options': 'WarnErrorOptions(include=[], exclude=[])', 'static_parser': 'True', 'invocation_command': 'dbt run --project-dir dbt --profiles-dir /app --select tag:staging --target dev', 'introspect': 'True', 'target_path': 'None', 'log_format': 'default', 'send_anonymous_usage_stats': 'True'}
+[0m21:27:11.486761 [error] [MainThread]: Encountered an error:
+Runtime Error
+  Could not find profile named 'medicore'
+[0m21:27:11.488653 [debug] [MainThread]: Resource report: {"command_name": "run", "command_wall_clock_time": 0.050139528, "process_user_time": 0.718032, "process_kernel_time": 0.111352, "process_mem_max_rss": "95444", "command_success": false, "process_in_blocks": "0", "process_out_blocks": "0"}
+[0m21:27:11.489372 [debug] [MainThread]: Command `dbt run` failed at 21:27:11.489286 after 0.05 seconds
+[0m21:27:11.489954 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7f76d82509d0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7f76db3be290>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7f76d823ef50>]}
+[0m21:27:11.490582 [debug] [MainThread]: Flushing usage events
+[0m21:27:13.432892 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7f47ec2aa050>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7f47ec1a72d0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7f47ec1a79d0>]}
+
+
+============================== 21:27:13.435055 | 6ebb024d-4207-4b5c-91a4-c050a0d05720 ==============================
+[0m21:27:13.435055 [info ] [MainThread]: Running with dbt=1.8.0
+[0m21:27:13.436746 [debug] [MainThread]: running dbt with arguments {'printer_width': '80', 'indirect_selection': 'eager', 'write_json': 'True', 'log_cache_events': 'False', 'partial_parse': 'True', 'cache_selected_only': 'False', 'warn_error': 'None', 'debug': 'False', 'fail_fast': 'False', 'log_path': 'dbt/logs', 'version_check': 'True', 'profiles_dir': '/app', 'use_colors': 'True', 'use_experimental_parser': 'False', 'no_print': 'None', 'quiet': 'False', 'log_format': 'default', 'invocation_command': 'dbt run --project-dir dbt --profiles-dir /app --select tag:marts --target dev', 'warn_error_options': 'WarnErrorOptions(include=[], exclude=[])', 'introspect': 'True', 'target_path': 'None', 'static_parser': 'True', 'send_anonymous_usage_stats': 'True'}
+[0m21:27:13.440501 [error] [MainThread]: Encountered an error:
+Runtime Error
+  Could not find profile named 'medicore'
+[0m21:27:13.441500 [debug] [MainThread]: Resource report: {"command_name": "run", "command_wall_clock_time": 0.050614316, "process_user_time": 0.779373, "process_kernel_time": 0.100814, "process_mem_max_rss": "95440", "command_success": false, "process_in_blocks": "0", "process_out_blocks": "0"}
+[0m21:27:13.442192 [debug] [MainThread]: Command `dbt run` failed at 21:27:13.442081 after 0.05 seconds
+[0m21:27:13.442838 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7f47ec1f6b90>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7f47ec1f7550>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7f47ec1a6c10>]}
+[0m21:27:13.443501 [debug] [MainThread]: Flushing usage events
+[0m21:27:15.068748 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7ac7128c2d10>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7ac7128b7110>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7ac7128c3190>]}
+
+
+============================== 21:27:15.071058 | eed4c78f-c33a-468a-b9ec-41dc57c421ad ==============================
+[0m21:27:15.071058 [info ] [MainThread]: Running with dbt=1.8.0
+[0m21:27:15.071909 [debug] [MainThread]: running dbt with arguments {'printer_width': '80', 'indirect_selection': 'eager', 'write_json': 'True', 'log_cache_events': 'False', 'partial_parse': 'True', 'cache_selected_only': 'False', 'warn_error': 'None', 'fail_fast': 'False', 'debug': 'False', 'log_path': 'dbt/logs', 'profiles_dir': '/app', 'version_check': 'True', 'use_colors': 'True', 'use_experimental_parser': 'False', 'no_print': 'None', 'quiet': 'False', 'warn_error_options': 'WarnErrorOptions(include=[], exclude=[])', 'introspect': 'True', 'static_parser': 'True', 'invocation_command': 'dbt test --project-dir dbt --profiles-dir /app --select stg_* --target dev', 'target_path': 'None', 'log_format': 'default', 'send_anonymous_usage_stats': 'True'}
+[0m21:27:15.075196 [error] [MainThread]: Encountered an error:
+Runtime Error
+  Could not find profile named 'medicore'
+[0m21:27:15.076224 [debug] [MainThread]: Resource report: {"command_name": "test", "command_wall_clock_time": 0.044373535, "process_user_time": 0.678766, "process_kernel_time": 0.087705, "process_mem_max_rss": "95164", "command_success": false, "process_in_blocks": "0", "process_out_blocks": "0"}
+[0m21:27:15.076859 [debug] [MainThread]: Command `dbt test` failed at 21:27:15.076762 after 0.05 seconds
+[0m21:27:15.077583 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7ac712901550>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7ac7129021d0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7ac712902dd0>]}
+[0m21:27:15.078221 [debug] [MainThread]: Flushing usage events
+[0m21:32:16.347057 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7ca7cde19fd0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7ca7cde4ca50>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7ca7cde1a890>]}
+
+
+============================== 21:32:16.353045 | e167f694-4a40-4e5f-af45-13cacd0985dc ==============================
+[0m21:32:16.353045 [info ] [MainThread]: Running with dbt=1.8.0
+[0m21:32:16.355652 [debug] [MainThread]: running dbt with arguments {'printer_width': '80', 'indirect_selection': 'eager', 'write_json': 'True', 'log_cache_events': 'False', 'partial_parse': 'True', 'cache_selected_only': 'False', 'profiles_dir': '/app', 'version_check': 'True', 'warn_error': 'None', 'log_path': 'dbt/logs', 'debug': 'False', 'fail_fast': 'False', 'use_colors': 'True', 'use_experimental_parser': 'False', 'no_print': 'None', 'quiet': 'False', 'log_format': 'default', 'introspect': 'True', 'warn_error_options': 'WarnErrorOptions(include=[], exclude=[])', 'static_parser': 'True', 'target_path': 'None', 'invocation_command': 'dbt run --project-dir dbt --profiles-dir /app --select tag:staging --target dev', 'send_anonymous_usage_stats': 'True'}
+[0m21:32:16.365016 [error] [MainThread]: Encountered an error:
+Runtime Error
+  Could not find profile named 'medicore'
+[0m21:32:16.367202 [debug] [MainThread]: Resource report: {"command_name": "run", "command_wall_clock_time": 0.13469061, "process_user_time": 1.082297, "process_kernel_time": 0.141501, "process_mem_max_rss": "95300", "command_success": false, "process_in_blocks": "0", "process_out_blocks": "0"}
+[0m21:32:16.368460 [debug] [MainThread]: Command `dbt run` failed at 21:32:16.368372 after 0.14 seconds
+[0m21:32:16.369389 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7ca7cde20410>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7ca7ce004990>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7ca7cde0fe10>]}
+[0m21:32:16.370530 [debug] [MainThread]: Flushing usage events
+[0m21:32:18.247445 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7c7ed5fa1ad0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7c7ed5fa1b50>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7c7ed5f8fc10>]}
+
+
+============================== 21:32:18.249978 | f2e186e3-96d2-4104-baea-8282a71e1122 ==============================
+[0m21:32:18.249978 [info ] [MainThread]: Running with dbt=1.8.0
+[0m21:32:18.250673 [debug] [MainThread]: running dbt with arguments {'printer_width': '80', 'indirect_selection': 'eager', 'log_cache_events': 'False', 'write_json': 'True', 'partial_parse': 'True', 'cache_selected_only': 'False', 'warn_error': 'None', 'debug': 'False', 'fail_fast': 'False', 'log_path': 'dbt/logs', 'version_check': 'True', 'profiles_dir': '/app', 'use_colors': 'True', 'use_experimental_parser': 'False', 'no_print': 'None', 'quiet': 'False', 'warn_error_options': 'WarnErrorOptions(include=[], exclude=[])', 'static_parser': 'True', 'invocation_command': 'dbt run --project-dir dbt --profiles-dir /app --select tag:marts --target dev', 'introspect': 'True', 'target_path': 'None', 'log_format': 'default', 'send_anonymous_usage_stats': 'True'}
+[0m21:32:18.253986 [error] [MainThread]: Encountered an error:
+Runtime Error
+  Could not find profile named 'medicore'
+[0m21:32:18.255049 [debug] [MainThread]: Resource report: {"command_name": "run", "command_wall_clock_time": 0.0511009, "process_user_time": 0.687009, "process_kernel_time": 0.076334, "process_mem_max_rss": "95440", "command_success": false, "process_in_blocks": "0", "process_out_blocks": "0"}
+[0m21:32:18.255738 [debug] [MainThread]: Command `dbt run` failed at 21:32:18.255635 after 0.05 seconds
+[0m21:32:18.256384 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7c7ed5fdab90>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7c7ed5fdb710>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7c7ed5f8edd0>]}
+[0m21:32:18.257052 [debug] [MainThread]: Flushing usage events
+[0m21:32:19.930986 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x782b4b27acd0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x782b4b46cad0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x782b4b279bd0>]}
+
+
+============================== 21:32:19.933302 | d3da41db-4eac-40ec-8df0-1cc2ef9c255b ==============================
+[0m21:32:19.933302 [info ] [MainThread]: Running with dbt=1.8.0
+[0m21:32:19.934013 [debug] [MainThread]: running dbt with arguments {'printer_width': '80', 'indirect_selection': 'eager', 'log_cache_events': 'False', 'write_json': 'True', 'partial_parse': 'True', 'cache_selected_only': 'False', 'warn_error': 'None', 'fail_fast': 'False', 'debug': 'False', 'log_path': 'dbt/logs', 'version_check': 'True', 'profiles_dir': '/app', 'use_colors': 'True', 'use_experimental_parser': 'False', 'no_print': 'None', 'quiet': 'False', 'log_format': 'default', 'introspect': 'True', 'warn_error_options': 'WarnErrorOptions(include=[], exclude=[])', 'invocation_command': 'dbt test --project-dir dbt --profiles-dir /app --select stg_* --target dev', 'target_path': 'None', 'static_parser': 'True', 'send_anonymous_usage_stats': 'True'}
+[0m21:32:19.937951 [error] [MainThread]: Encountered an error:
+Runtime Error
+  Could not find profile named 'medicore'
+[0m21:32:19.938992 [debug] [MainThread]: Resource report: {"command_name": "test", "command_wall_clock_time": 0.05066811, "process_user_time": 0.685263, "process_kernel_time": 0.106596, "process_mem_max_rss": "95436", "command_success": false, "process_in_blocks": "0", "process_out_blocks": "0"}
+[0m21:32:19.939802 [debug] [MainThread]: Command `dbt test` failed at 21:32:19.939723 after 0.05 seconds
+[0m21:32:19.940733 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x782b4b278c10>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x782b4b27ba90>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x782b4b2b3710>]}
+[0m21:32:19.941443 [debug] [MainThread]: Flushing usage events
+[0m21:37:19.814675 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7f2b85eefad0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7f2b85f3ab50>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7f2b85f01410>]}
+
+
+============================== 21:37:19.816876 | a95c396b-9430-4a01-bc7d-761a2648f234 ==============================
+[0m21:37:19.816876 [info ] [MainThread]: Running with dbt=1.8.0
+[0m21:37:19.817625 [debug] [MainThread]: running dbt with arguments {'printer_width': '80', 'indirect_selection': 'eager', 'log_cache_events': 'False', 'write_json': 'True', 'partial_parse': 'True', 'cache_selected_only': 'False', 'warn_error': 'None', 'version_check': 'True', 'profiles_dir': '/app', 'log_path': 'dbt/logs', 'debug': 'False', 'fail_fast': 'False', 'use_colors': 'True', 'use_experimental_parser': 'False', 'no_print': 'None', 'quiet': 'False', 'warn_error_options': 'WarnErrorOptions(include=[], exclude=[])', 'static_parser': 'True', 'introspect': 'True', 'log_format': 'default', 'target_path': 'None', 'invocation_command': 'dbt run --project-dir dbt --profiles-dir /app --select tag:staging --target dev', 'send_anonymous_usage_stats': 'True'}
+[0m21:37:19.820800 [error] [MainThread]: Encountered an error:
+Runtime Error
+  Could not find profile named 'medicore'
+[0m21:37:19.821836 [debug] [MainThread]: Resource report: {"command_name": "run", "command_wall_clock_time": 0.04420576, "process_user_time": 0.666285, "process_kernel_time": 0.080413, "process_mem_max_rss": "95560", "command_success": false, "process_in_blocks": "0", "process_out_blocks": "0"}
+[0m21:37:19.822503 [debug] [MainThread]: Command `dbt run` failed at 21:37:19.822421 after 0.04 seconds
+[0m21:37:19.823057 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7f2b85f3c890>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7f2b85eef4d0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7f2b85eeeed0>]}
+[0m21:37:19.823644 [debug] [MainThread]: Flushing usage events
+[0m21:37:21.723011 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x74b6a39bb210>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x74b6a39ac990>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x74b6a6ae9290>]}
+
+
+============================== 21:37:21.726150 | d27db274-1a0e-4dec-8575-2c9bc6e5e9c0 ==============================
+[0m21:37:21.726150 [info ] [MainThread]: Running with dbt=1.8.0
+[0m21:37:21.727405 [debug] [MainThread]: running dbt with arguments {'printer_width': '80', 'indirect_selection': 'eager', 'log_cache_events': 'False', 'write_json': 'True', 'partial_parse': 'True', 'cache_selected_only': 'False', 'warn_error': 'None', 'debug': 'False', 'fail_fast': 'False', 'log_path': 'dbt/logs', 'version_check': 'True', 'profiles_dir': '/app', 'use_colors': 'True', 'use_experimental_parser': 'False', 'no_print': 'None', 'quiet': 'False', 'warn_error_options': 'WarnErrorOptions(include=[], exclude=[])', 'static_parser': 'True', 'invocation_command': 'dbt run --project-dir dbt --profiles-dir /app --select tag:marts --target dev', 'introspect': 'True', 'target_path': 'None', 'log_format': 'default', 'send_anonymous_usage_stats': 'True'}
+[0m21:37:21.731582 [error] [MainThread]: Encountered an error:
+Runtime Error
+  Could not find profile named 'medicore'
+[0m21:37:21.732628 [debug] [MainThread]: Resource report: {"command_name": "run", "command_wall_clock_time": 0.075816624, "process_user_time": 0.662721, "process_kernel_time": 0.129407, "process_mem_max_rss": "95324", "command_success": false, "process_in_blocks": "0", "process_out_blocks": "0"}
+[0m21:37:21.733339 [debug] [MainThread]: Command `dbt run` failed at 21:37:21.733254 after 0.08 seconds
+[0m21:37:21.733920 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x74b6a39bc850>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x74b6a39bd710>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x74b6a397a450>]}
+[0m21:37:21.734545 [debug] [MainThread]: Flushing usage events
+[0m21:37:23.370350 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x75a7b727fad0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x75a7b868fed0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x75a7b74741d0>]}
+
+
+============================== 21:37:23.372903 | ad2187c3-82d4-4298-911f-6a8e20227d24 ==============================
+[0m21:37:23.372903 [info ] [MainThread]: Running with dbt=1.8.0
+[0m21:37:23.373823 [debug] [MainThread]: running dbt with arguments {'printer_width': '80', 'indirect_selection': 'eager', 'log_cache_events': 'False', 'write_json': 'True', 'partial_parse': 'True', 'cache_selected_only': 'False', 'profiles_dir': '/app', 'fail_fast': 'False', 'version_check': 'True', 'log_path': 'dbt/logs', 'debug': 'False', 'warn_error': 'None', 'use_colors': 'True', 'use_experimental_parser': 'False', 'no_print': 'None', 'quiet': 'False', 'warn_error_options': 'WarnErrorOptions(include=[], exclude=[])', 'static_parser': 'True', 'log_format': 'default', 'invocation_command': 'dbt test --project-dir dbt --profiles-dir /app --select stg_* --target dev', 'target_path': 'None', 'introspect': 'True', 'send_anonymous_usage_stats': 'True'}
+[0m21:37:23.378042 [error] [MainThread]: Encountered an error:
+Runtime Error
+  Could not find profile named 'medicore'
+[0m21:37:23.379027 [debug] [MainThread]: Resource report: {"command_name": "test", "command_wall_clock_time": 0.048138972, "process_user_time": 0.637296, "process_kernel_time": 0.099219, "process_mem_max_rss": "95432", "command_success": false, "process_in_blocks": "0", "process_out_blocks": "0"}
+[0m21:37:23.379699 [debug] [MainThread]: Command `dbt test` failed at 21:37:23.379618 after 0.05 seconds
+[0m21:37:23.380336 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x75a7b72906d0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x75a7b7291250>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x75a7b727ef10>]}
+[0m21:37:23.380875 [debug] [MainThread]: Flushing usage events
+[0m21:42:22.608234 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7c52f76fb5d0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7c52f7700dd0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7c52f76af110>]}
+
+
+============================== 21:42:22.611198 | e7ed436f-ed55-450d-866c-0b5fdae541cc ==============================
+[0m21:42:22.611198 [info ] [MainThread]: Running with dbt=1.8.0
+[0m21:42:22.612460 [debug] [MainThread]: running dbt with arguments {'printer_width': '80', 'indirect_selection': 'eager', 'write_json': 'True', 'log_cache_events': 'False', 'partial_parse': 'True', 'cache_selected_only': 'False', 'profiles_dir': '/app', 'fail_fast': 'False', 'version_check': 'True', 'log_path': 'dbt/logs', 'warn_error': 'None', 'debug': 'False', 'use_colors': 'True', 'use_experimental_parser': 'False', 'no_print': 'None', 'quiet': 'False', 'warn_error_options': 'WarnErrorOptions(include=[], exclude=[])', 'static_parser': 'True', 'introspect': 'True', 'invocation_command': 'dbt run --project-dir dbt --profiles-dir /app --select tag:staging --target dev', 'target_path': 'None', 'log_format': 'default', 'send_anonymous_usage_stats': 'True'}
+[0m21:42:22.619014 [error] [MainThread]: Encountered an error:
+Runtime Error
+  Could not find profile named 'medicore'
+[0m21:42:22.620233 [debug] [MainThread]: Resource report: {"command_name": "run", "command_wall_clock_time": 0.05312483, "process_user_time": 0.679517, "process_kernel_time": 0.132866, "process_mem_max_rss": "95428", "command_success": false, "process_in_blocks": "0", "process_out_blocks": "0"}
+[0m21:42:22.621176 [debug] [MainThread]: Command `dbt run` failed at 21:42:22.621094 after 0.05 seconds
+[0m21:42:22.622109 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7c52f76c0610>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7c52f76fb790>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7c52f76aeed0>]}
+[0m21:42:22.623017 [debug] [MainThread]: Flushing usage events
+[0m21:42:24.703617 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7cc8f4b1ad90>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7cc8f4b486d0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7cc8f4b489d0>]}
+
+
+============================== 21:42:24.706525 | 05bc4add-26d4-4526-9488-74f14767bece ==============================
+[0m21:42:24.706525 [info ] [MainThread]: Running with dbt=1.8.0
+[0m21:42:24.708010 [debug] [MainThread]: running dbt with arguments {'printer_width': '80', 'indirect_selection': 'eager', 'log_cache_events': 'False', 'write_json': 'True', 'partial_parse': 'True', 'cache_selected_only': 'False', 'warn_error': 'None', 'fail_fast': 'False', 'debug': 'False', 'log_path': 'dbt/logs', 'version_check': 'True', 'profiles_dir': '/app', 'use_colors': 'True', 'use_experimental_parser': 'False', 'no_print': 'None', 'quiet': 'False', 'log_format': 'default', 'introspect': 'True', 'static_parser': 'True', 'warn_error_options': 'WarnErrorOptions(include=[], exclude=[])', 'target_path': 'None', 'invocation_command': 'dbt run --project-dir dbt --profiles-dir /app --select tag:marts --target dev', 'send_anonymous_usage_stats': 'True'}
+[0m21:42:24.713171 [error] [MainThread]: Encountered an error:
+Runtime Error
+  Could not find profile named 'medicore'
+[0m21:42:24.714682 [debug] [MainThread]: Resource report: {"command_name": "run", "command_wall_clock_time": 0.05515723, "process_user_time": 0.738285, "process_kernel_time": 0.10823, "process_mem_max_rss": "95560", "command_success": false, "process_in_blocks": "0", "process_out_blocks": "0"}
+[0m21:42:24.715789 [debug] [MainThread]: Command `dbt run` failed at 21:42:24.715696 after 0.06 seconds
+[0m21:42:24.716728 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7cc8f4b52bd0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7cc8f4b52d90>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7cc8f4b56d10>]}
+[0m21:42:24.717595 [debug] [MainThread]: Flushing usage events
+[0m21:42:26.591535 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7862d60a3d10>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7862d60a2810>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7862d60a3ad0>]}
+
+
+============================== 21:42:26.594938 | 2ddfc799-90b9-4c06-9f04-83efc1e81caf ==============================
+[0m21:42:26.594938 [info ] [MainThread]: Running with dbt=1.8.0
+[0m21:42:26.596485 [debug] [MainThread]: running dbt with arguments {'printer_width': '80', 'indirect_selection': 'eager', 'write_json': 'True', 'log_cache_events': 'False', 'partial_parse': 'True', 'cache_selected_only': 'False', 'warn_error': 'None', 'version_check': 'True', 'fail_fast': 'False', 'log_path': 'dbt/logs', 'profiles_dir': '/app', 'debug': 'False', 'use_colors': 'True', 'use_experimental_parser': 'False', 'no_print': 'None', 'quiet': 'False', 'warn_error_options': 'WarnErrorOptions(include=[], exclude=[])', 'invocation_command': 'dbt test --project-dir dbt --profiles-dir /app --select stg_* --target dev', 'static_parser': 'True', 'log_format': 'default', 'target_path': 'None', 'introspect': 'True', 'send_anonymous_usage_stats': 'True'}
+[0m21:42:26.602098 [error] [MainThread]: Encountered an error:
+Runtime Error
+  Could not find profile named 'medicore'
+[0m21:42:26.603494 [debug] [MainThread]: Resource report: {"command_name": "test", "command_wall_clock_time": 0.07301144, "process_user_time": 0.726544, "process_kernel_time": 0.072654, "process_mem_max_rss": "95296", "command_success": false, "process_in_blocks": "0", "process_out_blocks": "0"}
+[0m21:42:26.604470 [debug] [MainThread]: Command `dbt test` failed at 21:42:26.604385 after 0.07 seconds
+[0m21:42:26.605398 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7862d60ebbd0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7862d60eb310>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7862d60afdd0>]}
+[0m21:42:26.606525 [debug] [MainThread]: Flushing usage events
+[0m14:29:34.604024 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x76e97025b010>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x76e97025b710>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x76e97025b310>]}
+
+
+============================== 14:29:34.608820 | c6e246ed-c3b8-4a61-b9e3-dd0a13d6ae7d ==============================
+[0m14:29:34.608820 [info ] [MainThread]: Running with dbt=1.8.0
+[0m14:29:34.610564 [debug] [MainThread]: running dbt with arguments {'printer_width': '80', 'indirect_selection': 'eager', 'write_json': 'True', 'log_cache_events': 'False', 'partial_parse': 'True', 'cache_selected_only': 'False', 'warn_error': 'None', 'debug': 'False', 'profiles_dir': '/app', 'log_path': '/app/dbt/logs', 'version_check': 'True', 'fail_fast': 'False', 'use_colors': 'True', 'use_experimental_parser': 'False', 'no_print': 'None', 'quiet': 'False', 'log_format': 'default', 'introspect': 'True', 'warn_error_options': 'WarnErrorOptions(include=[], exclude=[])', 'static_parser': 'True', 'target_path': 'None', 'invocation_command': 'dbt debug --target dev', 'send_anonymous_usage_stats': 'True'}
+[0m14:29:34.675582 [info ] [MainThread]: dbt version: 1.8.0
+[0m14:29:34.676656 [info ] [MainThread]: python version: 3.11.14
+[0m14:29:34.678046 [info ] [MainThread]: python path: /usr/local/bin/python3.11
+[0m14:29:34.678998 [info ] [MainThread]: os info: Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.41
+[0m14:29:35.909766 [info ] [MainThread]: Using profiles dir at /app
+[0m14:29:35.910865 [info ] [MainThread]: Using profiles.yml file at /app/profiles.yml
+[0m14:29:35.913194 [info ] [MainThread]: Using dbt_project.yml file at /app/dbt/dbt_project.yml
+[0m14:29:35.915367 [info ] [MainThread]: adapter type: snowflake
+[0m14:29:35.916756 [info ] [MainThread]: adapter version: 1.8.0
+[0m14:29:35.981263 [info ] [MainThread]: Configuration:
+[0m14:29:35.982670 [info ] [MainThread]:   profiles.yml file [[32mOK found and valid[0m]
+[0m14:29:35.983544 [info ] [MainThread]:   dbt_project.yml file [[32mOK found and valid[0m]
+[0m14:29:35.984451 [info ] [MainThread]: Required dependencies:
+[0m14:29:35.985713 [debug] [MainThread]: Executing "git --help"
+[0m14:29:35.996103 [info ] [MainThread]:  - git [[31mERROR[0m]
+
+[0m14:29:35.997765 [info ] [MainThread]: Connection:
+[0m14:29:35.999173 [info ] [MainThread]:   account: YMYUNAB-HR05962
+[0m14:29:35.999985 [info ] [MainThread]:   user: AUGUSTIN
+[0m14:29:36.000912 [info ] [MainThread]:   database: MEDICORE
+[0m14:29:36.001712 [info ] [MainThread]:   warehouse: MEDICORE_WH
+[0m14:29:36.002413 [info ] [MainThread]:   role: MEDICORE_RAW_WRITER
+[0m14:29:36.003461 [info ] [MainThread]:   schema: STAGING
+[0m14:29:36.004241 [info ] [MainThread]:   authenticator: None
+[0m14:29:36.005152 [info ] [MainThread]:   oauth_client_id: None
+[0m14:29:36.005819 [info ] [MainThread]:   query_tag: None
+[0m14:29:36.006733 [info ] [MainThread]:   client_session_keep_alive: False
+[0m14:29:36.007935 [info ] [MainThread]:   host: None
+[0m14:29:36.008721 [info ] [MainThread]:   port: None
+[0m14:29:36.009426 [info ] [MainThread]:   proxy_host: None
+[0m14:29:36.010203 [info ] [MainThread]:   proxy_port: None
+[0m14:29:36.011275 [info ] [MainThread]:   protocol: None
+[0m14:29:36.012197 [info ] [MainThread]:   connect_retries: 1
+[0m14:29:36.012905 [info ] [MainThread]:   connect_timeout: None
+[0m14:29:36.013938 [info ] [MainThread]:   retry_on_database_errors: False
+[0m14:29:36.014950 [info ] [MainThread]:   retry_all: False
+[0m14:29:36.015894 [info ] [MainThread]:   insecure_mode: False
+[0m14:29:36.016825 [info ] [MainThread]:   reuse_connections: None
+[0m14:29:36.018386 [info ] [MainThread]: Registered adapter: snowflake=1.8.0
+[0m14:29:36.097220 [debug] [MainThread]: Acquiring new snowflake connection 'debug'
+[0m14:29:36.098302 [debug] [MainThread]: Using snowflake connection "debug"
+[0m14:29:36.099562 [debug] [MainThread]: On debug: select 1 as id
+[0m14:29:36.100291 [debug] [MainThread]: Opening a new connection, currently in state init
+[0m14:29:37.253737 [debug] [MainThread]: SQL status: SUCCESS 1 in 1.153 seconds
+[0m14:29:37.256245 [debug] [MainThread]: On debug: Close
+[0m14:29:37.362467 [info ] [MainThread]:   Connection test: [[32mOK connection ok[0m]
+
+[0m14:29:37.363406 [info ] [MainThread]: [31m1 check failed:[0m
+[0m14:29:37.364335 [info ] [MainThread]: Error from git --help: Could not find command, ensure it is in the user's PATH: "git"
+
+[0m14:29:37.365912 [debug] [MainThread]: Resource report: {"command_name": "debug", "command_wall_clock_time": 2.8474348, "process_user_time": 1.230719, "process_kernel_time": 2.043154, "process_mem_max_rss": "167356", "process_in_blocks": "3336", "process_out_blocks": "40", "command_success": false}
+[0m14:29:37.366763 [debug] [MainThread]: Command `dbt debug` failed at 14:29:37.366675 after 2.85 seconds
+[0m14:29:37.367555 [debug] [MainThread]: Connection 'debug' was properly closed.
+[0m14:29:37.368154 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x76e970260290>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x76e970290a10>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x76e974775650>]}
+[0m14:29:37.369440 [debug] [MainThread]: Flushing usage events

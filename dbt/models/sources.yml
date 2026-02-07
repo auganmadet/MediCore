@@ -3,78 +3,21 @@ version: 2
 sources:
   - name: mysql_raw
     schema: RAW
-    database: MEDIcore
+    database: MEDICORE
     tables:
-      # COMMANDES (9 colonnes)    
       - name: RAW_COMMANDES
-        description: "Lignes commandes (PK: PHA_ID, COM_GROI, PRD_ID)"
-        freshness:
-          warn_after: {count: 12, period: hour}
-          error_after: {count: 24, period: hour}
-        loaded_at_field: cdc_timestamp
+        description: "Commandes CDC consolidées (alimenté par Kafka → daily_cdc_batch.py)"
         columns:
           - name: PHA_ID
             description: "ID pharmacie"
             tests: [not_null]
           - name: COM_GROI
-            description: "Gros commande"
+            description: "Numéro de commande"
             tests: [not_null]
           - name: PRD_ID
             description: "ID produit"
-            tests:
-              - not_null
-              - relationships:
-                  to: ref('stg_produits')
-                  field: PRD_ID
-          - name: COM_GROS
-            description: "Gros suivant"
             tests: [not_null]
-          - name: COM_DATE
-            description: "Date commande"
-            tests: [not_null]
-          - name: FOU_ID
-            description: "ID fournisseur"
-            tests:
-              - relationships:
-                  to: ref('stg_fournisseurs')
-                  field: FOU_ID
-          - name: COM_QUANTITE
-            description: "Quantité commandée"
-            tests:
-              - not_null
-              - dbt_utils.expression_is_true:
-                  expression: "COM_QUANTITE > 0"
-          - name: COM_PAHTNET
-            description: "PA HT net"
-          - name: COM_TAUXREMISE
-            description: "Taux remise (%)"
-
-      # DAYBYDAY (7 colonnes)
-      - name: RAW_DAYBYDAY
-        description: "Prix journaliers (PK: PHA_ID, DBD_DATE, PRD_ID)"
-        columns:
-          - name: PHA_ID
-            description: "ID pharmacie"
-            tests: [not_null]
-          - name: DBD_DATE
-            tests: [not_null]
-          - name: PRD_ID
-            description: "ID produit"
-            tests:
-              - not_null
-              - relationships:              # vérifier qu’il existe une ligne correspondante dans stg_produits (intégrité référentielle logique côté entrepôt)
-                  to: ref('stg_produits')
-                  field: PRD_ID
-          - name: DBD_PRIXTARIF
-              - not_null
-              - dbt_utils.expression_is_true:
-                  expression: "DBD_PRIXTARIF > 0"
-          - name: DBD_PRIXPUBLIC
-            tests: [not_null]
-          - name: DBD_PAMP
-            tests: [not_null]
-          - name: DBD_PANET
-          
+            
       # EAN13 (3 colonnes)
       - name: RAW_EAN13
         columns:
@@ -91,59 +34,6 @@ sources:
                   to: ref('stg_produits')
                   field: PRD_ID
             
-      # FACTURES (19 colonnes)
-      - name: RAW_FACTURES
-        description: "Lignes factures détaillées (PK: PHA_ID, FAC_ID, FAC_TI)"
-        freshness:
-          warn_after: {count: 6, period: hour}
-        columns:
-          - name: PHA_ID
-            description: "ID pharmacie"
-            tests: [not_null]
-          - name: FAC_ID
-            tests: [not_null]
-          - name: FAC_TI
-            tests: [not_null]
-          - name: FAC_BASE
-            tests: [not_null]
-          - name: FAC_DATE
-            tests: [not_null]
-          - name: PRD_ID
-            tests:
-              - not_null
-              - relationships:
-                  to: ref('stg_produits')
-                  field: PRD_ID
-          - name: FAC_TVA
-            tests: [not_null]
-          - name: FAC_QUANTITE
-            tests:
-              - not_null
-              - dbt_utils.expression_is_true:
-                  expression: "FAC_QUANTITE > 0"
-          - name: FAC_PAHT
-            tests: [not_null]
-          - name: FAC_PVHT
-            tests: [not_null]
-          - name: FAC_PVTTC
-            tests: [not_null]
-          - name: FAC_PRIXPUBLIC
-            tests: [not_null]
-          - name: FAC_REMISE
-            tests: [not_null]
-          - name: FAC_CODEREMBT
-            tests: [not_null]
-          - name: FAC_HISTO_NBCLIENT
-            tests: [not_null]
-          - name: FAC_PROMO
-            tests: [not_null]
-          - name: FAC_RETRO
-            tests: [not_null]
-          - name: FAC_LOCATION
-            tests: [not_null]
-          - name: FAC_ORDO
-            tests: [not_null]
-
       # FOURNISSEURS (12 colonnes)
       - name: RAW_FOURNISSEURS
         description: "Répertoire fournisseurs (PK: PHA_ID, FOU_ID)"
@@ -350,139 +240,6 @@ sources:
           - name: ORD_OPERATEUR
           - name: PHA_NOM
           
-      # MODSTOCK (14 colonnes)
-      - name: RAW_MODSTOCK
-        freshness:
-          warn_after: {count: 12, period: hour}
-        columns:
-          - name: PHA_ID
-            description: "ID pharmacie"
-            tests: [not_null]
-          - name: MOD_DATE
-            description: "Date Modification"
-            tests: [not_null]
-          - name: PRD_ID
-            description: "ID produits"
-            tests:
-              - not_null
-              - relationships:
-                  to: ref('stg_produits')
-                  field: PRD_ID
-          - name: MOD_TIMESTAMP
-            description: "Heure de modification"
-            tests: [not_null]
-          - name: MOD_DELTA
-            description: ""
-            tests: [not_null]
-          - name: MOD_TI
-            description: ""
-            tests: [not_null]
-          - name: MOD_STOCK
-            description: ""
-            tests: [not_null]
-          - name: MOD_FACTURE
-            description: ""
-          - name: MOD_COMMANDE
-            description: ""
-          - name: MOD_OPERATION
-            description: ""
-          - name: MOD_PARAM2
-            description: ""
-          - name: MOD_POSTE
-            description: ""
-          - name: MOD_DELTA_RESERVE
-            description: ""
-          - name: MOD_CODE_ZONE
-            description: ""
-
-      # ORDERS (26 colonnes)
-      - name: RAW_ORDERS
-        freshness:
-          warn_after: {count: 6, period: hour}
-        columns:
-          - name: PHA_ID
-            description: "ID pharmacie"
-            tests: [not_null]
-          - name: FAC_ID
-            description: "ID factures"
-            tests: [not_null]
-          - name: ORD_DATE
-            description: ""
-            tests: [not_null]
-          - name: ORD_OPERATEUR
-            description: ""
-            tests: [not_null]
-          - name: ORD_CLIENT_AGE_MONTHS
-            description: ""
-          - name: ORD_CLIENT_SEX
-            description: ""
-          - name: ORD_CLIENT_DEPARTMENT
-            description: ""
-          - name: ORD_HISTO_NBCLIENT
-            description: ""
-            tests: [not_null]
-          - name: ORD_BASE
-            description: ""
-            tests: [not_null]
-          - name: ORD_RETRO
-            description: ""
-            tests: [not_null]
-          - name: ORD_LOCATION
-            description: ""
-            tests: [not_null]
-          - name: ORD_ORDO
-            description: ""
-            tests: [not_null]
-          - name: ORD_AVR
-            description: ""
-            tests: [not_null]
-          - name: ORD_ANN
-            description: ""
-            tests: [not_null]
-          - name: ORD_DATE_ORDON
-            description: ""
-          - name: ORD_DATE_ORDER
-            description: ""
-          - name: ORD_CODE_SUBRO
-            description: ""
-            description: ""
-          - name: ORD_TOTAL_GENERAL
-            description: ""
-          - name: ORD_TOTAL_REMB_SS
-            description: ""
-          - name: ORD_TOTAL_REMB_MUTU
-            description: ""
-          - name: ORD_CLI_TI
-            description: ""
-          - name: ORD_BEN_TI
-            description: ""
-          - name: ORD_MED_TI
-            description: ""
-          - name: ORD_MED_SPEC
-            description: ""
-          - name: ORD_OPER_CODE
-            description: ""
-          - name: ORD_CLI_TYPE
-            description: ""
-
-      # PHARMACIE (5 colonnes)
-      - name: RAW_PHARMACIE
-        description: "Master pharmacie (PK: PHA_ID)"
-        columns:
-          - name: PHA_ID
-            description: "ID pharmacie"
-            tests: [not_null, unique]
-          - name: PHA_IDNAT
-            description: ""
-            tests: [not_null]
-          - name: PHA_GERS
-            description: ""
-          - name: PHA_NOM
-            description: "Nom de la pharmacie"
-            tests: [not_null]
-          - name: PHA_DATE_INSTAL_WP
-            description: ""
-
       # PRODUITS (23 colonnes)
       - name: RAW_PRODUITS
         description: "Catalogue produits (PK: PHA_ID, PRD_ID)"
@@ -546,14 +303,14 @@ sources:
           - name: PRD_ONLYPROMIS
             description: ""
 
-      # PRODUITS (2 colonnes)
+      # PRODUITS_NEGATIFS (2 colonnes)
       - name: RAW_PRODUITS_NEGATIFS
         columns:
           - name: PRD_ID
             description: "ID du produit"
             tests: [not_null, unique]
           - name: PRD_NOM
-          description: "Nom du produit"
+            description: "Nom du produit"
           
       # STOCKHISTORY (9 colonnes)
       - name: RAW_STOCKHISTORY
@@ -614,4 +371,81 @@ sources:
             description: ""
           - name: date_erreur
             description: ""
-          
+
+  - name: kafka_cdc
+    description: "Debezium CDC - winstat_rds.winstat.* topics"
+    database: MEDICORE
+    schema: RAW
+    tables:
+      # COMMANDES (PK: PHA_ID, COM_GROI, PRD_ID)
+      - name: winstat_commandes
+        description: "CDC winstat_rds.winstat.COMMANDES"
+        freshness:
+          warn_after: {count: 12, period: hour}
+          error_after: {count: 24, period: hour}
+        loaded_at_field: _cdc_ts_ms
+        columns:
+          - name: PHA_ID
+            description: "ID pharmacie"
+            tests: [not_null]
+          - name: COM_GROI
+            description: "Gros commande"
+            tests: [not_null]
+          - name: PRD_ID
+            description: "ID produit"
+            tests: [not_null]
+
+      # FACTURES (PK: PHA_ID, FAC_ID, FAC_TI)
+      - name: winstat_factures
+        description: "CDC winstat_rds.winstat.FACTURES"
+        freshness:
+          warn_after: {count: 6, period: hour}
+        loaded_at_field: _cdc_ts_ms
+        columns:
+          - name: PHA_ID
+            tests: [not_null]
+          - name: FAC_ID
+            tests: [not_null]
+          - name: FAC_TI
+            tests: [not_null]
+
+      # ORDERS (PK: PHA_ID, FAC_ID)
+      - name: winstat_orders
+        description: "CDC winstat_rds.winstat.ORDERS"
+        freshness:
+          warn_after: {count: 6, period: hour}
+        loaded_at_field: _cdc_ts_ms
+
+      # PHARMACIE (PK: PHA_ID)
+      - name: winstat_pharmacie
+        description: "CDC winstat_rds.winstat.PHARMACIE"
+        loaded_at_field: _cdc_ts_ms
+        columns:
+          - name: PHA_ID
+            tests: [not_null, unique]
+
+      # MODSTOCK (PK: PHA_ID, MOD_DATE, PRD_ID)
+      - name: winstat_modstock
+        description: "CDC winstat_rds.winstat.MODSTOCK"
+        freshness:
+          warn_after: {count: 12, period: hour}
+        loaded_at_field: _cdc_ts_ms
+        columns:
+          - name: PHA_ID
+            tests: [not_null]
+          - name: PRD_ID
+            tests: [not_null]
+
+      # DAYBYDAY (PK: PHA_ID, DBD_DATE, PRD_ID)
+      - name: winstat_daybyday
+        description: "CDC winstat_rds.winstat.DAYBYDAY"
+        freshness:
+          warn_after: {count: 12, period: hour}
+        loaded_at_field: _cdc_ts_ms
+        columns:
+          - name: PHA_ID
+            tests: [not_null]
+          - name: DBD_DATE
+            tests: [not_null]
+          - name: PRD_ID
+            tests: [not_null]

@@ -1,12 +1,10 @@
 .git
 .gitignore
-README.md
-docs/
-*.md
+.env
 .nyc_output
 coverage/
 .nyc_output
 target/
 logs/
-.env
-.pytest_cache/
+__pycache__
+.pytest_cache

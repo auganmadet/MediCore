@@ -1,4 +1,4 @@
-version: '3.8'
+# version: '3.8'
 
 services:
   # 🧠 Pipeline MediCore (dbt + Python)
@@ -13,6 +13,13 @@ services:
       # - BATCH_INTERVAL_MIN=5        # 5min pour DEV, déclaré dans .env
       # - BATCH_MODE=true             # Mode batch quotidien
       # - KAFKA_BOOTSTRAP_SERVERS: kafka:9092   # pour kafka-python lib, déclaré dans .env
+      - SNOWFLAKE_ACCOUNT=${SNOWFLAKE_ACCOUNT}
+      - SNOWFLAKE_USER=${SNOWFLAKE_USER}  
+      - SNOWFLAKE_PASSWORD=${SNOWFLAKE_PASSWORD}
+      - SNOWFLAKE_WAREHOUSE_NAME=${SNOWFLAKE_WAREHOUSE_NAME}
+      - SNOWFLAKE_DATABASE=${SNOWFLAKE_DATABASE}
+      - SNOWFLAKE_SCHEMA_NAME=${SNOWFLAKE_SCHEMA_NAME}
+      - SNOWFLAKE_ROLE_NAME=${SNOWFLAKE_ROLE_NAME}
     volumes:
       - ./dbt:/app/dbt
       - ./pipelines:/app/pipelines
@@ -38,7 +45,7 @@ services:
 
 # 🐘 MySQL de démo pour CDC (équivalent Winstat local)
   mysql_cdc:
-    image: debezium/example-mysql:2.7
+    image: debezium/example-mysql:2.7.3.Final
     container_name: mysql_cdc
     environment:
       - MYSQL_ROOT_PASSWORD=debezium
@@ -52,7 +59,7 @@ services:
 
   # 🦍 Zookeeper (nécessaire pour Kafka classique)
   zookeeper:
-    image: confluentinc/cp-zookeeper:7.5.0
+    image: confluentinc/cp-zookeeper:7.7.0
     container_name: zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
@@ -76,39 +83,35 @@ services:
     networks:
       - medicore_net
 
-  # 🔌 Kafka Connect + Debezium MySQL connector (publie MySQL → Kafka) + Snowflake Sink
-  # connect (Debezium) se connecte à mysql_cdc et publie les événements binlog sur Kafka 
-  # (topics dbserver1.winstat.COMMANDES, etc.)
+   # On repasse sur Debzium sans confluent
   connect:
-    image: debezium/connect:2.7
+    image: debezium/connect:2.7.3.Final
     container_name: kafka_connect
     depends_on:
       - kafka
-      - mysql_cdc
     environment:
-      BOOTSTRAP_SERVERS: kafka:9092         # nécessaire pour dépendance avec medicore-elt-batch, ne pas confondre avec KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      BOOTSTRAP_SERVERS: kafka:9092
       GROUP_ID: 1
-      CONFIG_STORAGE_TOPIC: connect-configs
-      OFFSET_STORAGE_TOPIC: connect-offsets
-      STATUS_STORAGE_TOPIC: connect-status
-      # KEY_CONVERTER_SCHEMAS_ENABLE: "false"
-      # VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
-      # CONFIG_STORAGE_REPLICATION_FACTOR: 1
-      # OFFSET_STORAGE_REPLICATION_FACTOR: 1
-      # STATUS_STORAGE_REPLICATION_FACTOR: 1
-      CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components"    # Snowflake connector
+      CONFIG_STORAGE_TOPIC: medicore-connect-configs
+      OFFSET_STORAGE_TOPIC: medicore-connect-offsets
+      STATUS_STORAGE_TOPIC: medicore-connect-status
+      CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      STATUS_STORAGE_REPLICATION_FACTOR: 1
+      REST_PORT: 8083
+      REST_ADVERTISED_HOST_NAME: localhost
     ports:
-      - "8083:8083"   # API Kafka Connect
+      - "8083:8083"
     volumes:
       - connect_config:/kafka/connect-configs
-      - connect_offset:/kafka/connect-offsets  
+      - connect_offset:/kafka/connect-offsets
       - connect_status:/kafka/connect-statuses
     networks:
       - medicore_net
 
   # 🧭 Kafdrop (UI pour voir les topics Kafka)
   kafdrop:
-    image: obsidiandynamics/kafdrop:4.0.1
+    image: obsidiandynamics/kafdrop:latest
     container_name: kafdrop
     depends_on:
       - kafka
