@@ -7,7 +7,7 @@ snowflake:
   role: "${SNOWFLAKE_ROLE_NAME}"
   database: "${SNOWFLAKE_DATABASE}"
   warehouse: "${SNOWFLAKE_WAREHOUSE_NAME}"
-  schema: "${SNOWFLAKE_PASSWORD}"
+  schema: "${SNOWFLAKE_SCHEMA}"
   
 # Targets par environnement
 environments:
