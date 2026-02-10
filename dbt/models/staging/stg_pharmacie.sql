@@ -1,19 +1,14 @@
 {{
     config(
-        materialized='table',
-        incremental_strategy='merge',
-        unique_key=['PHA_ID'],
+        materialized='view',
         schema='STAGING',
-        tags=['staging', 'pharmacie', 'ref', 'incremental']
+        tags=['staging', 'pharmacie', 'ref']
     )
 }}
 
 with source_data as (
     select * from {{ ref('raw_pharmacie') }}
     where cdc_operation != 'D'
-    {% if is_incremental() %}
-      and cdc_timestamp >= (select coalesce(max(loaded_at), '1900-01-01') from {{ this }})
-    {% endif %}
 ),
 dedup_cdc as (
     select *,

@@ -2,7 +2,7 @@
   config(
     materialized='table',
     schema='MARTS',
-    tags=[marts, 'fact', 'commandes']
+    tags=['marts', 'fact', 'commandes']
   ) 
 }}
 

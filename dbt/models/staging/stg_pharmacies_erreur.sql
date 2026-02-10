@@ -18,7 +18,7 @@ with source_data as (
 dedup_cdc as (
     select *,
         row_number() over (
-            partition by PHA_ID
+            partition by id
             order by cdc_timestamp desc nulls last
         ) as rn
     from source_data

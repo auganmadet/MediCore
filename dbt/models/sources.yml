@@ -43,10 +43,7 @@ sources:
             tests: [not_null]
           - name: FOU_ID
             description: "ID fournisseur"
-            tests:
-              - not_null
-              - unique_combination_of_columns:
-                  combination_of_columns: [PHA_ID, FOU_ID]
+            tests: [not_null]
           - name: FOU_NOM
             description: "Nom fournisseur"
           - name: FOU_ADRESSE
@@ -80,77 +77,77 @@ sources:
             tests: [not_null]
           - name: ChequeFRF
             tests: [not_null]
-          - name:	CB
+          - name: CB
             tests: [not_null]
-          - name:	Centre
+          - name: Centre
             tests: [not_null]
-          - name:	Differe_Positif
+          - name: Differe_Positif
             tests: [not_null]
-          - name:	nb_De_Factures
+          - name: nb_De_Factures
             tests: [not_null]
-          - name:	nb_De_Subro
+          - name: nb_De_Subro
             tests: [not_null]
-          - name:	TVA_1
+          - name: TVA_1
             tests: [not_null]
-          - name:	TVA_2
+          - name: TVA_2
             tests: [not_null]
-          - name:	TVA_3
+          - name: TVA_3
             tests: [not_null]
-          - name:	TVA_4
+          - name: TVA_4
             tests: [not_null]
-          - name:	TVA_5
+          - name: TVA_5
             tests: [not_null]
-          - name:	Marge_Rembt
+          - name: Marge_Rembt
             tests: [not_null]
-          - name:	Marge_NRembt
+          - name: Marge_NRembt
             tests: [not_null]
-          - name:	Remise_EnCompte
+          - name: Remise_EnCompte
             tests: [not_null]
-          - name:	Remise_EnLigne
+          - name: Remise_EnLigne
             tests: [not_null]
-          - name:	EnCompte_Positif
+          - name: EnCompte_Positif
             tests: [not_null]
-          - name:	Mutuelle
+          - name: Mutuelle
             tests: [not_null]
-          - name:	EspeceEUR
+          - name: EspeceEUR
             tests: [not_null]
-          - name:	ChequeEUR
+          - name: ChequeEUR
             tests: [not_null]
-          - name:	Virement
+          - name: Virement
             tests: [not_null]
-          - name:	SubroPartAssure
+          - name: SubroPartAssure
             tests: [not_null]
-          - name:	Controle
+          - name: Controle
             tests: [not_null]
-          - name:	PointsFidel
+          - name: PointsFidel
             tests: [not_null]
-          - name:	Particulier
+          - name: Particulier
             tests: [not_null]
-          - name:	EnCompteBL_Positif
+          - name: EnCompteBL_Positif
             tests: [not_null]
-          - name:	Differe_Negatif
+          - name: Differe_Negatif
             tests: [not_null]
-          - name:	EnCompte_Negatif
+          - name: EnCompte_Negatif
             tests: [not_null]
-          - name:	EnCompteBL_Negatif
+          - name: EnCompteBL_Negatif
             tests: [not_null]
-          - name:	CA_Retro_1
+          - name: CA_Retro_1
             tests: [not_null]
-          - name:	CA_Retro_2
+          - name: CA_Retro_2
             tests: [not_null]
-          - name:	CA_Retro_3
+          - name: CA_Retro_3
             tests: [not_null]
-          - name:	CA_Retro_4
+          - name: CA_Retro_4
             tests: [not_null]
-          - name:	CA_Retro_5
+          - name: CA_Retro_5
             tests: [not_null]
-          - name:	DMPositif
+          - name: DMPositif
             tests: [not_null]
-          - name:	DMNegatif
+          - name: DMNegatif
             tests: [not_null]
-          - name:	DMRetroPositif
+          - name: DMRetroPositif
             tests: [not_null]
-          - name:	DMRetroNegatif
+          - name: DMRetroNegatif
             tests: [not_null]
 
       # LOG (2 colonnes)

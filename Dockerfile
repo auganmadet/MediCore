@@ -2,6 +2,11 @@
 # Premier stage : builder
 FROM python:3.11-slim as builder
 
+# Installer git (nécessaire pour dbt deps / packages.yml)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends git && \
+    rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
@@ -9,6 +14,11 @@ RUN pip install --no-cache-dir --user -r requirements.txt
 # Second stage : sans les fichiers de build
 FROM python:3.11-slim
 
+# Installer git aussi dans l'image finale (dbt deps s'exécute ici)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends git && \
+    rm -rf /var/lib/apt/lists/*
+    
 WORKDIR /app
 COPY --from=builder /root/.local /root/.local
 # Ajoute /root/.local/bin au PATH pour pouvoir appeler dbt, python, etc.

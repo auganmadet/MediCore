@@ -3,7 +3,7 @@
         materialized='incremental',
         schema='MART',
         unique_key=['pharmacie_sk', 'PRD_ID', 'FAC_DATE'],
-        tags=[marts, 'fact', 'ventes']
+        tags=['marts', 'fact', 'ventes']
     )
 }}
 

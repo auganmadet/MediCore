@@ -2,7 +2,7 @@
     config(
         materialized='incremental',
         incremental_strategy='merge',
-        unique_key=['PHA_ID', 'Date'],
+        unique_key=['PHA_ID', '"Date"'],
         schema='STAGING',
         tags=['staging', 'history', 'incremental']
     )
