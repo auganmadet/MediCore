@@ -10,16 +10,13 @@ target-path: "target"
 clean-targets: ["target", "dbt_packages"]
 
 models:
-  raw:
-    +materialized: incremental
-    +schema: RAW
-    +tags: ['raw', 'cdc']
-  staging:
-    +materialized: table
-    +schema: STAGING
-  marts:
-    +materialized: table
-    +schema: MARTS
+  medicore:
+    staging:
+      +materialized: view
+      +schema: STAGING
+    marts:
+      +materialized: table
+      +schema: MARTS
 
 vars:
   pharmacie_sk: "{{ md5(PHA_ID::string || loaded_at::string) }}"

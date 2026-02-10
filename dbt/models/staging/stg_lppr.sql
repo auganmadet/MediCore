@@ -24,6 +24,6 @@ dedup_cdc as (
     from source_data
 )
 select PHA_ID, PRD_ID, LPP_INDEX, upper(trim(LPP_CODE)) as LPP_CODE,
-       LPP_INDEX, upper(trim(LPP_CODE)) as LPP_CODE, LPP_QTE,
-       upper(trim(LPP_ACTE_NOM)) as LPP_ACTE_NOM,cdc_timestamp as loaded_at
+       LPP_QTE, upper(trim(LPP_ACTE_NOM)) as LPP_ACTE_NOM,
+       cdc_timestamp as loaded_at
 from dedup_cdc where rn = 1

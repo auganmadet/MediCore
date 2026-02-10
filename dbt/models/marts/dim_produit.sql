@@ -3,7 +3,7 @@
         materialized='table',
         schema='MART',
         unique_key=['PHA_ID', 'PRD_ID'],
-        tags=[marts, 'dim', 'produit']
+        tags=['marts', 'dim', 'produit']
     )
 }}
 
