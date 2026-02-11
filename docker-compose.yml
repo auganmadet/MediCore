@@ -20,6 +20,7 @@ services:
       - SNOWFLAKE_DATABASE=${SNOWFLAKE_DATABASE}
       - SNOWFLAKE_SCHEMA_NAME=${SNOWFLAKE_SCHEMA_NAME}
       - SNOWFLAKE_ROLE_NAME=${SNOWFLAKE_ROLE_NAME}
+      - SNOWFLAKE_DBT_ROLE_NAME=${SNOWFLAKE_DBT_ROLE_NAME}
     volumes:
       - ./dbt:/app/dbt
       - ./pipelines:/app/pipelines

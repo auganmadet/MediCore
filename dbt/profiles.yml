@@ -6,7 +6,7 @@ medicore:
       account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
       user: "{{ env_var('SNOWFLAKE_USER') }}"
       password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
-      role: "{{ env_var('SNOWFLAKE_ROLE_NAME') }}"
+      role: "{{ env_var('SNOWFLAKE_DBT_ROLE_NAME') }}"
       database: "{{ env_var('SNOWFLAKE_DATABASE') }}"
       warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE_NAME') }}"
       schema: STAGING
@@ -17,7 +17,7 @@ medicore:
       account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
       user: "{{ env_var('SNOWFLAKE_USER') }}"
       password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
-      role: "{{ env_var('SNOWFLAKE_ROLE_NAME') }}"
+      role: "{{ env_var('SNOWFLAKE_DBT_ROLE_NAME') }}"
       database: "{{ env_var('SNOWFLAKE_DATABASE') }}"
       warehouse: MEDIcore_WH_XL
       schema: MARTS
