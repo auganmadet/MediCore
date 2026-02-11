@@ -1,6 +1,6 @@
 {{
     config(
-        materialized='table',
+        materialized='incremental',
         incremental_strategy='merge',
         unique_key=['PHA_ID', 'PRD_ID', 'LPP_INDEX', 'LPP_CODE'],
         schema='STAGING',

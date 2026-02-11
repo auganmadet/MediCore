@@ -17,8 +17,3 @@ models:
     marts:
       +materialized: table
       +schema: MARTS
-
-vars:
-  pharmacie_sk: "{{ md5(PHA_ID::string || loaded_at::string) }}"
-  produit_sk: "{{ md5(PHA_ID::string || PRD_ID::string) }}"
-
