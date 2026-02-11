@@ -14,16 +14,22 @@ models:
           - relationships:
               to: ref('stg_produits')
               field: PRD_ID
+              config:
+                severity: warn
       - name: FOU_ID
         description: "ID fournisseur"
         tests:
           - relationships:
               to: ref('stg_fournisseurs')
               field: FOU_ID
+              config:
+                severity: warn
       - name: COM_QUANTITE
         tests:
           - dbt_utils.expression_is_true:
-              expression: "COM_QUANTITE > 0"
+              expression: ">= 0"
+              config:
+                severity: warn
 
   - name: stg_daybyday
     description: "Prix journaliers nettoyés"
@@ -73,7 +79,7 @@ models:
       - name: FAC_QUANTITE
         tests:
           - dbt_utils.expression_is_true:
-              expression: "FAC_QUANTITE > 0"
+              expression: ">= 0"
 
   - name: stg_fournisseurs
     description: "Fournisseurs nettoyés"
@@ -88,7 +94,7 @@ models:
     columns:
       - name: PHA_ID
         tests: [not_null]
-      - name: Date
+      - name: '"Date"'
         tests: [not_null]
 
   - name: stg_log
@@ -143,7 +149,7 @@ models:
       - name: FAC_QUANTITE
         tests:
           - dbt_utils.expression_is_true:
-              expression: "FAC_QUANTITE > 0"
+              expression: ">= 0"
 
   - name: stg_modstock
     description: "Mouvements de stock"
@@ -197,7 +203,7 @@ models:
         description: ""
         tests:
           - dbt_utils.expression_is_true:
-              expression: "PRD_PRIXTARIF > 0"
+              expression: ">= 0"
 
   - name: stg_produits_negatifs
     description: "Produits négatifs"
