@@ -1,14 +1,15 @@
 {{
     config(
         materialized='incremental',
-        schema='MART',
-        unique_key=['pharmacie_sk', 'PRD_ID', 'FAC_DATE'],
-        tags=['marts', 'fact', 'ventes']
+        incremental_strategy='merge',
+        unique_key=['pharmacie_sk', 'produit_sk', 'date_vente', 'ORD_CLIENT_AGE_MONTHS', 'ORD_CLIENT_SEX'],
+        schema='MARTS',
+        tags=['marts', 'fact', 'ventes', 'high_volume', 'incremental']
     )
 }}
 
 with ventes_enriched as (
-    select 
+    select
         f.PHA_ID,
         f.PRD_ID,
         f.FAC_DATE::date as date_vente,
@@ -22,23 +23,20 @@ with ventes_enriched as (
         prod.produit_sk,
         o.ORD_CLIENT_AGE_MONTHS,
         o.ORD_CLIENT_SEX,
-        row_number() over (
-            partition by f.PHA_ID, f.PRD_ID, f.FAC_DATE::date
-            order by f.cdc_timestamp desc
-        ) as rn
+        f.loaded_at
     from {{ ref('stg_factures') }} f
-    left join {{ ref('dim_pharmacie') }} ph 
-        on f.PHA_ID = ph.PHA_ID 
-        and f.FAC_DATE::date >= ph.valid_from 
-        and f.FAC_DATE::date < ph.valid_to
-    left join {{ ref('dim_produit') }} prod 
+    inner join {{ ref('dim_pharmacie') }} ph
+        on f.PHA_ID = ph.PHA_ID
+    inner join {{ ref('dim_produit') }} prod
         on f.PHA_ID = prod.PHA_ID and f.PRD_ID = prod.PRD_ID
-    left join {{ ref('stg_orders') }} o 
+    left join {{ ref('stg_orders') }} o
         on f.PHA_ID = o.PHA_ID and f.FAC_ID = o.FAC_ID
-    where f.cdc_operation != 'D'
+    {% if is_incremental() %}
+    where f.loaded_at >= (select coalesce(max(loaded_at), '1900-01-01') from {{ this }})
+    {% endif %}
 )
 
-select 
+select
     pharmacie_sk,
     produit_sk,
     date_vente,
@@ -49,10 +47,7 @@ select
     max(FAC_REMISE) as remise_max,
     ORD_CLIENT_AGE_MONTHS,
     ORD_CLIENT_SEX,
-    count(*) as nb_lignes
-from ventes_enriched 
-where rn = 1
-{% if is_incremental() %}
-    and date_vente >= (select max(date_vente) from {{ this }})
-{% endif %}
-group by 1,2,3,10,11
+    count(*) as nb_lignes,
+    max(loaded_at) as loaded_at
+from ventes_enriched
+group by pharmacie_sk, produit_sk, date_vente, ORD_CLIENT_AGE_MONTHS, ORD_CLIENT_SEX

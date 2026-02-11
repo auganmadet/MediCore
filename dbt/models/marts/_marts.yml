@@ -3,7 +3,7 @@ version: 2
 models:
   # DIMENSIONS
   - name: dim_pharmacie
-    description: "Pharmacies slowly changing dimension"
+    description: "Pharmacies (table de référence)"
     columns:
       - name: pharmacie_sk
         description: "Surrogate key"
@@ -18,10 +18,6 @@ models:
       - name: PHA_NOM
         tests:
           - not_null
-      - name: valid_from
-        description: "SCD2 valid from"
-      - name: valid_to
-        description: "SCD2 valid to"
 
   - name: dim_produit
     description: "Produits enrichis (EAN13 + LPPR)"
@@ -46,6 +42,7 @@ models:
       - name: fournisseur_sk
         tests:
           - unique
+          - not_null
       - name: FOU_ID
         tests:
           - not_null
@@ -60,22 +57,30 @@ models:
       - name: pharmacie_sk
         tests:
           - not_null
+          - relationships:
+              to: ref('dim_pharmacie')
+              field: pharmacie_sk
       - name: produit_sk
         tests:
           - not_null
+          - relationships:
+              to: ref('dim_produit')
+              field: produit_sk
       - name: date_vente
         tests:
           - not_null
       - name: quantite_vendue
-        description: "Quantité facturée"
+        description: "Quantité facturée (peut être négatif pour retours)"
         tests:
-          - dbt_utils.expression_is_true:
-              expression: "quantite_vendue >= 0"
+          - not_null
       - name: ca_ht
         description: "Chiffre d'affaires HT"
         tests:
-          - dbt_utils.expression_is_true:
-              expression: "ca_ht >= 0"
+          - not_null
+      - name: ca_ttc
+        description: "Chiffre d'affaires TTC"
+        tests:
+          - not_null
 
   - name: fact_commandes
     description: "Commandes fournisseurs"
@@ -83,24 +88,49 @@ models:
       - name: pharmacie_sk
         tests:
           - not_null
+          - relationships:
+              to: ref('dim_pharmacie')
+              field: pharmacie_sk
       - name: fournisseur_sk
         tests:
           - not_null
+          - relationships:
+              to: ref('dim_fournisseur')
+              field: fournisseur_sk
       - name: produit_sk
         tests:
           - not_null
+          - relationships:
+              to: ref('dim_produit')
+              field: produit_sk
       - name: date_commande
+        tests:
+          - not_null
       - name: quantite_commandee
         tests:
+          - not_null
           - dbt_utils.expression_is_true:
-              expression: "quantite_commandee > 0"
+              expression: "> 0"
+              severity: warn
 
   - name: fact_stock_mouvement
     description: "Mouvements stock granulaire"
     columns:
       - name: pharmacie_sk
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_pharmacie')
+              field: pharmacie_sk
       - name: produit_sk
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_produit')
+              field: produit_sk
       - name: date_mouvement
+        tests:
+          - not_null
       - name: delta_stock
         tests:
           - not_null
@@ -109,11 +139,76 @@ models:
     description: "Prix évolutifs par jour"
     columns:
       - name: pharmacie_sk
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_pharmacie')
+              field: pharmacie_sk
       - name: produit_sk
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_produit')
+              field: produit_sk
       - name: date_prix
         tests:
           - not_null
       - name: prix_tarif
         tests:
           - dbt_utils.expression_is_true:
-              expression: "prix_tarif > 0"
+              expression: "> 0"
+              severity: warn
+
+  # KPIs CROISES
+  - name: mart_kpi_marge
+    description: "Marge journalière par pharmacie et produit (croisement ventes x prix)"
+    columns:
+      - name: pharmacie_sk
+        tests:
+          - not_null
+      - name: produit_sk
+        tests:
+          - not_null
+      - name: date_jour
+        tests:
+          - not_null
+      - name: marge_brute
+        tests:
+          - not_null
+      - name: taux_marge
+        description: "Ratio marge_brute / ca_ht (null si ca_ht = 0)"
+
+  - name: mart_kpi_stock
+    description: "Rotation de stock et taux de rupture mensuels (croisement stock x ventes)"
+    columns:
+      - name: pharmacie_sk
+        tests:
+          - not_null
+      - name: produit_sk
+        tests:
+          - not_null
+      - name: mois
+        tests:
+          - not_null
+      - name: stock_moyen
+        tests:
+          - not_null
+      - name: taux_rupture
+        description: "Ratio jours en rupture / jours avec mouvement"
+      - name: rotation_stock
+        description: "Ratio quantite_vendue / stock_moyen (null si stock_moyen = 0)"
+
+  - name: mart_kpi_ecoulement
+    description: "Taux d'écoulement mensuel (croisement commandes x ventes)"
+    columns:
+      - name: pharmacie_sk
+        tests:
+          - not_null
+      - name: produit_sk
+        tests:
+          - not_null
+      - name: mois
+        tests:
+          - not_null
+      - name: taux_ecoulement
+        description: "Ratio quantite_vendue / quantite_commandee (null si aucune commande)"

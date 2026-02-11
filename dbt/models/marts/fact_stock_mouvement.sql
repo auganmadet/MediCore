@@ -1,9 +1,11 @@
-{{ 
+{{
   config(
-    materialized='table',
+    materialized='incremental',
+    incremental_strategy='merge',
+    unique_key=['pharmacie_sk', 'produit_sk', 'date_mouvement'],
     schema='MARTS',
-    tags=['marts', 'fact', 'stock_mouvement']
-  ) 
+    tags=['marts', 'fact', 'stock_mouvement', 'high_volume', 'incremental']
+  )
 }}
 
 with mouvements as (
@@ -16,17 +18,20 @@ with mouvements as (
         m.MOD_OPERATION,
         ph.pharmacie_sk,
         prod.produit_sk,
+        m.loaded_at,
         row_number() over (
           partition by m.PHA_ID, m.PRD_ID, m.MOD_DATE, m.MOD_TIMESTAMP
           order by m.loaded_at desc
         ) as rn
     from {{ ref('stg_modstock') }} m
-    left join {{ ref('dim_pharmacie') }} ph
+    inner join {{ ref('dim_pharmacie') }} ph
       on m.PHA_ID = ph.PHA_ID
-      and m.MOD_DATE between ph.valid_from and ph.valid_to
-    left join {{ ref('dim_produit') }} prod
+    inner join {{ ref('dim_produit') }} prod
       on m.PHA_ID = prod.PHA_ID
       and m.PRD_ID = prod.PRD_ID
+    {% if is_incremental() %}
+    where m.loaded_at >= (select coalesce(max(loaded_at), '1900-01-01') from {{ this }})
+    {% endif %}
 )
 
 select
@@ -35,7 +40,8 @@ select
     date_mouvement,
     sum(delta_stock) as delta_stock,
     max(stock_apres) as stock_apres,
-    max(MOD_OPERATION) as type_operation
+    max(MOD_OPERATION) as type_operation,
+    max(loaded_at) as loaded_at
 from mouvements
 where rn = 1
-group by 1,2,3
+group by pharmacie_sk, produit_sk, date_mouvement

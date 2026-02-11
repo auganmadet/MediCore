@@ -1,9 +1,11 @@
-{{ 
+{{
   config(
-    materialized='table',
+    materialized='incremental',
+    incremental_strategy='merge',
+    unique_key=['pharmacie_sk', 'produit_sk', 'fournisseur_sk', 'date_commande', 'commande_id'],
     schema='MARTS',
-    tags=['marts', 'fact', 'commandes']
-  ) 
+    tags=['marts', 'fact', 'commandes', 'high_volume', 'incremental']
+  )
 }}
 
 with commandes_enriched as (
@@ -19,20 +21,19 @@ with commandes_enriched as (
         ph.pharmacie_sk,
         prod.produit_sk,
         f.fournisseur_sk,
-        row_number() over (
-          partition by c.PHA_ID, c.COM_GROI, c.PRD_ID
-          order by c.loaded_at desc
-        ) as rn
+        c.loaded_at
     from {{ ref('stg_commandes') }} c
-    left join {{ ref('dim_pharmacie') }} ph
+    inner join {{ ref('dim_pharmacie') }} ph
       on c.PHA_ID = ph.PHA_ID
-      and c.COM_DATE between ph.valid_from and ph.valid_to
-    left join {{ ref('dim_produit') }} prod
+    inner join {{ ref('dim_produit') }} prod
       on c.PHA_ID = prod.PHA_ID
-      and c.PRD_ID  = prod.PRD_ID
-    left join {{ ref('dim_fournisseur') }} f
+      and c.PRD_ID = prod.PRD_ID
+    inner join {{ ref('dim_fournisseur') }} f
       on c.PHA_ID = f.PHA_ID
       and c.FOU_ID = f.FOU_ID
+    {% if is_incremental() %}
+    where c.loaded_at >= (select coalesce(max(loaded_at), '1900-01-01') from {{ this }})
+    {% endif %}
 )
 
 select
@@ -43,7 +44,7 @@ select
     COM_GROI       as commande_id,
     sum(COM_QUANTITE)      as quantite_commandee,
     sum(COM_PAHTNET)       as montant_pahtnet,
-    avg(COM_TAUXREMISE)    as remise_moyenne
+    avg(COM_TAUXREMISE)    as remise_moyenne,
+    max(loaded_at) as loaded_at
 from commandes_enriched
-where rn = 1
-group by 1,2,3,4,5
+group by pharmacie_sk, produit_sk, fournisseur_sk, COM_DATE, COM_GROI

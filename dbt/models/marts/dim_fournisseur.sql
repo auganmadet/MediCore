@@ -28,7 +28,7 @@ with fournisseurs_dedup as (
 )
 
 select
-    md5(PHA_ID::string || FOU_ID::string) as fournisseur_sk,
+    md5(PHA_ID::string || '-' || FOU_ID::string) as fournisseur_sk,
     PHA_ID,
     FOU_ID,
     FOU_NOM,
