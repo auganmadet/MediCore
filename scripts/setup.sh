@@ -800,6 +800,17 @@ docker exec kafka kafka-topics --bootstrap-server localhost:9092 \
 
 CONNECTOR_NAME="${CONNECTOR_NAME:-winstat-rds}"  # ← FIX sécurité
 
+# Phase 3b : Build + start ELT batch (avant bulk load et avant Debezium)
+echo "🚀 Phase 3b/4 : medicore-elt-batch (build)..."
+docker compose build --no-cache medicore-elt-batch
+docker compose up -d medicore-elt-batch
+echo "⏳ Attente container medicore_elt_batch (15s)..."
+sleep 15
+
+# Phase 3c : Bulk load initial MySQL → Snowflake RAW
+echo "📦 Bulk load initial (18 tables)..."
+docker exec medicore_elt_batch python /app/pipelines/bulk_load.py --truncate
+
 # # 1. KILL connector + clean
 # curl -X DELETE http://localhost:8083/connectors/$CONNECTOR_NAME || true
 
@@ -1065,11 +1076,6 @@ sleep 45
 # docker compose restart connect
 # sleep 20
 # --> On remettra en place quand  CDC → Kafka OK
-
-# Phase 4 : ELT Batch
-echo "🚀 Phase 4/4 : medicore-elt-batch (dbt Pipeline)..."
-docker compose build --no-cache medicore-elt-batch
-docker compose up -d medicore-elt-batch
 
 echo "🎉 PIPELINE 100% OPÉRATIONNEL !"
 echo "📊 Logs     : docker logs -f medicore_elt_batch"

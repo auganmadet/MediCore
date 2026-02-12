@@ -58,7 +58,10 @@
 # Core dependencies
 dbt-core==1.8.0
 dbt-snowflake==1.8.0
-snowflake-connector-python==3.12.4  # ← VERSION VALIDE
+snowflake-connector-python[pandas]==3.12.4  # write_pandas() activé
+
+# MySQL RDS
+mysql-connector-python==8.4.0
 
 # Kafka
 kafka-python==2.0.2
