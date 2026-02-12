@@ -25,9 +25,10 @@ cdc_tables:
   - COMMANDES   # → RAW.COMMANDES → stg_commandes.sql → fact_commandes.sql
   - FACTURES    # → RAW.FACTURES  → stg_factures.sql → fact_ventes.sql
   - ORDERS      # → RAW.ORDERS → stg_orders.sql → fact_ventes.sql (client_age/sex)
-  - PHARMACIE   # → RAW.PHARMACIE → stg_pharmacie.sql → dim_pharmacie.sql
   - MODSTOCK    # → RAW.MODSTOCK → stg_modstock.sql → fact_stock_mouvement.sql
-  - DAYBYDAY    # → RAW.DAYBYDAY → stg_daybyday.sql → fact_prix_journalier.sql
+  # Tables passées en batch (non CDC) :
+  # - PHARMACIE   # 268 lignes, référentiel quasi-statique
+  # - DAYBYDAY    # prix mis à jour 1x/jour, batch quotidien suffit
 
 # Dimensions MARTS (peuvent venir de plusieurs sources)
 dimensions:
