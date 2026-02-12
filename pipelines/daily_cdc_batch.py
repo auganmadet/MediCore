@@ -44,9 +44,7 @@ class MediCoreCDC:
                 'winstat_rds.winstat.COMMANDES',
                 'winstat_rds.winstat.FACTURES',
                 'winstat_rds.winstat.ORDERS',
-                'winstat_rds.winstat.PHARMACIE',
                 'winstat_rds.winstat.MODSTOCK',
-                'winstat_rds.winstat.DAYBYDAY',
             ],
             bootstrap_servers=self.kafka_servers,
             # group_id='medi_core_cdc_batch',   # modifier group_id pour repartir propre
