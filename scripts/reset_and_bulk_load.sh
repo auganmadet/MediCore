@@ -68,7 +68,7 @@ else
 
   # Étape 3 : Bulk load depuis MySQL RDS
   echo "📦 Étape 3 : Bulk load MySQL RDS → Snowflake RAW (18 tables)..."
-  docker exec medicore_elt_batch python /app/pipelines/bulk_load.py
+  docker exec medicore_elt_batch python //app/pipelines/bulk_load.py
   echo "  ✅ Bulk load terminé"
 fi
 
