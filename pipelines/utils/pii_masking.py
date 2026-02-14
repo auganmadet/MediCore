@@ -17,11 +17,10 @@ def mask_pii(event: Dict, table_name: str) -> Dict:
         if 'ORD_OPERATEUR' in masked:
             masked['ORD_OPERATEUR'] = f"USER_{hashlib.md5(str(masked['ORD_OPERATEUR']).encode()).hexdigest()[:4].upper()}"
 
-        # Âge patient → quartile anonyme
-        if 'ORD_CLIENT_AGE_MONTHS' in masked and masked['ORD_CLIENT_AGE_MONTHS']:
+        # Âge patient → quartile anonyme (reste NUMBER pour compatibilité Parquet/Snowflake)
+        if 'ORD_CLIENT_AGE_MONTHS' in masked and masked['ORD_CLIENT_AGE_MONTHS'] is not None:
             age_months = int(masked['ORD_CLIENT_AGE_MONTHS'])
-            quartile = (age_months // 36) * 36  # Par tranche 3 ans
-            masked['ORD_CLIENT_AGE_MONTHS'] = f"{quartile}-{quartile+35}m"
+            masked['ORD_CLIENT_AGE_MONTHS'] = (age_months // 36) * 36  # Par tranche 3 ans
 
         # Département → masqué
         if 'ORD_CLIENT_DEPARTEMENT' in masked:
@@ -60,3 +59,51 @@ def mask_pii(event: Dict, table_name: str) -> Dict:
         pass
 
     return masked
+
+
+def _md5_hash_series(series):
+    """Hash MD5 vectorisé pour une Series pandas."""
+    return series.astype(str).apply(lambda v: hashlib.md5(v.encode()).hexdigest()[:4].upper())
+
+
+def mask_pii_dataframe(df, table_name: str):
+    """Masquage PII vectorisé sur DataFrame - même logique que mask_pii() mais sans iterrows()."""
+    import pandas as pd
+
+    tn = table_name.upper()
+
+    # RAW_ORDERS : Patients + Opérateur
+    if 'ORDERS' in tn:
+        if 'ORD_OPERATEUR' in df.columns:
+            df['ORD_OPERATEUR'] = 'USER_' + _md5_hash_series(df['ORD_OPERATEUR'])
+        if 'ORD_CLIENT_AGE_MONTHS' in df.columns:
+            mask = df['ORD_CLIENT_AGE_MONTHS'].notna()
+            df.loc[mask, 'ORD_CLIENT_AGE_MONTHS'] = (df.loc[mask, 'ORD_CLIENT_AGE_MONTHS'].astype(int) // 36) * 36
+        if 'ORD_CLIENT_DEPARTEMENT' in df.columns:
+            df['ORD_CLIENT_DEPARTEMENT'] = 'DEP' + df['ORD_CLIENT_DEPARTEMENT'].astype(str).str[:2] + '***'
+
+    # RAW_PHARMACIE : Nom officine
+    if 'PHARMACIE' in tn:
+        if 'PHA_NOM' in df.columns:
+            df['PHA_NOM'] = 'PHARM_' + _md5_hash_series(df['PHA_NOM'])
+
+    # RAW_PHARMACIES : Coordonnées sensibles
+    if 'PHARMACIES' in tn:
+        if 'adeli' in df.columns:
+            df['adeli'] = '***' + df['adeli'].astype(str).str[-4:]
+        if 'name' in df.columns:
+            df['name'] = 'PHARM_' + _md5_hash_series(df['name'])
+        if 'phone' in df.columns:
+            clean = df['phone'].astype(str).str.replace(' ', '', regex=False).str.replace('.', '', regex=False)
+            df['phone'] = clean.str[:2] + '**' + clean.str[-4:]
+        if 'postal_code' in df.columns:
+            df['postal_code'] = df['postal_code'].astype(str).str[:2] + '***'
+
+    # RAW_MEDIPRIX_FACTURES
+    if 'MEDIPRIX_FACTURES' in tn:
+        if 'ORD_OPERATEUR' in df.columns:
+            df['ORD_OPERATEUR'] = 'USER_' + _md5_hash_series(df['ORD_OPERATEUR'])
+        if 'PHA_NOM' in df.columns:
+            df['PHA_NOM'] = 'PHARM_' + _md5_hash_series(df['PHA_NOM'])
+
+    return df
