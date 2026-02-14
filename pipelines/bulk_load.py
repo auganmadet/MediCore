@@ -12,6 +12,7 @@ Usage:
 """
 
 import argparse
+import gc
 import os
 import sys
 import time
@@ -22,7 +23,7 @@ import pandas as pd
 import mysql.connector
 import snowflake.connector
 
-from utils.pii_masking import mask_pii
+from utils.pii_masking import mask_pii_dataframe
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -62,14 +63,22 @@ REF_TABLES = [t for t in TABLE_MAPPING if t not in CDC_TABLES]
 
 
 def get_mysql_conn():
-    """Connexion MySQL RDS"""
-    return mysql.connector.connect(
+    """Connexion MySQL RDS avec timeout élevé pour bulk load"""
+    conn = mysql.connector.connect(
         host=os.getenv('MYSQL_HOST'),
         port=int(os.getenv('MYSQL_PORT', '3306')),
         user=os.getenv('MYSQL_USER'),
         password=os.getenv('MYSQL_PASSWORD'),
-        database=os.getenv('MYSQL_DATABASE', 'winstat')
+        database=os.getenv('MYSQL_DATABASE', 'winstat'),
+        connection_timeout=600,
     )
+    # Timeout session élevé : entre chaque chunk, le PUT Snowflake peut prendre >60s
+    cursor = conn.cursor()
+    cursor.execute("SET SESSION wait_timeout = 28800")
+    cursor.execute("SET SESSION net_read_timeout = 600")
+    cursor.execute("SET SESSION net_write_timeout = 600")
+    cursor.close()
+    return conn
 
 
 def get_snowflake_conn():
@@ -78,20 +87,24 @@ def get_snowflake_conn():
         account=os.getenv('SNOWFLAKE_ACCOUNT'),
         user=os.getenv('SNOWFLAKE_USER'),
         password=os.getenv('SNOWFLAKE_PASSWORD'),
-        role='MEDIcore_DBT_EXECUTOR',
+        role=os.getenv('SNOWFLAKE_ROLE_NAME', 'MEDICORE_RAW_WRITER'),
         database='MEDIcore',
         warehouse='MEDIcore_WH',
-        schema='RAW'
+        schema='RAW',
+        insecure_mode=True  # Bypass OCSP pour PUT vers S3 stage
     )
 
 
 def get_snowflake_columns(sf_conn, table_name):
-    """Récupère les noms de colonnes Snowflake (casing exact)."""
+    """Récupère les noms de colonnes et types Snowflake (casing exact)."""
     cursor = sf_conn.cursor()
     cursor.execute(f"DESCRIBE TABLE {table_name}")
-    columns = [row[0] for row in cursor.fetchall()]
+    rows = cursor.fetchall()
+    columns = [row[0] for row in rows]
+    # Colonnes BOOLEAN : Parquet écrit int 0/1, Snowflake refuse variant→BOOLEAN
+    bool_columns = {row[0] for row in rows if 'BOOLEAN' in str(row[1]).upper()}
     cursor.close()
-    return columns
+    return columns, bool_columns
 
 
 def ensure_stage(sf_conn):
@@ -120,12 +133,15 @@ def bulk_load_table(mysql_conn, sf_conn, mysql_table, sf_table, chunk_size, trun
     logger.info(f"Loading {mysql_table} -> {sf_table}...")
     start = time.time()
 
+    # Curseur Snowflake réutilisé (évite fuite mémoire : 1 cursor par chunk = OOM)
+    sf_cursor = sf_conn.cursor()
+
     if truncate:
-        sf_conn.cursor().execute(f"TRUNCATE TABLE {sf_table}")
+        sf_cursor.execute(f"TRUNCATE TABLE {sf_table}")
         logger.info(f"  TRUNCATE {sf_table}")
 
-    # Colonnes Snowflake (casing exact)
-    sf_columns = get_snowflake_columns(sf_conn, sf_table)
+    # Colonnes Snowflake (casing exact + types BOOLEAN)
+    sf_columns, sf_bool_columns = get_snowflake_columns(sf_conn, sf_table)
     sf_col_upper_map = {c.upper(): c for c in sf_columns}
     sf_col_set = set(sf_columns)
 
@@ -134,25 +150,29 @@ def bulk_load_table(mysql_conn, sf_conn, mysql_table, sf_table, chunk_size, trun
 
     # Nettoyer le sous-dossier stage pour cette table
     stage_path = f"@{STAGE_NAME}/{sf_table}/"
-    sf_conn.cursor().execute(f"REMOVE {stage_path}")
+    sf_cursor.execute(f"REMOVE {stage_path}")
 
-    # Lecture MySQL par chunks → fichiers Parquet → PUT
-    query = f"SELECT * FROM `{mysql_table}`"
+    # Lecture MySQL via curseur non-bufférisé (évite OOM sur tables volumineuses)
+    # pd.read_sql(chunksize) buffèrise le résultat entier en mémoire avec mysql.connector
+    cursor_mysql = mysql_conn.cursor(buffered=False)
+    cursor_mysql.execute(f"SELECT * FROM `{mysql_table}`")
+    col_names = [desc[0] for desc in cursor_mysql.description]
+
     total_rows = 0
     chunk_num = 0
 
-    for chunk_df in pd.read_sql(query, mysql_conn, chunksize=chunk_size):
+    while True:
+        rows = cursor_mysql.fetchmany(chunk_size)
+        if not rows:
+            break
+
         chunk_num += 1
         chunk_start = time.time()
 
-        # PII masking ligne par ligne
-        masked_rows = []
-        for _, row in chunk_df.iterrows():
-            row_dict = row.to_dict()
-            masked = mask_pii(row_dict, sf_table)
-            masked_rows.append(masked)
+        df = pd.DataFrame(rows, columns=col_names)
 
-        df = pd.DataFrame(masked_rows)
+        # PII masking vectorisé (évite iterrows + dict copies → mémoire stable)
+        df = mask_pii_dataframe(df, sf_table)
 
         # Renommer colonnes MySQL → casing Snowflake
         df.columns = [sf_col_upper_map.get(c.upper(), c.upper()) for c in df.columns]
@@ -171,6 +191,11 @@ def bulk_load_table(mysql_conn, sf_conn, mysql_table, sf_table, chunk_size, trun
             if sf_col_name and sf_col_name in sf_col_set:
                 df[sf_col_name] = value
 
+        # Convertir colonnes BOOLEAN (MySQL TINYINT 0/1 → Python bool pour Parquet)
+        for bc in sf_bool_columns:
+            if bc in df.columns:
+                df[bc] = df[bc].astype(bool)
+
         # Ne garder que les colonnes existantes dans Snowflake
         valid_cols = [c for c in df.columns if c in sf_col_set]
         df = df[valid_cols]
@@ -182,7 +207,7 @@ def bulk_load_table(mysql_conn, sf_conn, mysql_table, sf_table, chunk_size, trun
 
         # PUT vers stage Snowflake
         put_query = f"PUT 'file://{parquet_file}' {stage_path} AUTO_COMPRESS=FALSE OVERWRITE=TRUE"
-        sf_conn.cursor().execute(put_query)
+        sf_cursor.execute(put_query)
 
         # Supprimer fichier local (nettoyage progressif)
         os.remove(parquet_file)
@@ -191,6 +216,12 @@ def bulk_load_table(mysql_conn, sf_conn, mysql_table, sf_table, chunk_size, trun
         chunk_time = time.time() - chunk_start
         logger.info(f"  Chunk {chunk_num}: {len(df)} rows, {file_size_mb:.1f} Mo, PUT {chunk_time:.1f}s | Total: {total_rows}")
 
+        # Libérer mémoire explicitement
+        del df, rows
+        gc.collect()
+
+    cursor_mysql.close()
+
     if total_rows == 0:
         logger.warning(f"  {sf_table}: table vide (0 rows)")
         return 0
@@ -198,8 +229,7 @@ def bulk_load_table(mysql_conn, sf_conn, mysql_table, sf_table, chunk_size, trun
     # COPY INTO : 1 seule opération pour tous les fichiers Parquet du stage
     logger.info(f"  COPY INTO {sf_table} depuis {stage_path} ({chunk_num} fichiers)...")
     copy_start = time.time()
-    cursor = sf_conn.cursor()
-    cursor.execute(f"""
+    sf_cursor.execute(f"""
         COPY INTO {sf_table}
         FROM {stage_path}
         FILE_FORMAT = (TYPE = PARQUET)
@@ -209,7 +239,8 @@ def bulk_load_table(mysql_conn, sf_conn, mysql_table, sf_table, chunk_size, trun
     logger.info(f"  COPY INTO terminé en {copy_time:.1f}s")
 
     # Nettoyer le stage
-    sf_conn.cursor().execute(f"REMOVE {stage_path}")
+    sf_cursor.execute(f"REMOVE {stage_path}")
+    sf_cursor.close()
 
     elapsed = time.time() - start
     logger.info(f"  {sf_table}: {total_rows} rows en {elapsed:.1f}s ({chunk_num} fichiers Parquet)")
@@ -221,7 +252,7 @@ def main():
     parser.add_argument('--tables', nargs='+', help='Tables specifiques (ex: PHARMACIE PRODUITS)')
     parser.add_argument('--cdc-only', action='store_true', help='4 tables CDC uniquement')
     parser.add_argument('--ref-only', action='store_true', help='14 tables reference uniquement')
-    parser.add_argument('--chunk-size', type=int, default=1000000, help='Lignes par fichier Parquet (defaut: 1000000)')
+    parser.add_argument('--chunk-size', type=int, default=500000, help='Lignes par fichier Parquet (defaut: 500000)')
     parser.add_argument('--truncate', action='store_true', help='TRUNCATE TABLE avant insertion')
     args = parser.parse_args()
 
