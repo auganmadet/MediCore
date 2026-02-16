@@ -201,7 +201,8 @@ def bulk_load_table(mysql_conn, sf_conn, mysql_table, sf_table, chunk_size, trun
 
         # Écrire fichier Parquet local
         parquet_file = os.path.join(EXPORT_DIR, f"{sf_table}_{chunk_num:04d}.parquet")
-        df.to_parquet(parquet_file, engine='pyarrow', index=False)
+        df.to_parquet(parquet_file, engine='pyarrow', index=False,
+                      coerce_timestamps='us', allow_truncated_timestamps=True)
         file_size_mb = os.path.getsize(parquet_file) / (1024 * 1024)
 
         # PUT vers stage Snowflake
@@ -232,7 +233,7 @@ def bulk_load_table(mysql_conn, sf_conn, mysql_table, sf_table, chunk_size, trun
     sf_cursor.execute(f"""
         COPY INTO {sf_table}
         FROM {stage_path}
-        FILE_FORMAT = (TYPE = PARQUET)
+        FILE_FORMAT = (TYPE = PARQUET USE_LOGICAL_TYPE = TRUE)
         MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE
         {force_clause}
     """)
