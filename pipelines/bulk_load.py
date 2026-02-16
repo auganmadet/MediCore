@@ -294,8 +294,9 @@ def main():
 
     for mysql_table, sf_table in tables.items():
         # Nouvelle connexion MySQL par table (évite "Unread result found")
-        mysql_conn = get_mysql_conn()
+        mysql_conn = None
         try:
+            mysql_conn = get_mysql_conn()
             rows = bulk_load_table(mysql_conn, sf_conn, mysql_table, sf_table, args.chunk_size, args.truncate, force=args.truncate)
             grand_total += rows
             results.append((sf_table, rows))
@@ -303,7 +304,8 @@ def main():
             logger.error(f"ERREUR {mysql_table}: {e}")
             errors.append(mysql_table)
         finally:
-            mysql_conn.close()
+            if mysql_conn:
+                mysql_conn.close()
 
     elapsed_all = time.time() - start_all
 
