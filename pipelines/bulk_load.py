@@ -119,8 +119,7 @@ def ensure_export_dir():
     """Crée le répertoire temporaire pour les fichiers Parquet."""
     os.makedirs(EXPORT_DIR, exist_ok=True)
 
-
-def bulk_load_table(mysql_conn, sf_conn, mysql_table, sf_table, chunk_size, truncate):
+def bulk_load_table(mysql_conn, sf_conn, mysql_table, sf_table, chunk_size, truncate, force=False):
     """
     Charge une table MySQL → Snowflake RAW via Parquet + stage + COPY INTO.
 
@@ -229,11 +228,13 @@ def bulk_load_table(mysql_conn, sf_conn, mysql_table, sf_table, chunk_size, trun
     # COPY INTO : 1 seule opération pour tous les fichiers Parquet du stage
     logger.info(f"  COPY INTO {sf_table} depuis {stage_path} ({chunk_num} fichiers)...")
     copy_start = time.time()
+    force_clause = "FORCE = TRUE" if force else ""
     sf_cursor.execute(f"""
         COPY INTO {sf_table}
         FROM {stage_path}
         FILE_FORMAT = (TYPE = PARQUET)
         MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE
+        {force_clause}
     """)
     copy_time = time.time() - copy_start
     logger.info(f"  COPY INTO terminé en {copy_time:.1f}s")
@@ -294,7 +295,7 @@ def main():
         # Nouvelle connexion MySQL par table (évite "Unread result found")
         mysql_conn = get_mysql_conn()
         try:
-            rows = bulk_load_table(mysql_conn, sf_conn, mysql_table, sf_table, args.chunk_size, args.truncate)
+            rows = bulk_load_table(mysql_conn, sf_conn, mysql_table, sf_table, args.chunk_size, args.truncate, force=args.truncate)
             grand_total += rows
             results.append((sf_table, rows))
         except Exception as e:
