@@ -130,7 +130,7 @@ if curl -f -X POST http://localhost:8083/connectors \
       "snapshot.locking.mode": "minimal",
       "schema.history.internal.kafka.bootstrap.servers": "kafka:9092",
       "schema.history.internal.kafka.topic": "winstat_schema_history",
-      "schema.history.internal.store.only.captured.tables.ddl": "true"
+      "schema.history.internal.store.only.captured.tables.ddl": "true",
       "tasks.max": "1"
     }
   }'; then
