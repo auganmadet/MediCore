@@ -59,7 +59,7 @@ select
         when s.nb_jours_mouvement > 0
         then s.nb_jours_rupture::float / s.nb_jours_mouvement
         else null
-    end                                                      as taux_rupture
+    end                                                      as taux_rupture_stock
 from stock_mensuel s
 left join ventes_mensuelles v
     on s.pharmacie_sk = v.pharmacie_sk

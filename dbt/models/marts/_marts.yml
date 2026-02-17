@@ -193,8 +193,8 @@ models:
       - name: stock_moyen
         tests:
           - not_null
-      - name: taux_rupture
-        description: "Ratio jours en rupture / jours avec mouvement"
+      - name: taux_rupture_stock
+        description: "Ratio jours a stock zero / jours avec mouvement (vue stock, source: MODSTOCK)"
       - name: rotation_stock
         description: "Ratio quantite_vendue / stock_moyen (null si stock_moyen = 0)"
 
@@ -212,3 +212,213 @@ models:
           - not_null
       - name: taux_ecoulement
         description: "Ratio quantite_vendue / quantite_commandee (null si aucune commande)"
+
+  - name: fact_ruptures
+    description: "Ruptures de stock journalieres par pharmacie et produit (demande non servie, source: MANQHISTORY)"
+    columns:
+      - name: pharmacie_sk
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_pharmacie')
+              field: pharmacie_sk
+      - name: produit_sk
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_produit')
+              field: produit_sk
+      - name: date_rupture
+        tests:
+          - not_null
+      - name: nb_lignes_manquantes
+        description: "Nombre de lignes de commande non satisfaites"
+        tests:
+          - not_null
+      - name: nb_boites_manquantes
+        description: "Nombre de boites non delivrees"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+              severity: warn
+      - name: nb_clients_impactes
+        description: "Nombre de clients ayant subi la rupture"
+        tests:
+          - not_null
+
+  - name: mart_kpi_ruptures
+    description: "Impact des ruptures et estimation CA/marge perdus mensuels (croisement ruptures x ventes x prix)"
+    columns:
+      - name: pharmacie_sk
+        tests:
+          - not_null
+      - name: produit_sk
+        tests:
+          - not_null
+      - name: mois
+        tests:
+          - not_null
+      - name: taux_rupture_demande
+        description: "Ratio lignes non satisfaites / total lignes (vue demande client, source: MANQHISTORY)"
+      - name: ca_estime_perdu
+        description: "Boites manquantes * prix public moyen du mois (null si prix inconnu)"
+      - name: marge_estimee_perdue
+        description: "Boites manquantes * (prix public - prix achat) moyen du mois"
+
+  - name: fact_tresorerie
+    description: "Tresorerie journaliere par pharmacie (modes de paiement, marges, TVA, source: HISTORY)"
+    columns:
+      - name: pharmacie_sk
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_pharmacie')
+              field: pharmacie_sk
+      - name: date_jour
+        tests:
+          - not_null
+      - name: ca_total_jour
+        tests:
+          - not_null
+      - name: marge_totale
+        tests:
+          - not_null
+
+  - name: mart_kpi_tresorerie
+    description: "Tresorerie mensuelle : panier moyen, repartition paiements, marges rembourse/libre (source: HISTORY)"
+    columns:
+      - name: pharmacie_sk
+        tests:
+          - not_null
+      - name: mois
+        tests:
+          - not_null
+      - name: ca_total
+        tests:
+          - not_null
+      - name: panier_moyen
+        description: "CA total / nb factures (null si aucune facture)"
+      - name: pct_tiers_payant
+        description: "Part (mutuelle + centre + subrogation) / CA total"
+      - name: pct_marge_remboursable
+        description: "Part marge remboursable / marge totale"
+
+  - name: fact_stock_valorisation
+    description: "Snapshots stock quotidiens valorises par pharmacie et produit (source: STOCKHISTORY)"
+    columns:
+      - name: pharmacie_sk
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_pharmacie')
+              field: pharmacie_sk
+      - name: produit_sk
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_produit')
+              field: produit_sk
+      - name: date_stock
+        tests:
+          - not_null
+      - name: valeur_stock_pa
+        description: "Quantite * prix achat net"
+      - name: valeur_stock_pv
+        description: "Quantite * prix public"
+      - name: marge_latente
+        description: "Valeur PV - valeur PA (marge en rayon non realisee)"
+
+  - name: mart_kpi_stock_valorisation
+    description: "Valorisation stock, couverture en jours, detection stock dormant et inflation (croisement stock valorise x ventes)"
+    columns:
+      - name: pharmacie_sk
+        tests:
+          - not_null
+      - name: produit_sk
+        tests:
+          - not_null
+      - name: mois
+        tests:
+          - not_null
+      - name: couverture_stock_jours
+        description: "Stock fin mois * 30 / quantite vendue (null si aucune vente)"
+      - name: variation_prix_achat
+        description: "Variation relative du prix achat net dans le mois (detection inflation)"
+      - name: stock_dormant
+        description: "true si stock moyen > 0 et aucune vente dans le mois"
+
+  - name: mart_kpi_qualite_donnees
+    description: "Fraicheur des donnees et erreurs de synchronisation par pharmacie (sources: LOG + PHARMACIES_ERREUR)"
+    columns:
+      - name: pharmacie_sk
+        tests:
+          - not_null
+      - name: PHA_NOM
+        tests:
+          - not_null
+      - name: statut_fraicheur
+        description: "OK (<= 24h), ALERTE (24-48h), CRITIQUE (> 48h)"
+      - name: heures_depuis_sync
+        description: "Nombre d'heures depuis la derniere synchronisation"
+      - name: taux_pharmacies_ok
+        description: "Part des pharmacies avec statut OK"
+
+  - name: fact_operateur
+    description: "Ventes horaires par operateur et pharmacie (source: MEDIPRIX_FACTURES)"
+    columns:
+      - name: pharmacie_sk
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_pharmacie')
+              field: pharmacie_sk
+      - name: operateur
+        tests:
+          - not_null
+      - name: date_vente
+        tests:
+          - not_null
+      - name: ca_ttc
+        tests:
+          - not_null
+
+  - name: mart_kpi_operateur
+    description: "Performance operateur mensuelle : CA, panier moyen, marge, mix rembourse/libre, heure de pic (source: MEDIPRIX_FACTURES)"
+    columns:
+      - name: pharmacie_sk
+        tests:
+          - not_null
+      - name: operateur
+        tests:
+          - not_null
+      - name: mois
+        tests:
+          - not_null
+      - name: panier_moyen
+        description: "CA TTC / nb lignes (null si aucune ligne)"
+      - name: taux_marge
+        description: "Ratio (CA HT - cout achat) / CA HT"
+      - name: pct_lignes_remboursables
+        description: "Part des lignes avec code remboursement"
+      - name: heure_pic_ca
+        description: "Heure de la journee avec le plus de CA TTC"
+
+  - name: mart_kpi_abc
+    description: "Classification ABC mensuelle des produits par pharmacie (Pareto : A=80% CA, B=95%, C=reste)"
+    columns:
+      - name: pharmacie_sk
+        tests:
+          - not_null
+      - name: produit_sk
+        tests:
+          - not_null
+      - name: mois
+        tests:
+          - not_null
+      - name: rang
+        description: "Rang du produit par CA decroissant dans la pharmacie"
+      - name: pct_ca_cumule
+        description: "Pourcentage cumule du CA (pour tracer la courbe de Pareto)"
+      - name: classe_abc
+        description: "A (top 80% CA), B (80-95%), C (> 95%)"
