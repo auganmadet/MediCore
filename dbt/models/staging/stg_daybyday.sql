@@ -9,7 +9,7 @@
 }}
 
 with source_data as (
-    select * from {{ ref('raw_daybyday') }}
+    select * from {{ source('mysql_raw', 'RAW_DAYBYDAY') }}
     where cdc_operation != 'D'
     {% if is_incremental() %}
       and cdc_timestamp >= (select coalesce(max(loaded_at), '1900-01-01') from {{ this }})

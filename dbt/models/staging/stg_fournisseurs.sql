@@ -1,6 +1,6 @@
 {{
     config(
-        materialized='table',
+        materialized='incremental',
         incremental_strategy='merge',
         unique_key=['PHA_ID', 'FOU_ID'],
         schema='STAGING',
@@ -9,7 +9,7 @@
 }}
 
 with source_data as (
-    select * from {{ ref('raw_fournisseurs') }}
+    select * from {{ source('mysql_raw', 'RAW_FOURNISSEURS') }}
     where cdc_operation != 'D'
     {% if is_incremental() %}
       and cdc_timestamp >= (select coalesce(max(loaded_at), '1900-01-01') from {{ this }})

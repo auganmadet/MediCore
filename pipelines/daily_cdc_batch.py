@@ -3,28 +3,36 @@
 Debezium se connecte à MySQL et publie les évènements binlog sur Kafka (topics)
 Lit les événements Debezium sur Kafka + traite les nouveautés + écrit RAW_* avec métadonnées CDC dans Snowflake
 daily_cdc_batch est appelé par batch_loop.sh
+
+PII masking : non appliqué ici (RAW = données brutes).
+Le masquage est effectué dans les modèles dbt STAGING (stg_orders, stg_pharmacie, etc.)
 """
 
 import json
 import os
 import sys
+import time
 from datetime import datetime, timedelta
-from typing import Dict, Any
+from typing import Dict, List, Any
 import snowflake.connector
 from kafka import KafkaConsumer
 import logging
 import base64
 from decimal import Decimal
-from utils.pii_masking import mask_pii
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Micro-batch : accumule N events ou attend TIMEOUT avant flush
+BATCH_SIZE = 500
+BATCH_TIMEOUT_SEC = 10
 
 class MediCoreCDC:
     def __init__(self):
         self.kafka_servers = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'kafka:9092')
         self.sf_conn = self._get_snowflake_conn()
-        
+        self.sf_cursor = self.sf_conn.cursor()
+
     def _get_snowflake_conn(self):
         """Connexion Snowflake RAW"""
         return snowflake.connector.connect(
@@ -36,9 +44,9 @@ class MediCoreCDC:
             warehouse='MEDIcore_WH',
             schema='RAW'
         )
-    
+
     def consume_cdc_batch(self):
-        """Consomme les topics Kafka winstat_rds.winstat.* → RAW_* Snowflake"""
+        """Consomme les topics Kafka winstat_rds.winstat.* → RAW_* Snowflake (micro-batch)"""
         consumer = KafkaConsumer(
             *[
                 'winstat_rds.winstat.COMMANDES',
@@ -47,40 +55,48 @@ class MediCoreCDC:
                 'winstat_rds.winstat.MODSTOCK',
             ],
             bootstrap_servers=self.kafka_servers,
-            # group_id='medi_core_cdc_batch',   # modifier group_id pour repartir propre
             group_id='medi_core_cdc_batch_dev2',
-            # auto_offset_reset='earliest',   # consumer MediCoreCDC lit tout l’historique (setup initial) depuis le début (snapshot + CDC)
-            auto_offset_reset='latest',       # consumer MediCoreCDC ne lit que les nouveaux (CDC)
-            value_deserializer=lambda x: json.loads(x.decode('utf-8'))
+            auto_offset_reset='latest',
+            value_deserializer=lambda x: json.loads(x.decode('utf-8')),
+            consumer_timeout_ms=BATCH_TIMEOUT_SEC * 1000,
         )
+
+        # Buffers par table : { "RAW_COMMANDES": [event1, event2, ...], ... }
+        buffers: Dict[str, List[Dict]] = {}
         processed = 0
+        errors = 0
+
         for message in consumer:
-            # topic = message.topic.replace('winstat.', '').upper()
-            # table_name = f'RAW_{topic}'
-            topic = message.topic  # ex: winstat_rds.winstat.COMMANDES
-            logical = topic.replace('winstat_rds.', '')     # Enlever le préfixe "winstat_rds." uniquement → "winstat.COMMANDES"
-            table_short = logical.split('.')[-1]            # Récupérer le dernier de la liste → "COMMANDES"
-            table_name = f'RAW_{table_short.upper()}'       # → RAW_COMMANDES
-            
-            logger.info(f"📨 Topic: {message.topic} → {table_name}")
-            
+            topic = message.topic
+            table_short = topic.split('.')[-1]
+            table_name = f'RAW_{table_short.upper()}'
+
             try:
                 payload = message.value
                 event = self._parse_debezium_event(payload)
-                event = mask_pii(event, topic)                 # 🛡️ PII MASQUAGE
-                self._insert_raw_event(table_name, event)
-                processed += 1
-                
-                logger.info(f"✅ {processed} events processed")
-                if processed % 50 == 0:
-                    logger.info(f"📊 {processed} total events → {table_name}")
-                    
+
+                if table_name not in buffers:
+                    buffers[table_name] = []
+                buffers[table_name].append(event)
+
+                # Flush si le buffer de cette table atteint BATCH_SIZE
+                if len(buffers[table_name]) >= BATCH_SIZE:
+                    self._flush_batch(table_name, buffers[table_name])
+                    processed += len(buffers[table_name])
+                    buffers[table_name] = []
+
             except Exception as e:
-                logger.error(f"❌ ERROR {topic}: {e}")
-                logger.error(f"Payload sample: {json.dumps(message.value, indent=2)[:500]}...")
+                errors += 1
+                logger.error(f"ERROR {topic}: {e}")
                 continue
-        
-        logger.info(f"🎉 Batch terminé: {processed} events")
+
+        # Flush les buffers restants (timeout Kafka atteint, plus de messages)
+        for table_name, events in buffers.items():
+            if events:
+                self._flush_batch(table_name, events)
+                processed += len(events)
+
+        logger.info(f"Batch termine: {processed} events inseres, {errors} erreurs")
         consumer.close()
     
     def _decode_debezium_decimal(self, value, scale: int):
@@ -101,88 +117,40 @@ class MediCoreCDC:
         
     def _parse_debezium_event(self, payload: Dict) -> Dict:
         """Parse Debezium → format RAW avec CDC metadata"""
-        logger.info(f"🔍 DEBUG payload keys: {list(payload.keys())}")
-        
-        # Debezium structure: {"payload": {"op": "c", "after": {...}}}
         if 'payload' not in payload:
             raise ValueError(f"No 'payload' in event: {list(payload.keys())}")
-        
+
         debezium_payload = payload['payload']
         op = debezium_payload['op']
         ts_ms = debezium_payload['ts_ms']
-        
-        logger.info(f"🔍 DEBUG: op={op}, ts_ms={ts_ms}")
-        
+
         # Extract data selon operation
         if op == 'c':  # CREATE
-            # data = debezium_payload.get('after', {})
             data = debezium_payload['after']
             cdc_op = 'I'
         elif op == 'u':  # UPDATE
-            # data = debezium_payload.get('after', {})
             data = debezium_payload['after']
             cdc_op = 'U'
         elif op == 'd':  # DELETE
-            # data = debezium_payload.get('before', {})
             data = debezium_payload['before']
             cdc_op = 'D'
         else:
             raise ValueError(f"Unknown op: {op}")
-        
-        logger.info(f"🔍 DEBUG data keys: {list(data.keys())}")
-        logger.info(f"🔍 Sample data: {dict(list(data.items())[:3])}...")  # 3 premières colonnes
-        
-        logger.info(f"🔍 COM_DATE brut depuis Debezium: {data.get('COM_DATE')} ({type(data.get('COM_DATE'))})")
 
-        # Normalisation de COM_DATE (Debezium l'envoie en NUMBER le nombre de jours depuis 1970-01-01)
+        # Normalisation de COM_DATE (Debezium l'envoie en nombre de jours depuis 1970-01-01)
         raw_date = data.get("COM_DATE")
         if raw_date is not None:
-            # Debezium MySQL DATE → jours depuis 1970-01-01 (ex: 20491)
             if isinstance(raw_date, int):
                 base = datetime(1970, 1, 1)
                 dt = base + timedelta(days=raw_date)
                 data["COM_DATE"] = dt.strftime("%Y-%m-%d")
             elif isinstance(raw_date, str):
-                # fallback simple
                 data["COM_DATE"] = raw_date
 
-        # # Normalisation de COM_PAHTNET : Debezium encode certains DECIMAL/NUMERIC en base64 quand le connecteur n’a pas de représentation native.
-        # raw_pahtnet = data.get("COM_PAHTNET")
-        # if raw_pahtnet is not None:
-        #     # Cas DECIMAL encodé en base64 (string courte, chars base64)
-        #     if isinstance(raw_pahtnet, str):
-        #         try:
-        #             decoded = base64.b64decode(raw_pahtnet)
-        #             # Ici, il faut interpréter les bytes comme un entier signé big-endian,
-        #             # puis appliquer l'échelle du DECIMAL (2 décimales dans NUMBER(8,2))
-        #             int_val = int.from_bytes(decoded, byteorder="big", signed=True)
-        #             decimal_val = Decimal(int_val) / Decimal("100")  # scale=2 car COM_PAHTNET est NUMBER(8,2)
-        #             data["COM_PAHTNET"] = float(decimal_val)
-        #         except Exception:
-        #             # Si ce n'est pas du base64, on laisse la valeur telle quelle
-        #             logger.warning(f"⚠️ COM_PAHTNET non décodable base64: {raw_pahtnet}")
-        #     # Si c'est déjà un nombre, RAF
-
-        # # Normalisation de COM_TAUXREMISE : Debezium encode certains DECIMAL/NUMERIC en base64 quand le connecteur n’a pas de représentation native.    
-        # raw_taux = data.get("COM_TAUXREMISE")
-        # if raw_taux is not None:
-        #     if isinstance(raw_taux, str):
-        #         try:
-        #             decoded = base64.b64decode(raw_taux)
-        #             int_val = int.from_bytes(decoded, byteorder="big", signed=True)
-        #             # COM_TAUXREMISE est NUMBER(6,2) → scale 2 aussi
-        #             decimal_val = Decimal(int_val) / Decimal("100")
-        #             data["COM_TAUXREMISE"] = float(decimal_val)
-        #         except Exception:
-        #             logger.warning(f"⚠️ COM_TAUXREMISE non décodable base64: {raw_taux}")
-        #     # si c'est déjà un nombre, RAF
-
-        # Normalisation de COM_PAHTNET : NUMBER(8,2)
+        # Normalisation DECIMAL base64 (Debezium BYTES logical type)
         data["COM_PAHTNET"] = self._decode_debezium_decimal(data.get("COM_PAHTNET"), scale=2)
-        
-        # Normalisation de COM_TAUXREMISE : NUMBER(6,2)
         data["COM_TAUXREMISE"] = self._decode_debezium_decimal(data.get("COM_TAUXREMISE"), scale=2)
-        
+
         # Ajout metadata CDC
         event = {
             **data,
@@ -192,66 +160,47 @@ class MediCoreCDC:
             'cdc_table': debezium_payload['source']['table'],
             'cdc_lsn': debezium_payload['source']['pos']
         }
-        
+
         return event
     
 	
+    def _flush_batch(self, table_name: str, events: List[Dict]):
+        """INSERT micro-batch via executemany() — 10-50x plus rapide que row-by-row."""
+        if not events:
+            return
 
-    # def _insert_raw_event(self, table_name: str, event: Dict):
-    #     """INSERT évènement dans Snowflake RAW_{table_name}"""
-    #     cursor = self.sf_conn.cursor()
-        
-    #     columns = ', '.join(f'"{k}"' for k in event.keys())
-    #     placeholders = ', '.join(['?' for _ in event])
-    #     values = list(event.values())
-        
-    #     query = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
-        
-    #     # logger.debug -> logger.info (plus light pour la PROD)
-    #     logger.info(f"🔍 INSERT DEBUG:")
-    #     logger.info(f"  Table: {table_name}")
-    #     logger.info(f"  Columns: {columns[:100]}...")
-    #     logger.info(f"  Values count: {len(values)}")
-    #     logger.info(f"  Query preview: {query[:150]}...")
-        
-    #     cursor.execute(query, values)
-        
-    #     if cursor.rowcount > 0:
-    #         logger.info(f"✅ INSERT {table_name}: {cursor.rowcount} rows")
-    #     else:
-    #         logger.warning(f"⚠️  No rows inserted {table_name}")
-        
-    #     cursor.close()
-
-    def _insert_raw_event(self, table_name: str, event: Dict):
-        """INSERT évènement dans Snowflake RAW_*"""
-        cursor = self.sf_conn.cursor()
-
-        # Colonnes et valeurs
-        # columns = ", ".join(f'"{k}"' for k in event.keys())
-        columns = ", ".join(f'"{k.upper()}"' for k in event.keys())     # Par défaut, Snowflake stocke les identifiants non quotés en MAJUSCULE
-        # On utilise le style 'format' avec %s pour chaque colonne
-        placeholders = ", ".join(["%s" for _ in event])
-        values = list(event.values())
-
+        # Colonnes depuis le premier event (tous les events d'une table ont les memes cles)
+        columns = ", ".join(f'"{k.upper()}"' for k in events[0].keys())
+        placeholders = ", ".join(["%s" for _ in events[0]])
         query = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
 
-        logger.info("🔍 INSERT DEBUG:")
-        logger.info(f"  Table: {table_name}")
-        logger.info(f"  Columns: {columns[:200]}...")
-        logger.info(f"  Values count: {len(values)}")
-        logger.info(f"  Query preview: {query[:200]}...")
+        # Transformer les events en liste de tuples
+        values_list = [tuple(e.values()) for e in events]
 
-        # Exécution paramétrée
-        cursor.execute(query, values)
+        try:
+            self.sf_cursor.executemany(query, values_list)
+            logger.info(f"INSERT {table_name}: {len(events)} rows (batch)")
+        except Exception as e:
+            logger.error(f"BATCH INSERT {table_name} failed ({len(events)} rows): {e}")
+            # Fallback row-by-row pour identifier l'event problematique
+            inserted = 0
+            for i, vals in enumerate(values_list):
+                try:
+                    self.sf_cursor.execute(query, vals)
+                    inserted += 1
+                except Exception as row_err:
+                    logger.error(f"  Row {i} failed: {row_err}")
+            logger.info(f"  Fallback: {inserted}/{len(events)} rows inserted")
 
-        if cursor.rowcount > 0:
-            logger.info(f"✅ INSERT {table_name}: {cursor.rowcount} rows")
-        else:
-            logger.warning(f"⚠️ No rows inserted {table_name}")
+    def close(self):
+        """Ferme proprement le curseur et la connexion Snowflake."""
+        self.sf_cursor.close()
+        self.sf_conn.close()
 
-        cursor.close()    
 
 if __name__ == "__main__":
     cdc = MediCoreCDC()
-    cdc.consume_cdc_batch()
+    try:
+        cdc.consume_cdc_batch()
+    finally:
+        cdc.close()

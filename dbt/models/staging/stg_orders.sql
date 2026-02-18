@@ -9,7 +9,7 @@
 }}
 
 with source_data as (
-    select * from {{ ref('raw_orders') }}
+    select * from {{ source('mysql_raw', 'RAW_ORDERS') }}
     where cdc_operation != 'D'
     {% if is_incremental() %}
       and cdc_timestamp >= (select coalesce(max(loaded_at), '1900-01-01') from {{ this }})
@@ -23,9 +23,11 @@ dedup_cdc as (
         ) as rn
     from source_data
 )
-select PHA_ID, FAC_ID, ORD_DATE, upper(trim(ORD_OPERATEUR)) as ORD_OPERATEUR,
-       ORD_CLIENT_AGE_MONTHS, upper(trim(ORD_CLIENT_SEX)) as ORD_CLIENT_SEX,
-       upper(trim(ORD_CLIENT_DEPARTMENT)) as ORD_CLIENT_DEPARTMENT,
+select PHA_ID, FAC_ID, ORD_DATE,
+       'USER_' || LEFT(MD5(CAST(ORD_OPERATEUR AS VARCHAR)), 4) as ORD_OPERATEUR,
+       FLOOR(ORD_CLIENT_AGE_MONTHS / 36) * 36 as ORD_CLIENT_AGE_MONTHS,
+       upper(trim(ORD_CLIENT_SEX)) as ORD_CLIENT_SEX,
+       'DEP' || LEFT(CAST(ORD_CLIENT_DEPARTMENT AS VARCHAR), 2) || '***' as ORD_CLIENT_DEPARTMENT,
        ORD_HISTO_NBCLIENT, ORD_BASE, ORD_RETRO, ORD_LOCATION, ORD_ORDO,
        ORD_AVR, ORD_ANN, ORD_DATE_ORDON, ORD_DATE_ORDER,
        upper(trim(ORD_CODE_SUBRO)) as ORD_CODE_SUBRO, ORD_TOTAL_GENERAL,
