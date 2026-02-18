@@ -6,6 +6,8 @@ Utilisé par daily_cdc_batch.py (CDC) et bulk_load.py (bulk load initial)
 import hashlib
 from typing import Dict
 
+import pandas as pd
+
 
 def mask_pii(event: Dict, table_name: str) -> Dict:
     """Masquage PII MediCore - RGPD compliant"""
@@ -62,13 +64,16 @@ def mask_pii(event: Dict, table_name: str) -> Dict:
 
 
 def _md5_hash_series(series):
-    """Hash MD5 vectorisé pour une Series pandas."""
-    return series.astype(str).apply(lambda v: hashlib.md5(v.encode()).hexdigest()[:4].upper())
+    """Hash MD5 via list comprehension (2-3x plus rapide que Series.apply sur strings)."""
+    vals = series.astype(str).values
+    return pd.Series(
+        [hashlib.md5(v.encode()).hexdigest()[:4].upper() for v in vals],
+        index=series.index
+    )
 
 
 def mask_pii_dataframe(df, table_name: str):
     """Masquage PII vectorisé sur DataFrame - même logique que mask_pii() mais sans iterrows()."""
-    import pandas as pd
 
     tn = table_name.upper()
 
