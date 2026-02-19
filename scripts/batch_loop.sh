@@ -34,9 +34,9 @@ while true; do
   # 2. DBT pipeline
   echo "Phase dbt"
   cd /app/dbt
-  DBT_PROFILES_DIR=/app dbt run --select tag:staging --target $ENV || echo "Staging skipped"
-  DBT_PROFILES_DIR=/app dbt run --select tag:marts --target $ENV || echo "Marts skipped"
-  DBT_PROFILES_DIR=/app dbt test --select stg_* --target $ENV || echo "Tests skipped"
+  dbt run --select tag:staging --target $ENV || echo "Staging skipped"
+  dbt run --select tag:marts --target $ENV || echo "Marts skipped"
+  dbt test --select stg_* --target $ENV || echo "Tests skipped"
   cd /app
 
   echo "Batch termine - Prochain run: $(date -d "+${INTERVAL_MIN} minutes" 2>/dev/null || echo "${INTERVAL_MIN}min")"

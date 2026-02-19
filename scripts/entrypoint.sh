@@ -23,7 +23,7 @@ until (echo > /dev/tcp/mysql_cdc/3306) >/dev/null 2>&1; do echo "⏳ mysql_cdc:3
 echo "✅ mysql_cdc:3306 ready"
 
 # Launch batch
-export DBT_PROFILES_DIR=/app
+export DBT_PROFILES_DIR=${DBT_PROFILES_DIR:-/app/dbt}
 export BATCH_INTERVAL_MIN=${BATCH_INTERVAL_MIN:-5}
 echo "🔄 Launching batch loop - ${BATCH_INTERVAL_MIN}min"
 exec ./scripts/batch_loop.sh
