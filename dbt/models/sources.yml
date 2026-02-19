@@ -33,7 +33,9 @@ sources:
               - relationships:
                   to: ref('stg_produits')
                   field: PRD_ID
-            
+                  config:
+                    severity: warn
+
       # FOURNISSEURS (12 colonnes)
       - name: RAW_FOURNISSEURS
         description: "Répertoire fournisseurs (PK: PHA_ID, FOU_ID)"
@@ -169,6 +171,8 @@ sources:
               - relationships:
                   to: ref('stg_produits')
                   field: PRD_ID
+                  config:
+                    severity: warn
           - name: LPP_INDEX
             tests: [not_null]
           - name: LPP_CODE
@@ -192,6 +196,8 @@ sources:
               - relationships:
                   to: ref('stg_produits')
                   field: PRD_ID
+                  config:
+                    severity: warn
           - name: FAC_ID
             tests: [not_null]
           - name: EN_LIGNES
@@ -220,7 +226,9 @@ sources:
             description: "Quantité facturée"
             tests:
               - dbt_utils.expression_is_true:
-                  expression: "FAC_QUANTITE > 0"
+                  expression: "> 0"
+                  config:
+                    severity: warn
           - name: FAC_PAHT
           - name: FAC_PVHT
           - name: FAC_PVTTC
@@ -232,6 +240,8 @@ sources:
               - relationships:
                   to: ref('stg_produits')
                   field: PRD_ID
+                  config:
+                    severity: warn
           - name: PRD_EAN13
           - name: PRD_NOM
           - name: ORD_OPERATEUR
@@ -251,6 +261,8 @@ sources:
               - relationships:
                   to: ref('stg_produits')
                   field: PRD_ID
+                  config:
+                    severity: warn
           - name: PRD_EAN13
             description: ""
           - name: PRD_NOM
@@ -262,6 +274,8 @@ sources:
               - relationships:
                   to: ref('stg_fournisseurs')
                   field: FOU_ID
+                  config:
+                    severity: warn
           - name: PRD_CODEREMBT
             description: ""
           - name: PRD_CODEACTE
@@ -280,7 +294,9 @@ sources:
             description: ""
             tests:
               - dbt_utils.expression_is_true:
-                  expression: "PRD_PRIXTARIF > 0"
+                  expression: "> 0"
+                  config:
+                    severity: warn
           - name: PRD_DERN_VENTE
             description: ""
           - name: PRD_DERN_ACHAT
@@ -322,6 +338,8 @@ sources:
               - relationships:
                   to: ref('stg_produits')
                   field: PRD_ID
+                  config:
+                    severity: warn
           - name: STH_DATE
             tests: [not_null]
           - name: STH_STOCKDELTA

@@ -21,12 +21,12 @@ with stock_enriched as (
         s.STH_PAMP,
         s.STH_PANET,
         ph.pharmacie_sk,
-        prod.produit_sk,
+        coalesce(prod.produit_sk, md5('-1' || '-' || '-1')) as produit_sk,
         s.loaded_at
     from {{ ref('stg_stockhistory') }} s
     inner join {{ ref('dim_pharmacie') }} ph
         on s.PHA_ID = ph.PHA_ID
-    inner join {{ ref('dim_produit') }} prod
+    left join {{ ref('dim_produit') }} prod
         on s.PHA_ID = prod.PHA_ID
         and s.PRD_ID = prod.PRD_ID
     {% if is_incremental() %}

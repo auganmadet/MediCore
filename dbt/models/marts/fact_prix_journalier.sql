@@ -19,7 +19,7 @@ with prix as (
         d.DBD_PAMP,
         d.DBD_PANET,
         ph.pharmacie_sk,
-        prod.produit_sk,
+        coalesce(prod.produit_sk, md5('-1' || '-' || '-1')) as produit_sk,
         d.loaded_at,
         row_number() over (
           partition by d.PHA_ID, d.PRD_ID, d.DBD_DATE
@@ -28,7 +28,7 @@ with prix as (
     from {{ ref('stg_daybyday') }} d
     inner join {{ ref('dim_pharmacie') }} ph
       on d.PHA_ID = ph.PHA_ID
-    inner join {{ ref('dim_produit') }} prod
+    left join {{ ref('dim_produit') }} prod
       on d.PHA_ID = prod.PHA_ID
       and d.PRD_ID = prod.PRD_ID
     {% if is_incremental() %}

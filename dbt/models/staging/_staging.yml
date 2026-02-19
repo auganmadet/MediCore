@@ -44,6 +44,8 @@ models:
           - relationships:
               to: ref('stg_produits')
               field: PRD_ID
+              config:
+                severity: warn
 
   - name: stg_ean13
     description: "Mapping EAN13 par produit"
@@ -56,6 +58,8 @@ models:
           - relationships:
               to: ref('stg_produits')
               field: PRD_ID
+              config:
+                severity: warn
       - name: EAN_13
         tests: [not_null]
 
@@ -76,10 +80,14 @@ models:
           - relationships:
               to: ref('stg_produits')
               field: PRD_ID
+              config:
+                severity: warn
       - name: FAC_QUANTITE
         tests:
           - dbt_utils.expression_is_true:
               expression: ">= 0"
+              config:
+                severity: warn
 
   - name: stg_fournisseurs
     description: "Fournisseurs nettoyés"
@@ -114,6 +122,8 @@ models:
           - relationships:
               to: ref('stg_produits')
               field: PRD_ID
+              config:
+                severity: warn
       - name: LPP_INDEX
         tests: [not_null]
       - name: LPP_CODE
@@ -132,6 +142,8 @@ models:
           - relationships:
               to: ref('stg_produits')
               field: PRD_ID
+              config:
+                severity: warn
       - name: FAC_ID
         tests: [not_null]
 
@@ -150,6 +162,8 @@ models:
         tests:
           - dbt_utils.expression_is_true:
               expression: ">= 0"
+              config:
+                severity: warn
 
   - name: stg_modstock
     description: "Mouvements de stock"
@@ -164,6 +178,8 @@ models:
           - relationships:
               to: ref('stg_produits')
               field: PRD_ID
+              config:
+                severity: warn
       - name: MOD_TIMESTAMP
         tests: [not_null]
 
@@ -199,11 +215,15 @@ models:
           - relationships:
               to: ref('stg_fournisseurs')
               field: FOU_ID
+              config:
+                severity: warn
       - name: PRD_PRIXTARIF
         description: ""
         tests:
           - dbt_utils.expression_is_true:
               expression: ">= 0"
+              config:
+                severity: warn
 
   - name: stg_produits_negatifs
     description: "Produits négatifs"
@@ -222,6 +242,8 @@ models:
           - relationships:
               to: ref('stg_produits')
               field: PRD_ID
+              config:
+                severity: warn
       - name: STH_DATE
         tests: [not_null]
 

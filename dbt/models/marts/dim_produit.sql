@@ -50,3 +50,13 @@ select
     LPP_ACTE_NOM
 from enriched_products
 where rn = 1
+
+union all
+
+select
+    md5('-1' || '-' || '-1') as produit_sk,
+    -1 as PHA_ID, -1 as PRD_ID,
+    'INCONNU' as PRD_NOM, null as EAN13,
+    null as PRD_CODEREMBT, null as PRD_CODEACTE,
+    null as PRD_TVA, null as FOU_ID, null as PRD_STOCK,
+    null as LPP_CODE, null as LPP_ACTE_NOM
