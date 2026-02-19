@@ -25,6 +25,7 @@ __pycache__/
 .vscode/
 .idea/
 *.code-workspace
+.claude/
 
 # Environnements / venv locaux
 .venv/
