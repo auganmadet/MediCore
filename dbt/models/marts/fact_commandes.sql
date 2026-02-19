@@ -20,16 +20,16 @@ with commandes_enriched as (
         c.COM_PAHTNET,
         c.COM_TAUXREMISE,
         ph.pharmacie_sk,
-        prod.produit_sk,
-        f.fournisseur_sk,
+        coalesce(prod.produit_sk, md5('-1' || '-' || '-1')) as produit_sk,
+        coalesce(f.fournisseur_sk, md5('-1' || '-' || '-1')) as fournisseur_sk,
         c.loaded_at
     from {{ ref('stg_commandes') }} c
     inner join {{ ref('dim_pharmacie') }} ph
       on c.PHA_ID = ph.PHA_ID
-    inner join {{ ref('dim_produit') }} prod
+    left join {{ ref('dim_produit') }} prod
       on c.PHA_ID = prod.PHA_ID
       and c.PRD_ID = prod.PRD_ID
-    inner join {{ ref('dim_fournisseur') }} f
+    left join {{ ref('dim_fournisseur') }} f
       on c.PHA_ID = f.PHA_ID
       and c.FOU_ID = f.FOU_ID
     {% if is_incremental() %}

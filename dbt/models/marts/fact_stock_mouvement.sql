@@ -18,7 +18,7 @@ with mouvements as (
         m.MOD_STOCK      as stock_apres,
         m.MOD_OPERATION,
         ph.pharmacie_sk,
-        prod.produit_sk,
+        coalesce(prod.produit_sk, md5('-1' || '-' || '-1')) as produit_sk,
         m.loaded_at,
         row_number() over (
           partition by m.PHA_ID, m.PRD_ID, m.MOD_DATE, m.MOD_TIMESTAMP
@@ -27,7 +27,7 @@ with mouvements as (
     from {{ ref('stg_modstock') }} m
     inner join {{ ref('dim_pharmacie') }} ph
       on m.PHA_ID = ph.PHA_ID
-    inner join {{ ref('dim_produit') }} prod
+    left join {{ ref('dim_produit') }} prod
       on m.PHA_ID = prod.PHA_ID
       and m.PRD_ID = prod.PRD_ID
     {% if is_incremental() %}

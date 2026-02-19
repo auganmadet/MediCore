@@ -43,3 +43,13 @@ select
     FOU_URL2
 from fournisseurs_dedup
 where rn = 1
+
+union all
+
+select
+    md5('-1' || '-' || '-1') as fournisseur_sk,
+    -1 as PHA_ID, '-1' as FOU_ID,
+    'INCONNU' as FOU_NOM,
+    null as FOU_ADRESSE, null as FOU_CP, null as FOU_VILLE,
+    null as FOU_TYPE, null as FOU_REPARTITEUR, null as FOU_ETABLISSEMENT,
+    null as FOU_IDCLIENT, null as FOU_URL1, null as FOU_URL2
