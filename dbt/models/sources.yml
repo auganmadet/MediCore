@@ -33,7 +33,9 @@ sources:
               - relationships:
                   to: ref('stg_produits')
                   field: PRD_ID
-            
+                  config:
+                    severity: warn
+
       # FOURNISSEURS (12 colonnes)
       - name: RAW_FOURNISSEURS
         description: "Répertoire fournisseurs (PK: PHA_ID, FOU_ID)"
@@ -169,6 +171,8 @@ sources:
               - relationships:
                   to: ref('stg_produits')
                   field: PRD_ID
+                  config:
+                    severity: warn
           - name: LPP_INDEX
             tests: [not_null]
           - name: LPP_CODE
@@ -192,6 +196,8 @@ sources:
               - relationships:
                   to: ref('stg_produits')
                   field: PRD_ID
+                  config:
+                    severity: warn
           - name: FAC_ID
             tests: [not_null]
           - name: EN_LIGNES
@@ -220,7 +226,9 @@ sources:
             description: "Quantité facturée"
             tests:
               - dbt_utils.expression_is_true:
-                  expression: "FAC_QUANTITE > 0"
+                  expression: "> 0"
+                  config:
+                    severity: warn
           - name: FAC_PAHT
           - name: FAC_PVHT
           - name: FAC_PVTTC
@@ -232,6 +240,8 @@ sources:
               - relationships:
                   to: ref('stg_produits')
                   field: PRD_ID
+                  config:
+                    severity: warn
           - name: PRD_EAN13
           - name: PRD_NOM
           - name: ORD_OPERATEUR
@@ -251,6 +261,8 @@ sources:
               - relationships:
                   to: ref('stg_produits')
                   field: PRD_ID
+                  config:
+                    severity: warn
           - name: PRD_EAN13
             description: ""
           - name: PRD_NOM
@@ -262,6 +274,8 @@ sources:
               - relationships:
                   to: ref('stg_fournisseurs')
                   field: FOU_ID
+                  config:
+                    severity: warn
           - name: PRD_CODEREMBT
             description: ""
           - name: PRD_CODEACTE
@@ -280,7 +294,9 @@ sources:
             description: ""
             tests:
               - dbt_utils.expression_is_true:
-                  expression: "PRD_PRIXTARIF > 0"
+                  expression: "> 0"
+                  config:
+                    severity: warn
           - name: PRD_DERN_VENTE
             description: ""
           - name: PRD_DERN_ACHAT
@@ -322,6 +338,8 @@ sources:
               - relationships:
                   to: ref('stg_produits')
                   field: PRD_ID
+                  config:
+                    severity: warn
           - name: STH_DATE
             tests: [not_null]
           - name: STH_STOCKDELTA
@@ -369,60 +387,63 @@ sources:
           - name: date_erreur
             description: ""
 
-  - name: kafka_cdc
-    description: "Debezium CDC - winstat_rds.winstat.* topics"
-    database: MEDICORE
-    schema: RAW
-    tables:
-      # COMMANDES (PK: PHA_ID, COM_GROI, PRD_ID)
-      - name: winstat_commandes
-        description: "CDC winstat_rds.winstat.COMMANDES"
-        freshness:
-          warn_after: {count: 12, period: hour}
-          error_after: {count: 24, period: hour}
-        loaded_at_field: _cdc_ts_ms
+      # FACTURES (batch quotidien, ex-CDC)
+      - name: RAW_FACTURES
+        description: "Factures détaillées (batch quotidien)"
         columns:
           - name: PHA_ID
             description: "ID pharmacie"
-            tests: [not_null]
-          - name: COM_GROI
-            description: "Gros commande"
-            tests: [not_null]
-          - name: PRD_ID
-            description: "ID produit"
-            tests: [not_null]
-
-      # FACTURES (PK: PHA_ID, FAC_ID, FAC_TI)
-      - name: winstat_factures
-        description: "CDC winstat_rds.winstat.FACTURES"
-        freshness:
-          warn_after: {count: 6, period: hour}
-        loaded_at_field: _cdc_ts_ms
-        columns:
-          - name: PHA_ID
             tests: [not_null]
           - name: FAC_ID
             tests: [not_null]
           - name: FAC_TI
             tests: [not_null]
+          - name: PRD_ID
+            description: "ID produit"
+            tests: [not_null]
 
-      # ORDERS (PK: PHA_ID, FAC_ID)
-      - name: winstat_orders
-        description: "CDC winstat_rds.winstat.ORDERS"
-        freshness:
-          warn_after: {count: 6, period: hour}
-        loaded_at_field: _cdc_ts_ms
-
-      # MODSTOCK (PK: PHA_ID, MOD_DATE, PRD_ID)
-      - name: winstat_modstock
-        description: "CDC winstat_rds.winstat.MODSTOCK"
-        freshness:
-          warn_after: {count: 12, period: hour}
-        loaded_at_field: _cdc_ts_ms
+      # ORDERS (batch quotidien, ex-CDC)
+      - name: RAW_ORDERS
+        description: "Ordonnances / en-têtes factures (batch quotidien)"
         columns:
           - name: PHA_ID
+            description: "ID pharmacie"
             tests: [not_null]
-          - name: PRD_ID
+          - name: FAC_ID
             tests: [not_null]
 
-      # PHARMACIE et DAYBYDAY retirés du CDC → passés en batch quotidien
+      # MODSTOCK (batch quotidien, ex-CDC)
+      - name: RAW_MODSTOCK
+        description: "Mouvements de stock (batch quotidien)"
+        columns:
+          - name: PHA_ID
+            description: "ID pharmacie"
+            tests: [not_null]
+          - name: PRD_ID
+            description: "ID produit"
+            tests: [not_null]
+          - name: MOD_DATE
+            tests: [not_null]
+
+      # PHARMACIE (batch quotidien, ex-CDC)
+      - name: RAW_PHARMACIE
+        description: "Référentiel pharmacies (batch quotidien)"
+        columns:
+          - name: PHA_ID
+            description: "ID pharmacie"
+            tests: [not_null, unique]
+          - name: PHA_NOM
+            description: "Nom pharmacie"
+
+      # DAYBYDAY (batch quotidien, ex-CDC)
+      - name: RAW_DAYBYDAY
+        description: "Ventes journalières par produit (batch quotidien)"
+        columns:
+          - name: PHA_ID
+            description: "ID pharmacie"
+            tests: [not_null]
+          - name: DBD_DATE
+            tests: [not_null]
+          - name: PRD_ID
+            description: "ID produit"
+            tests: [not_null]

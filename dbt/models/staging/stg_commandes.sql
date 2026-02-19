@@ -7,6 +7,7 @@
         tags=['staging', 'commandes', 'high_volume', 'incremental']
     )
 }}
+{{ guard_full_refresh() }}
 
 with source_data as (
     select *

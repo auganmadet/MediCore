@@ -7,9 +7,10 @@
         tags=['staging', 'factures', 'high_volume', 'incremental']
     )
 }}
+{{ guard_full_refresh() }}
 
 with source_data as (
-    select * from {{ ref('raw_factures') }}
+    select * from {{ source('mysql_raw', 'RAW_FACTURES') }}
     where cdc_operation != 'D'
     {% if is_incremental() %}
       and cdc_timestamp >= (select coalesce(max(loaded_at), '1900-01-01') from {{ this }})

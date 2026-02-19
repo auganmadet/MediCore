@@ -7,13 +7,14 @@
         tags=['marts', 'fact', 'operateur', 'high_volume', 'incremental']
     )
 }}
+{{ guard_full_refresh() }}
 
 with ventes_operateur as (
     select
         m.PHA_ID,
         m.ORD_OPERATEUR,
-        m.FAC_DATE::date                as date_vente,
-        extract(hour from m.FAC_HEURE)  as heure_vente,
+        try_to_date(m.FAC_DATE)         as date_vente,
+        extract(hour from try_to_time(m.FAC_HEURE))  as heure_vente,
         m.FAC_QUANTITE,
         m.FAC_PVHT,
         m.FAC_PVTTC,
@@ -40,8 +41,7 @@ select
     sum(FAC_PVTTC)                                          as ca_ttc,
     sum(FAC_PAHT)                                           as cout_achat_ht,
     count(*)                                                as nb_lignes,
-    count(case when FAC_CODEREMBT is not null
-               and FAC_CODEREMBT != '' then 1 end)          as nb_lignes_remboursables,
+    count(case when FAC_CODEREMBT is not null then 1 end)  as nb_lignes_remboursables,
     max(loaded_at)                                          as loaded_at
 from ventes_operateur
 group by pharmacie_sk, ORD_OPERATEUR, date_vente, heure_vente

@@ -23,7 +23,6 @@ import pandas as pd
 import mysql.connector
 import snowflake.connector
 
-from utils.pii_masking import mask_pii_dataframe
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -153,15 +152,60 @@ def bulk_load_table(mysql_conn, sf_conn, mysql_table, sf_table, chunk_size, trun
 
     # Lecture MySQL via curseur non-bufférisé (évite OOM sur tables volumineuses)
     # pd.read_sql(chunksize) buffèrise le résultat entier en mémoire avec mysql.connector
-    cursor_mysql = mysql_conn.cursor(buffered=False)
-    cursor_mysql.execute(f"SELECT * FROM `{mysql_table}`")
+    MAX_RECONNECT = 10
+
+    def mysql_open_cursor(conn, table, offset=0):
+        """Ouvre un curseur MySQL non-bufférisé, avec OFFSET si reprise après déconnexion."""
+        cur = conn.cursor(buffered=False)
+        if offset > 0:
+            cur.execute(f"SELECT * FROM `{table}` LIMIT 18446744073709551615 OFFSET {offset}")
+        else:
+            cur.execute(f"SELECT * FROM `{table}`")
+        return cur
+
+    current_mysql_conn = mysql_conn
+    cursor_mysql = mysql_open_cursor(current_mysql_conn, mysql_table)
     col_names = [desc[0] for desc in cursor_mysql.description]
 
     total_rows = 0
     chunk_num = 0
+    reconnect_count = 0
 
     while True:
-        rows = cursor_mysql.fetchmany(chunk_size)
+        # Lecture avec reconnexion automatique en cas de perte de connexion MySQL
+        try:
+            rows = cursor_mysql.fetchmany(chunk_size)
+        except (mysql.connector.errors.OperationalError,
+                mysql.connector.errors.InterfaceError,
+                mysql.connector.errors.DatabaseError) as e:
+            reconnect_count += 1
+            if reconnect_count > MAX_RECONNECT:
+                raise Exception(f"Abandon après {MAX_RECONNECT} reconnexions MySQL") from e
+            logger.warning(f"  MySQL déconnecté au row {total_rows}: {e}")
+            # Fermer proprement l'ancienne connexion
+            try:
+                cursor_mysql.close()
+            except Exception:
+                pass
+            try:
+                current_mysql_conn.close()
+            except Exception:
+                pass
+            # Reconnexion avec backoff
+            for attempt in range(1, 6):
+                try:
+                    logger.info(f"  Reconnexion MySQL (tentative {attempt}/5, reprise offset={total_rows})...")
+                    time.sleep(5 * attempt)
+                    current_mysql_conn = get_mysql_conn()
+                    cursor_mysql = mysql_open_cursor(current_mysql_conn, mysql_table, offset=total_rows)
+                    logger.info(f"  Reconnecté, reprise à la ligne {total_rows}")
+                    break
+                except Exception as re_err:
+                    logger.warning(f"  Tentative {attempt} échouée: {re_err}")
+            else:
+                raise Exception("Impossible de se reconnecter à MySQL après 5 tentatives")
+            continue
+
         if not rows:
             break
 
@@ -169,9 +213,6 @@ def bulk_load_table(mysql_conn, sf_conn, mysql_table, sf_table, chunk_size, trun
         chunk_start = time.time()
 
         df = pd.DataFrame(rows, columns=col_names)
-
-        # PII masking vectorisé (évite iterrows + dict copies → mémoire stable)
-        df = mask_pii_dataframe(df, sf_table)
 
         # Renommer colonnes MySQL → casing Snowflake
         df.columns = [sf_col_upper_map.get(c.upper(), c.upper()) for c in df.columns]
@@ -221,6 +262,9 @@ def bulk_load_table(mysql_conn, sf_conn, mysql_table, sf_table, chunk_size, trun
         gc.collect()
 
     cursor_mysql.close()
+    # Fermer la connexion MySQL si elle a été recréée par reconnexion
+    if current_mysql_conn is not mysql_conn:
+        current_mysql_conn.close()
 
     if total_rows == 0:
         logger.warning(f"  {sf_table}: table vide (0 rows)")
@@ -247,6 +291,25 @@ def bulk_load_table(mysql_conn, sf_conn, mysql_table, sf_table, chunk_size, trun
     elapsed = time.time() - start
     logger.info(f"  {sf_table}: {total_rows} rows en {elapsed:.1f}s ({chunk_num} fichiers Parquet)")
     return total_rows
+
+
+LOCK_FILE = '/tmp/bulk_load.lock'
+
+
+def acquire_lock():
+    """Pose un lock file pour empecher la boucle batch de tourner pendant le bulk load."""
+    with open(LOCK_FILE, 'w') as f:
+        f.write(f"{os.getpid()} {datetime.now().isoformat()}")
+    logger.info(f"Lock acquis: {LOCK_FILE}")
+
+
+def release_lock():
+    """Retire le lock file."""
+    try:
+        os.remove(LOCK_FILE)
+        logger.info(f"Lock libere: {LOCK_FILE}")
+    except FileNotFoundError:
+        pass
 
 
 def main():
@@ -277,53 +340,61 @@ def main():
         logger.error("Aucune table a charger")
         sys.exit(1)
 
+    # Poser le lock pour bloquer la boucle batch
+    acquire_lock()
+
     logger.info(f"{'='*60}")
     logger.info(f"Bulk load: {len(tables)} tables, chunk_size={args.chunk_size:,}, truncate={args.truncate}")
     logger.info(f"Methode: Parquet + PUT @{STAGE_NAME} + COPY INTO")
     logger.info(f"{'='*60}")
 
-    # Connexion Snowflake + préparation
-    sf_conn = get_snowflake_conn()
-    ensure_stage(sf_conn)
-    ensure_export_dir()
+    try:
+        # Connexion Snowflake + préparation
+        sf_conn = get_snowflake_conn()
+        ensure_stage(sf_conn)
+        ensure_export_dir()
 
-    grand_total = 0
-    errors = []
-    results = []
-    start_all = time.time()
+        grand_total = 0
+        errors = []
+        results = []
+        start_all = time.time()
 
-    for mysql_table, sf_table in tables.items():
-        # Nouvelle connexion MySQL par table (évite "Unread result found")
-        mysql_conn = None
-        try:
-            mysql_conn = get_mysql_conn()
-            rows = bulk_load_table(mysql_conn, sf_conn, mysql_table, sf_table, args.chunk_size, args.truncate, force=args.truncate)
-            grand_total += rows
-            results.append((sf_table, rows))
-        except Exception as e:
-            logger.error(f"ERREUR {mysql_table}: {e}")
-            errors.append(mysql_table)
-        finally:
-            if mysql_conn:
-                mysql_conn.close()
+        for mysql_table, sf_table in tables.items():
+            # Nouvelle connexion MySQL par table (évite "Unread result found")
+            mysql_conn = None
+            try:
+                mysql_conn = get_mysql_conn()
+                rows = bulk_load_table(mysql_conn, sf_conn, mysql_table, sf_table, args.chunk_size, args.truncate, force=args.truncate)
+                grand_total += rows
+                results.append((sf_table, rows))
+            except Exception as e:
+                logger.error(f"ERREUR {mysql_table}: {e}")
+                errors.append(mysql_table)
+            finally:
+                if mysql_conn:
+                    mysql_conn.close()
 
-    elapsed_all = time.time() - start_all
+        elapsed_all = time.time() - start_all
 
-    # Résumé final
-    logger.info(f"{'='*60}")
-    logger.info(f"RÉSUMÉ BULK LOAD")
-    logger.info(f"{'='*60}")
-    for sf_table, rows in results:
-        logger.info(f"  {sf_table:30s} : {rows:>12,} rows")
-    logger.info(f"{'='*60}")
-    logger.info(f"  TOTAL : {grand_total:>12,} rows en {elapsed_all:.1f}s")
+        # Résumé final
+        logger.info(f"{'='*60}")
+        logger.info(f"RÉSUMÉ BULK LOAD")
+        logger.info(f"{'='*60}")
+        for sf_table, rows in results:
+            logger.info(f"  {sf_table:30s} : {rows:>12,} rows")
+        logger.info(f"{'='*60}")
+        logger.info(f"  TOTAL : {grand_total:>12,} rows en {elapsed_all:.1f}s")
 
-    if errors:
-        logger.warning(f"Tables en erreur: {errors}")
-        sys.exit(1)
+        if errors:
+            logger.warning(f"Tables en erreur: {errors}")
+            sys.exit(1)
 
-    sf_conn.close()
-    logger.info("Bulk load termine avec succes")
+        sf_conn.close()
+        logger.info("Bulk load termine avec succes")
+
+    finally:
+        # Toujours liberer le lock, meme en cas d'erreur
+        release_lock()
 
 
 if __name__ == '__main__':

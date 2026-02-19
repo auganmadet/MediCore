@@ -7,6 +7,7 @@
         tags=['marts', 'fact', 'ventes', 'high_volume', 'incremental']
     )
 }}
+{{ guard_full_refresh() }}
 
 with ventes_enriched as (
     select
@@ -20,14 +21,14 @@ with ventes_enriched as (
         f.FAC_REMISE,
         f.FAC_CODEREMBT,
         ph.pharmacie_sk,
-        prod.produit_sk,
+        coalesce(prod.produit_sk, md5('-1' || '-' || '-1')) as produit_sk,
         o.ORD_CLIENT_AGE_MONTHS,
         o.ORD_CLIENT_SEX,
         f.loaded_at
     from {{ ref('stg_factures') }} f
     inner join {{ ref('dim_pharmacie') }} ph
         on f.PHA_ID = ph.PHA_ID
-    inner join {{ ref('dim_produit') }} prod
+    left join {{ ref('dim_produit') }} prod
         on f.PHA_ID = prod.PHA_ID and f.PRD_ID = prod.PRD_ID
     left join {{ ref('stg_orders') }} o
         on f.PHA_ID = o.PHA_ID and f.FAC_ID = o.FAC_ID
