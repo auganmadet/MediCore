@@ -7,6 +7,7 @@
     tags=['marts', 'fact', 'prix_journalier', 'high_volume', 'incremental']
   )
 }}
+{{ guard_full_refresh() }}
 
 with prix as (
     select

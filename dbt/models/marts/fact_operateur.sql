@@ -7,6 +7,7 @@
         tags=['marts', 'fact', 'operateur', 'high_volume', 'incremental']
     )
 }}
+{{ guard_full_refresh() }}
 
 with ventes_operateur as (
     select
