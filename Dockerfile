@@ -14,9 +14,9 @@ RUN pip install --no-cache-dir --user -r requirements.txt
 # Second stage : sans les fichiers de build
 FROM python:3.11-slim
 
-# Installer git aussi dans l'image finale (dbt deps s'exécute ici)
+# Installer git + curl dans l'image finale (git: dbt deps, curl: alertes Teams webhook)
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends git && \
+    apt-get install -y --no-install-recommends git curl && \
     rm -rf /var/lib/apt/lists/*
     
 WORKDIR /app

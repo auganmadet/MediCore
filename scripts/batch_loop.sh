@@ -11,6 +11,42 @@ LOCK_FILE="/tmp/bulk_load.lock"
 REF_DONE_FLAG="/tmp/ref_bulk_done_today"
 REF_RELOAD_HOUR=${REF_RELOAD_HOUR:-03}
 
+# Alerting Teams (optionnel : si TEAMS_WEBHOOK_URL est vide, les erreurs sont loguees sans alerte)
+ALERT_THRESHOLD=${ALERT_THRESHOLD:-3}
+REF_FAIL=0; CDC_FAIL=0; STG_FAIL=0; MARTS_FAIL=0; TEST_FAIL=0
+
+send_teams_alert() {
+  local component="$1" fail_count="$2" status="${3:-failure}"
+  [ -z "${TEAMS_WEBHOOK_URL:-}" ] && return 0
+
+  if [ "$status" = "recovery" ]; then
+    local color="Good"
+    local title="MediCore : $component fonctionne a nouveau"
+    local text="Apres $fail_count echecs consecutifs sur **${ENV}**."
+  else
+    local color="Attention"
+    local title="ALERTE MediCore : $component a echoue $fail_count fois"
+    local text="Echecs consecutifs sur **${ENV}**. Verifier les logs du conteneur medicore_elt_batch."
+  fi
+
+  curl -s -o /dev/null -w "" -X POST "$TEAMS_WEBHOOK_URL" \
+    -H "Content-Type: application/json" \
+    -d "{
+      \"type\": \"message\",
+      \"attachments\": [{
+        \"contentType\": \"application/vnd.microsoft.card.adaptive\",
+        \"content\": {
+          \"type\": \"AdaptiveCard\",
+          \"version\": \"1.2\",
+          \"body\": [
+            {\"type\": \"TextBlock\", \"text\": \"$title\", \"weight\": \"Bolder\", \"color\": \"$color\", \"size\": \"Medium\"},
+            {\"type\": \"TextBlock\", \"text\": \"$text\", \"wrap\": true}
+          ]
+        }
+      }]
+    }" || echo "Warning: Teams webhook failed"
+}
+
 echo "MediCore Batch Loop - ${INTERVAL_MIN}min - ENV: ${ENV} - ref reload at ${REF_RELOAD_HOUR}h"
 
 # En dev : mode single-run (pas de boucle infinie)
@@ -33,20 +69,60 @@ while true; do
   HOUR=$(date +%H)
   if [ "$HOUR" = "$REF_RELOAD_HOUR" ] && [ ! -f "$REF_DONE_FLAG" ]; then
     echo "Phase ref-reload: 14 tables reference (truncate + bulk load)"
-    python /app/pipelines/bulk_load.py --ref-only --truncate && touch "$REF_DONE_FLAG"
+    if python /app/pipelines/bulk_load.py --ref-only --truncate; then
+      [ $REF_FAIL -ge $ALERT_THRESHOLD ] && send_teams_alert "Ref-reload" "$REF_FAIL" "recovery"
+      REF_FAIL=0
+      touch "$REF_DONE_FLAG"
+    else
+      REF_FAIL=$((REF_FAIL + 1))
+      echo "Ref-reload failed ($REF_FAIL consecutive)"
+      [ $REF_FAIL -eq $ALERT_THRESHOLD ] && send_teams_alert "Ref-reload" "$REF_FAIL"
+    fi
   fi
   [ "$HOUR" = "00" ] && rm -f "$REF_DONE_FLAG"
 
   # 1. CDC (Kafka -> Snowflake RAW)
   echo "Phase CDC"
-  python /app/pipelines/daily_cdc_batch.py || echo "CDC skipped (no new data)"
+  if python /app/pipelines/daily_cdc_batch.py; then
+    [ $CDC_FAIL -ge $ALERT_THRESHOLD ] && send_teams_alert "CDC batch" "$CDC_FAIL" "recovery"
+    CDC_FAIL=0
+  else
+    CDC_FAIL=$((CDC_FAIL + 1))
+    echo "CDC failed ($CDC_FAIL consecutive)"
+    [ $CDC_FAIL -eq $ALERT_THRESHOLD ] && send_teams_alert "CDC batch" "$CDC_FAIL"
+  fi
 
   # 2. DBT pipeline
   echo "Phase dbt"
   cd /app/dbt
-  dbt run --select tag:staging --target $ENV || echo "Staging skipped"
-  dbt run --select tag:marts --target $ENV || echo "Marts skipped"
-  dbt test --select stg_* --target $ENV || echo "Tests skipped"
+
+  if dbt run --select tag:staging --target $ENV; then
+    [ $STG_FAIL -ge $ALERT_THRESHOLD ] && send_teams_alert "dbt staging" "$STG_FAIL" "recovery"
+    STG_FAIL=0
+  else
+    STG_FAIL=$((STG_FAIL + 1))
+    echo "dbt staging failed ($STG_FAIL consecutive)"
+    [ $STG_FAIL -eq $ALERT_THRESHOLD ] && send_teams_alert "dbt staging" "$STG_FAIL"
+  fi
+
+  if dbt run --select tag:marts --target $ENV; then
+    [ $MARTS_FAIL -ge $ALERT_THRESHOLD ] && send_teams_alert "dbt marts" "$MARTS_FAIL" "recovery"
+    MARTS_FAIL=0
+  else
+    MARTS_FAIL=$((MARTS_FAIL + 1))
+    echo "dbt marts failed ($MARTS_FAIL consecutive)"
+    [ $MARTS_FAIL -eq $ALERT_THRESHOLD ] && send_teams_alert "dbt marts" "$MARTS_FAIL"
+  fi
+
+  if dbt test --select stg_* --target $ENV; then
+    [ $TEST_FAIL -ge $ALERT_THRESHOLD ] && send_teams_alert "dbt test" "$TEST_FAIL" "recovery"
+    TEST_FAIL=0
+  else
+    TEST_FAIL=$((TEST_FAIL + 1))
+    echo "dbt test failed ($TEST_FAIL consecutive)"
+    [ $TEST_FAIL -eq $ALERT_THRESHOLD ] && send_teams_alert "dbt test" "$TEST_FAIL"
+  fi
+
   cd /app
 
   echo "Batch termine - Prochain run: $(date -d "+${INTERVAL_MIN} minutes" 2>/dev/null || echo "${INTERVAL_MIN}min")"
