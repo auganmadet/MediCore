@@ -7,6 +7,7 @@
         tags=['marts', 'fact', 'stock_valorisation', 'high_volume', 'incremental']
     )
 }}
+{{ guard_full_refresh() }}
 
 with stock_enriched as (
     select

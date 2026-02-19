@@ -7,6 +7,7 @@
     tags=['marts', 'fact', 'stock_mouvement', 'high_volume', 'incremental']
   )
 }}
+{{ guard_full_refresh() }}
 
 with mouvements as (
     select

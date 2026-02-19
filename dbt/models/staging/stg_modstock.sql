@@ -7,6 +7,7 @@
         tags=['staging', 'modstock', 'high_volume', 'incremental']
     )
 }}
+{{ guard_full_refresh() }}
 
 with source_data as (
     select * from {{ source('mysql_raw', 'RAW_MODSTOCK') }}

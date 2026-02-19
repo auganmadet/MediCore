@@ -7,6 +7,7 @@
     tags=['marts', 'fact', 'commandes', 'high_volume', 'incremental']
   )
 }}
+{{ guard_full_refresh() }}
 
 with commandes_enriched as (
     select

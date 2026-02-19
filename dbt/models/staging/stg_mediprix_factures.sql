@@ -7,6 +7,7 @@
         tags=['staging', 'mediprix', 'high_volume', 'incremental']
     )
 }}
+{{ guard_full_refresh() }}
 
 with source_data as (
     select * from {{ source('mysql_raw', 'RAW_MEDIPRIX_FACTURES') }}
