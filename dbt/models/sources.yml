@@ -6,7 +6,11 @@ sources:
     database: MEDICORE
     tables:
       - name: RAW_COMMANDES
-        description: "Commandes CDC consolidées (alimenté par Kafka → daily_cdc_batch.py)"
+        description: "Commandes CDC (alimenté par Kafka → daily_cdc_batch.py)"
+        freshness:
+          warn_after: {count: 12, period: hour}
+          error_after: {count: 24, period: hour}
+        loaded_at_field: CDC_TIMESTAMP
         columns:
           - name: PHA_ID
             description: "ID pharmacie"
@@ -20,6 +24,10 @@ sources:
             
       # EAN13 (3 colonnes)
       - name: RAW_EAN13
+        freshness:
+          warn_after: {count: 36, period: hour}
+          error_after: {count: 48, period: hour}
+        loaded_at_field: CDC_TIMESTAMP
         columns:
           - name: PHA_ID
             description: "ID pharmacie"
@@ -39,6 +47,10 @@ sources:
       # FOURNISSEURS (12 colonnes)
       - name: RAW_FOURNISSEURS
         description: "Répertoire fournisseurs (PK: PHA_ID, FOU_ID)"
+        freshness:
+          warn_after: {count: 36, period: hour}
+          error_after: {count: 48, period: hour}
+        loaded_at_field: CDC_TIMESTAMP
         columns:
           - name: PHA_ID
             description: "ID pharmacie"
@@ -69,6 +81,10 @@ sources:
 
       # HISTORY (40 colonnes)
       - name: RAW_HISTORY
+        freshness:
+          warn_after: {count: 36, period: hour}
+          error_after: {count: 48, period: hour}
+        loaded_at_field: CDC_TIMESTAMP
         columns:
           - name: PHA_ID
             description: "ID pharmacie"
@@ -154,6 +170,10 @@ sources:
 
       # LOG (2 colonnes)
       - name: RAW_LOG
+        freshness:
+          warn_after: {count: 36, period: hour}
+          error_after: {count: 48, period: hour}
+        loaded_at_field: CDC_TIMESTAMP
         columns:
           - name: PHA_ID
             tests: [not_null, unique]
@@ -161,6 +181,10 @@ sources:
 
       # LPPR (6 colonnes)
       - name: RAW_LPPR
+        freshness:
+          warn_after: {count: 36, period: hour}
+          error_after: {count: 48, period: hour}
+        loaded_at_field: CDC_TIMESTAMP
         columns:
           - name: PHA_ID
             description: "ID pharmacie"
@@ -184,6 +208,10 @@ sources:
 
       # MANQHISTORY (7 colonnes)
       - name: RAW_MANQHISTORY
+        freshness:
+          warn_after: {count: 36, period: hour}
+          error_after: {count: 48, period: hour}
+        loaded_at_field: CDC_TIMESTAMP
         columns:
           - name: PHA_ID
             description: "ID pharmacie"
@@ -209,6 +237,10 @@ sources:
 
       # MEDIPRIX_FACTURES (18 colonnes)
       - name: RAW_MEDIPRIX_FACTURES
+        freshness:
+          warn_after: {count: 36, period: hour}
+          error_after: {count: 48, period: hour}
+        loaded_at_field: CDC_TIMESTAMP
         columns:
           - name: id
             tests: [not_null, unique]
@@ -250,6 +282,10 @@ sources:
       # PRODUITS (23 colonnes)
       - name: RAW_PRODUITS
         description: "Catalogue produits (PK: PHA_ID, PRD_ID)"
+        freshness:
+          warn_after: {count: 36, period: hour}
+          error_after: {count: 48, period: hour}
+        loaded_at_field: CDC_TIMESTAMP
         columns:
           - name: PHA_ID
             description: "ID pharmacie"
@@ -318,6 +354,10 @@ sources:
 
       # PRODUITS_NEGATIFS (2 colonnes)
       - name: RAW_PRODUITS_NEGATIFS
+        freshness:
+          warn_after: {count: 36, period: hour}
+          error_after: {count: 48, period: hour}
+        loaded_at_field: CDC_TIMESTAMP
         columns:
           - name: PRD_ID
             description: "ID du produit"
@@ -327,6 +367,10 @@ sources:
           
       # STOCKHISTORY (9 colonnes)
       - name: RAW_STOCKHISTORY
+        freshness:
+          warn_after: {count: 36, period: hour}
+          error_after: {count: 48, period: hour}
+        loaded_at_field: CDC_TIMESTAMP
         columns:
           - name: PHA_ID
             description: "ID pharmacie"
@@ -356,7 +400,11 @@ sources:
             description: ""
 
       # pharmacies (8 colonnes)
-      - name: RAW_PHARMACIES 
+      - name: RAW_PHARMACIES
+        freshness:
+          warn_after: {count: 36, period: hour}
+          error_after: {count: 48, period: hour}
+        loaded_at_field: CDC_TIMESTAMP
         columns:
           - name: id
             description: "ID pharmacies"
@@ -379,6 +427,10 @@ sources:
           
       # pharmacies_erreur (3 colonnes)
       - name: RAW_PHARMACIES_ERREUR
+        freshness:
+          warn_after: {count: 36, period: hour}
+          error_after: {count: 48, period: hour}
+        loaded_at_field: CDC_TIMESTAMP
         columns:
           - name: id
             description: ""
@@ -389,7 +441,11 @@ sources:
 
       # FACTURES (batch quotidien, ex-CDC)
       - name: RAW_FACTURES
-        description: "Factures détaillées (batch quotidien)"
+        description: "Factures CDC (batch quotidien)"
+        freshness:
+          warn_after: {count: 12, period: hour}
+          error_after: {count: 24, period: hour}
+        loaded_at_field: CDC_TIMESTAMP
         columns:
           - name: PHA_ID
             description: "ID pharmacie"
@@ -404,7 +460,11 @@ sources:
 
       # ORDERS (batch quotidien, ex-CDC)
       - name: RAW_ORDERS
-        description: "Ordonnances / en-têtes factures (batch quotidien)"
+        description: "Ordonnances CDC (batch quotidien)"
+        freshness:
+          warn_after: {count: 12, period: hour}
+          error_after: {count: 24, period: hour}
+        loaded_at_field: CDC_TIMESTAMP
         columns:
           - name: PHA_ID
             description: "ID pharmacie"
@@ -415,6 +475,10 @@ sources:
       # MODSTOCK (batch quotidien, ex-CDC)
       - name: RAW_MODSTOCK
         description: "Mouvements de stock (batch quotidien)"
+        freshness:
+          warn_after: {count: 12, period: hour}
+          error_after: {count: 24, period: hour}
+        loaded_at_field: CDC_TIMESTAMP
         columns:
           - name: PHA_ID
             description: "ID pharmacie"
@@ -428,6 +492,10 @@ sources:
       # PHARMACIE (batch quotidien, ex-CDC)
       - name: RAW_PHARMACIE
         description: "Référentiel pharmacies (batch quotidien)"
+        freshness:
+          warn_after: {count: 36, period: hour}
+          error_after: {count: 48, period: hour}
+        loaded_at_field: CDC_TIMESTAMP
         columns:
           - name: PHA_ID
             description: "ID pharmacie"
@@ -438,6 +506,10 @@ sources:
       # DAYBYDAY (batch quotidien, ex-CDC)
       - name: RAW_DAYBYDAY
         description: "Ventes journalières par produit (batch quotidien)"
+        freshness:
+          warn_after: {count: 36, period: hour}
+          error_after: {count: 48, period: hour}
+        loaded_at_field: CDC_TIMESTAMP
         columns:
           - name: PHA_ID
             description: "ID pharmacie"

@@ -13,7 +13,7 @@ REF_RELOAD_HOUR=${REF_RELOAD_HOUR:-03}
 
 # Alerting Teams (optionnel : si TEAMS_WEBHOOK_URL est vide, les erreurs sont loguees sans alerte)
 ALERT_THRESHOLD=${ALERT_THRESHOLD:-3}
-REF_FAIL=0; CDC_FAIL=0; STG_FAIL=0; MARTS_FAIL=0; TEST_FAIL=0
+REF_FAIL=0; CDC_FAIL=0; STG_FAIL=0; MARTS_FAIL=0; TEST_FAIL=0; FRESH_FAIL=0
 
 send_teams_alert() {
   local component="$1" fail_count="$2" status="${3:-failure}"
@@ -121,6 +121,17 @@ while true; do
     TEST_FAIL=$((TEST_FAIL + 1))
     echo "dbt test failed ($TEST_FAIL consecutive)"
     [ $TEST_FAIL -eq $ALERT_THRESHOLD ] && send_teams_alert "dbt test" "$TEST_FAIL"
+  fi
+
+  # 5. Source freshness (detecte données stales même si le process tourne)
+  echo "Phase freshness"
+  if dbt source freshness --target $ENV; then
+    [ $FRESH_FAIL -ge $ALERT_THRESHOLD ] && send_teams_alert "source freshness" "$FRESH_FAIL" "recovery"
+    FRESH_FAIL=0
+  else
+    FRESH_FAIL=$((FRESH_FAIL + 1))
+    echo "source freshness failed ($FRESH_FAIL consecutive)"
+    [ $FRESH_FAIL -eq $ALERT_THRESHOLD ] && send_teams_alert "source freshness" "$FRESH_FAIL"
   fi
 
   cd /app
