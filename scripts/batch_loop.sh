@@ -29,9 +29,7 @@ send_teams_alert() {
     local text="Echecs consecutifs sur **${ENV}**. Verifier les logs du conteneur medicore_elt_batch."
   fi
 
-  curl -s -o /dev/null -w "" -X POST "$TEAMS_WEBHOOK_URL" \
-    -H "Content-Type: application/json" \
-    -d "{
+  local payload="{
       \"type\": \"message\",
       \"attachments\": [{
         \"contentType\": \"application/vnd.microsoft.card.adaptive\",
@@ -44,7 +42,21 @@ send_teams_alert() {
           ]
         }
       }]
-    }" || echo "Warning: Teams webhook failed"
+    }"
+
+  local max_retries=3
+  for attempt in $(seq 1 $max_retries); do
+    local http_code
+    http_code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$TEAMS_WEBHOOK_URL" \
+      -H "Content-Type: application/json" \
+      -d "$payload" --connect-timeout 10 --max-time 15)
+    if [ "$http_code" = "200" ] || [ "$http_code" = "202" ]; then
+      return 0
+    fi
+    echo "Teams webhook attempt $attempt/$max_retries failed (HTTP $http_code)"
+    sleep $((attempt * 5))
+  done
+  echo "Warning: Teams webhook failed after $max_retries attempts"
 }
 
 echo "MediCore Batch Loop - ${INTERVAL_MIN}min - ENV: ${ENV} - ref reload at ${REF_RELOAD_HOUR}h"
