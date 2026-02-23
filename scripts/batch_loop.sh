@@ -59,6 +59,66 @@ send_teams_alert() {
   echo "Warning: Teams webhook failed after $max_retries attempts"
 }
 
+send_dbt_run_summary() {
+  local phase="$1"
+  local results_file="/app/dbt/target/run_results.json"
+  [ ! -f "$results_file" ] && return 0
+  [ -z "${TEAMS_WEBHOOK_URL:-}" ] && return 0
+
+  # Parse run_results.json avec Python (jq non dispo dans l'image)
+  local summary
+  summary=$(python3 -c "
+import json
+with open('$results_file') as f:
+    data = json.load(f)
+results = data.get('results', [])
+elapsed = data.get('elapsed_time', 0)
+counts = {}
+for r in results:
+    s = r.get('status', 'unknown')
+    counts[s] = counts.get(s, 0) + 1
+total = len(results)
+ok = counts.get('pass', 0) + counts.get('success', 0)
+warn = counts.get('warn', 0)
+err = counts.get('error', 0) + counts.get('fail', 0)
+skip = counts.get('skip', 0)
+print(f'{total}|{ok}|{warn}|{err}|{skip}|{elapsed:.1f}')
+" 2>/dev/null) || return 0
+
+  IFS='|' read -r total ok warn err skip elapsed <<< "$summary"
+
+  # Alerte Teams uniquement si warnings ou erreurs
+  [ "$warn" = "0" ] && [ "$err" = "0" ] && return 0
+
+  if [ "$err" != "0" ]; then
+    local color="Attention"
+    local title="dbt $phase : $err erreur(s) sur ${ENV}"
+  else
+    local color="Warning"
+    local title="dbt $phase : $warn warning(s) sur ${ENV}"
+  fi
+  local text="pass=$ok warn=$warn error=$err skip=$skip — ${elapsed}s — ${total} models/tests"
+
+  local payload="{
+    \"type\": \"message\",
+    \"attachments\": [{
+      \"contentType\": \"application/vnd.microsoft.card.adaptive\",
+      \"content\": {
+        \"type\": \"AdaptiveCard\",
+        \"version\": \"1.2\",
+        \"body\": [
+          {\"type\": \"TextBlock\", \"text\": \"$title\", \"weight\": \"Bolder\", \"color\": \"$color\", \"size\": \"Medium\"},
+          {\"type\": \"TextBlock\", \"text\": \"$text\", \"wrap\": true}
+        ]
+      }
+    }]
+  }"
+
+  curl -s -o /dev/null -X POST "$TEAMS_WEBHOOK_URL" \
+    -H "Content-Type: application/json" \
+    -d "$payload" --connect-timeout 10 --max-time 15 > /dev/null 2>&1
+}
+
 echo "MediCore Batch Loop - ${INTERVAL_MIN}min - ENV: ${ENV} - ref reload at ${REF_RELOAD_HOUR}h"
 
 # En dev : mode single-run (pas de boucle infinie)
@@ -116,6 +176,7 @@ while true; do
     echo "dbt staging failed ($STG_FAIL consecutive)"
     [ $STG_FAIL -eq $ALERT_THRESHOLD ] && send_teams_alert "dbt staging" "$STG_FAIL"
   fi
+  send_dbt_run_summary "staging"
 
   if dbt run --select tag:marts --target $ENV; then
     [ $MARTS_FAIL -ge $ALERT_THRESHOLD ] && send_teams_alert "dbt marts" "$MARTS_FAIL" "recovery"
@@ -125,6 +186,7 @@ while true; do
     echo "dbt marts failed ($MARTS_FAIL consecutive)"
     [ $MARTS_FAIL -eq $ALERT_THRESHOLD ] && send_teams_alert "dbt marts" "$MARTS_FAIL"
   fi
+  send_dbt_run_summary "marts"
 
   if dbt test --select stg_* --target $ENV; then
     [ $TEST_FAIL -ge $ALERT_THRESHOLD ] && send_teams_alert "dbt test" "$TEST_FAIL" "recovery"
@@ -134,6 +196,7 @@ while true; do
     echo "dbt test failed ($TEST_FAIL consecutive)"
     [ $TEST_FAIL -eq $ALERT_THRESHOLD ] && send_teams_alert "dbt test" "$TEST_FAIL"
   fi
+  send_dbt_run_summary "test"
 
   # 5. Source freshness (detecte données stales même si le process tourne)
   echo "Phase freshness"
