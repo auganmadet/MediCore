@@ -68,6 +68,7 @@ kafka-python==2.0.2
 
 # Data processing
 pandas==2.1.4
+pyarrow==14.0.1
 
 # Configuration
 python-dotenv==1.0.0

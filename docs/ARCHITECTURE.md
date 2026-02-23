@@ -1,110 +1,102 @@
-### 📄 **ARCHITECTURE.md**
-
-```markdown
 # Architecture MediCore
 
 ## Flux de données global
 
-Phase 1 : CDC CAPTURE (22h00)
-┌─────────────────────┐
-│ MySQL Winstat       │
-│ (tables sources)    │
-└──────────┬──────────┘
-           │ (binlog)
-           ↓
-┌─────────────────────┐
-│ cdc_ingestion.py    │
-│ - Détecte CDC       │
-│ - Applique masquage │
-│ - Génère Parquet    │
-└──────────┬──────────┘
-           │
-           ↓
-[Fichiers Parquet]
-(versionnés)
-
-Phase 2 : LOAD (22h30)
-┌──────────────────────┐
-│ snowflake_loader.py  │
-│ - Upload Parquet     │
-│ - Crée staging tables│
-│ - Enregistre audit   │
-└──────────┬───────────┘
-           │
-           ↓
-[Snowflake RAW]
-(données brutes)
-
-Phase 3 : TRANSFORM (23h00)
-┌──────────────────────┐
-│ dbt run              │
-│ - Models (SQL)       │
-│ - Tests (Quality)    │
-│ - Docs (Lineage)     │
-└──────────┬───────────┘
-           │
-           ↓
-[Snowflake Marts]
-(modèle sémantique)
-
-Phase 4 : RECONCILIATION (23h30)
-┌──────────────────────┐
-│ reconciliation.py    │
-│ - Vérifie checksums  │
-│ - Compare volumes    │
-│ - Alerte anomalies   │
-└──────────────────────┘
+```
+┌───────────┐   binlog    ┌──────────┐         ┌─────────┐
+│ MySQL RDS │───────────▶│ Debezium │────────▶│  Kafka  │
+│ (winstat) │             │ (Connect)│         │ 4 topics│
+└─────┬─────┘             └──────────┘         └────┬────┘
+      │                                             │
+      │  SELECT * (14 ref)                          │ consume (4 CDC)
+      │                                             │
+      ▼                                             ▼
+┌─────────────┐                           ┌──────────────────┐
+│ bulk_load.py│                           │daily_cdc_batch.py│
+│ Parquet+PUT │                           │ Kafka→INSERT     │
+└──────┬──────┘                           └────────┬─────────┘
+       │                                           │
+       └──────────────┬────────────────────────────┘
+                      │ COPY INTO / INSERT
+                      ▼
+              ┌───────────────┐
+              │ Snowflake RAW │  18 tables
+              └───────┬───────┘
+                      │ dbt run tag:staging
+                      ▼
+              ┌───────────────┐
+              │ Snowflake STG │  18 modeles (dedup CDC + PII masking)
+              └───────┬───────┘
+                      │ dbt run tag:marts
+                      ▼
+              ┌───────────────┐
+              │Snowflake MARTS│  3 dims + 8 facts
+              └───────────────┘
+```
 
 ## Layers Snowflake
 
 ### RAW Layer
-- Données brutes depuis CDC
+- Donnees brutes depuis CDC (Kafka) et bulk load (MySQL SELECT)
+- Colonnes metadata : CDC_OPERATION, CDC_TIMESTAMP, CDC_SCHEMA, CDC_TABLE, CDC_LSN
+- CLUSTER BY (CDC_TIMESTAMP) sur les 4 tables CDC
 - Aucune transformation
-- Historique complet (soft delete)
-- Exemple : `RAW.RAW_pharmacie`
 
 ### STAGING Layer
-- Nettoyage et normalisation
-- Déduplication
-- Suppression colonnes techniques
-- Exemple : `STAGING.stg_pharmacie`
+- Deduplication CDC (ROW_NUMBER OVER PARTITION BY PK ORDER BY CDC_TIMESTAMP DESC)
+- Filtre CDC_OPERATION != 'D' (exclut les deletes)
+- PII masking (md5 sur colonnes sensibles : noms, adresses, telephones)
+- Renommage et cast colonnes
 
 ### MARTS Layer
-- Modèle sémantique final
-- Dimensions et faits (star schema)
-- Optimisé pour requêtes analytiques
-- Exemple : `MARTS.dim_pharmacie`
+- Star schema : dimensions + faits
+- Dimensions avec membre par defaut INCONNU (SK = md5('-1' || '-' || '-1'))
+- LEFT JOIN facts → dims avec COALESCE pour orphan rows
+- Materialisees en tables
 
-## Versioning
+## Services Docker
 
-### CoreModel.xlsx
-Version: 1.0.0 (sémantique)
-Date: 2026-01-13
-Contient:
+```
+┌────────────────────┬───────────────────────────────────┬───────────────────────────────────┬──────────────────────────────┐
+│ Service            │ Image                             │ Role                              │ Healthcheck                  │
+├────────────────────┼───────────────────────────────────┼───────────────────────────────────┼──────────────────────────────┤
+│ medicore_elt_batch │ Build local (Dockerfile)          │ Pipeline principal (batch_loop.sh)│ healthcheck.py (Snowflake)   │
+├────────────────────┼───────────────────────────────────┼───────────────────────────────────┼──────────────────────────────┤
+│ mysql_cdc          │ debezium/example-mysql:2.7.3      │ MySQL demo (Winstat local)        │ mysqladmin ping              │
+├────────────────────┼───────────────────────────────────┼───────────────────────────────────┼──────────────────────────────┤
+│ zookeeper          │ confluentinc/cp-zookeeper:7.7.0   │ Coordination Kafka                │ echo ruok                    │
+├────────────────────┼───────────────────────────────────┼───────────────────────────────────┼──────────────────────────────┤
+│ kafka              │ confluentinc/cp-kafka:7.5.0       │ Broker Kafka (4 topics CDC)       │ kafka-broker-api-versions    │
+├────────────────────┼───────────────────────────────────┼───────────────────────────────────┼──────────────────────────────┤
+│ kafka_connect      │ debezium/connect:2.7.3            │ Connecteur Debezium MySQL         │ curl REST API                │
+├────────────────────┼───────────────────────────────────┼───────────────────────────────────┼──────────────────────────────┤
+│ kafdrop            │ obsidiandynamics/kafdrop          │ UI monitoring topics              │ -                            │
+└────────────────────┴───────────────────────────────────┴───────────────────────────────────┴──────────────────────────────┘
+```
 
-Mapping sources → tables
+## Monitoring
 
-Règles transformation
+- **Teams webhook** : alertes echec (seuil consecutif) + recovery
+- **Source freshness** : CDC 12h warn / 24h error, reference 36h warn / 48h error
+- **dbt test** : not_null, unique, relationships, expression_is_true (severity warn)
+- **Docker healthcheck** : depends_on condition: service_healthy
 
-Règles masquage PII
+## Fichiers cles
 
-v1.0.0-coremodel : Mapping
-v1.0.0-pipeline : Scripts
-v1.0.0-dbt : Modèles dbt
-
-
-<u>Explication : Ce fichier décrit :</u>
-
-Le flux global des données (4 phases)
-
-L'organisation des données dans Snowflake (RAW/STAGING/MARTS)
-
-La stratégie de versioning
-
-Comment les composants s'intègrent
-
-
-
-
-
+```
+┌──────────────────────────────────┬────────────────────────────────────────────────────────────────┐
+│ Fichier                          │ Role                                                           │
+├──────────────────────────────────┼────────────────────────────────────────────────────────────────┤
+│ scripts/setup.sh                 │ Premier lancement (HOST : DDL + Docker + Debezium)             │
+├──────────────────────────────────┼────────────────────────────────────────────────────────────────┤
+│ scripts/entrypoint.sh            │ Demarrage container (wait deps + dbt deps + cleanup lock)      │
+├──────────────────────────────────┼────────────────────────────────────────────────────────────────┤
+│ scripts/batch_loop.sh            │ Boucle principale (CDC + dbt + tests + freshness + alertes)    │
+├──────────────────────────────────┼────────────────────────────────────────────────────────────────┤
+│ pipelines/daily_cdc_batch.py     │ Consumer Kafka Debezium → INSERT RAW (4 tables)                │
+├──────────────────────────────────┼────────────────────────────────────────────────────────────────┤
+│ pipelines/bulk_load.py           │ MySQL SELECT → Parquet → COPY INTO RAW (18 tables)             │
+├──────────────────────────────────┼────────────────────────────────────────────────────────────────┤
+│ dbt/models/sources.yml           │ 18 sources RAW + freshness config                              │
+└──────────────────────────────────┴────────────────────────────────────────────────────────────────┘
 ```

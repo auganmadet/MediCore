@@ -22,8 +22,15 @@ echo "✅ kafka:9092 ready"
 until (echo > /dev/tcp/mysql_cdc/3306) >/dev/null 2>&1; do echo "⏳ mysql_cdc:3306..."; sleep 2; done
 echo "✅ mysql_cdc:3306 ready"
 
-# Launch batch
+# Nettoyage lock file residuel (si bulk_load.py a crash lors du run precedent)
+rm -f /tmp/bulk_load.lock /tmp/ref_bulk_done_today
+
+# dbt deps (installe dbt_utils et autres packages si absents du cache)
 export DBT_PROFILES_DIR=${DBT_PROFILES_DIR:-/app/dbt}
+echo "📦 dbt deps..."
+dbt deps --project-dir /app/dbt --target ${ENV:-dev}
+
+# Launch batch
 export BATCH_INTERVAL_MIN=${BATCH_INTERVAL_MIN:-5}
 echo "🔄 Launching batch loop - ${BATCH_INTERVAL_MIN}min"
 exec ./scripts/batch_loop.sh

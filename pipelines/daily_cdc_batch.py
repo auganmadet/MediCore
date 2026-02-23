@@ -56,7 +56,7 @@ class MediCoreCDC:
             ],
             bootstrap_servers=self.kafka_servers,
             group_id='medi_core_cdc_batch_dev2',
-            auto_offset_reset='latest',
+            auto_offset_reset='earliest',
             value_deserializer=lambda x: json.loads(x.decode('utf-8')),
             consumer_timeout_ms=BATCH_TIMEOUT_SEC * 1000,
         )
