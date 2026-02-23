@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 # Micro-batch : accumule N events ou attend TIMEOUT avant flush
 BATCH_SIZE = 500
-BATCH_TIMEOUT_SEC = 10
+BATCH_TIMEOUT_SEC = int(os.getenv('CDC_BATCH_TIMEOUT_SEC', '30'))
 
 class MediCoreCDC:
     def __init__(self):
