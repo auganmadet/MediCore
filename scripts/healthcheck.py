@@ -17,10 +17,4 @@ def test_snowflake():
     except:
         return False
 
-# if test_snowflake():
-#     sys.exit(0)
-# else:
-#     sys.exit(1)
-
-
 sys.exit(0 if test_snowflake() else 1)    

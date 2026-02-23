@@ -203,7 +203,7 @@ Table au grain journalier par pharmacie et produit. Chaque ligne représente les
   │                │                         │ Nombre de factures (transactions)     │
   │ Nb factures    │ count(distinct          │ concernées par des manquants.         │
   │ impactées      │     FAC_ID)             │ Sur les 12 clients, 10 factures       │
-  │                │                         │ distinctes sont concernées.            │
+  │                │                         │ distinctes sont concernées.           │
   └────────────────┴─────────────────────────┴───────────────────────────────────────┘
 
 **Différence avec fact_stock_mouvement** : `fact_stock_mouvement` enregistre les niveaux de stock (on sait **quand** le stock est à zéro). `fact_ruptures` enregistre la **demande non servie** (on sait combien de clients et de boîtes ont été impactés par la rupture).
@@ -213,16 +213,25 @@ Table au grain journalier par pharmacie et produit. Chaque ligne représente les
 
 Table au grain journalier par pharmacie. Chaque ligne contient le résumé financier de la journée : encaissements par mode de paiement, marges par segment et TVA par taux. Source : table `HISTORY`.
 
-| KPI | Formule | Description |
-|-----|---------|-------------|
-| CA total jour | somme des encaissements | Total encaissé tous modes de paiement confondus |
-| Montant espèces | `EspeceEUR` | Encaissements en espèces |
-| Montant CB | `CB` | Encaissements par carte bancaire |
-| Montant mutuelle | `Mutuelle` | Montants pris en charge par les mutuelles |
-| Montant centre | `Centre` | Montants pris en charge par la sécurité sociale |
-| Marge remboursable | `Marge_Rembt` | Marge sur les produits remboursés |
-| Marge non remboursable | `Marge_NRembt` | Marge sur les produits libres (parapharmacie, etc.) |
-| TVA par taux | `TVA_1` à `TVA_5` | Montants de TVA collectée par taux (2.1%, 5.5%, 10%, 20%, etc.) |
+  ┌────────────────────────┬─────────────────────────┬───────────────────────────────────────────────────┐
+  │ KPI                    │ Formule                 │ Description                                       │
+  ├────────────────────────┼─────────────────────────┼───────────────────────────────────────────────────┤
+  │ CA total jour          │ somme des encaissements │ Total encaissé tous modes de paiement confondus   │
+  ├────────────────────────┼─────────────────────────┼───────────────────────────────────────────────────┤
+  │ Montant espèces        │ EspeceEUR               │ Encaissements en espèces                          │
+  ├────────────────────────┼─────────────────────────┼───────────────────────────────────────────────────┤
+  │ Montant CB             │ CB                      │ Encaissements par carte bancaire                  │
+  ├────────────────────────┼─────────────────────────┼───────────────────────────────────────────────────┤
+  │ Montant mutuelle       │ Mutuelle                │ Montants pris en charge par les mutuelles         │
+  ├────────────────────────┼─────────────────────────┼───────────────────────────────────────────────────┤
+  │ Montant centre         │ Centre                  │ Montants pris en charge par la sécurité sociale   │
+  ├────────────────────────┼─────────────────────────┼───────────────────────────────────────────────────┤
+  │ Marge remboursable     │ Marge_Rembt             │ Marge sur les produits remboursés                 │
+  ├────────────────────────┼─────────────────────────┼───────────────────────────────────────────────────┤
+  │ Marge non remboursable │ Marge_NRembt            │ Marge sur les produits libres (parapharmacie)     │
+  ├────────────────────────┼─────────────────────────┼───────────────────────────────────────────────────┤
+  │ TVA par taux           │ TVA_1 à TVA_5           │ Montants de TVA collectée par taux (2.1%, 5.5%…)  │
+  └────────────────────────┴─────────────────────────┴───────────────────────────────────────────────────┘
 
 *Exemple : le 15 janvier, la pharmacie Dupont a encaissé 4 500 EUR : 800 EUR en espèces, 1 200 EUR en CB, 2 000 EUR en tiers-payant (mutuelle + centre) et 500 EUR en chèques. La marge du jour est de 1 200 EUR dont 800 EUR sur produits remboursés et 400 EUR sur produits libres.*
 
@@ -231,12 +240,17 @@ Table au grain journalier par pharmacie. Chaque ligne contient le résumé finan
 
 Table au grain journalier par pharmacie et produit. Chaque ligne contient la quantité en stock, les 4 prix du jour et la valorisation calculée. Source : table `STOCKHISTORY` (137M rows).
 
-| KPI | Formule | Description |
-|-----|---------|-------------|
-| Quantité stock | `STH_STOCK` | Nombre d'unités en stock ce jour |
-| Valeur stock PA | `quantite × prix_achat_net` | Valeur du stock au prix d'achat |
-| Valeur stock PV | `quantite × prix_public` | Valeur du stock au prix de vente |
-| Marge latente | `valeur PV - valeur PA` | Marge potentielle si tout le stock était vendu |
+  ┌──────────────────┬──────────────────────────────┬──────────────────────────────────────────────┐
+  │ KPI              │ Formule                      │ Description                                  │
+  ├──────────────────┼──────────────────────────────┼──────────────────────────────────────────────┤
+  │ Quantité stock   │ STH_STOCK                    │ Nombre d'unités en stock ce jour             │
+  ├──────────────────┼──────────────────────────────┼──────────────────────────────────────────────┤
+  │ Valeur stock PA  │ quantite × prix_achat_net    │ Valeur du stock au prix d'achat              │
+  ├──────────────────┼──────────────────────────────┼──────────────────────────────────────────────┤
+  │ Valeur stock PV  │ quantite × prix_public       │ Valeur du stock au prix de vente             │
+  ├──────────────────┼──────────────────────────────┼──────────────────────────────────────────────┤
+  │ Marge latente    │ valeur PV - valeur PA        │ Marge potentielle si tout le stock est vendu │
+  └──────────────────┴──────────────────────────────┴──────────────────────────────────────────────┘
 
 *Exemple : le 15 janvier, la pharmacie a 120 boîtes de Doliprane en stock. Prix achat net = 1.65 EUR, prix public = 3.10 EUR. Valeur stock PA = 198 EUR, valeur stock PV = 372 EUR, marge latente = 174 EUR.*
 
@@ -247,13 +261,19 @@ Table au grain journalier par pharmacie et produit. Chaque ligne contient la qua
 
 Table au grain horaire par pharmacie et opérateur. Chaque ligne contient les ventes agrégées d'un opérateur pour une heure donnée. Source : table `MEDIPRIX_FACTURES` (249M rows) — seule table contenant l'identité du vendeur et l'heure de vente.
 
-| KPI | Formule | Description |
-|-----|---------|-------------|
-| CA TTC | `sum(FAC_PVTTC)` | Chiffre d'affaires TTC par opérateur et heure |
-| CA HT | `sum(FAC_PVHT)` | Chiffre d'affaires HT |
-| Coût achat HT | `sum(FAC_PAHT)` | Coût d'achat des produits vendus |
-| Nb lignes | `count(*)` | Nombre de lignes de vente (passages en caisse) |
-| Nb lignes remboursables | comptage des lignes avec code remboursement | Volume de ventes prescrites vs libres |
+  ┌───────────────────────┬──────────────────────────────────────┬──────────────────────────────────────────┐
+  │ KPI                   │ Formule                              │ Description                              │
+  ├───────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────┤
+  │ CA TTC                │ sum(FAC_PVTTC)                       │ CA TTC par opérateur et heure            │
+  ├───────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────┤
+  │ CA HT                 │ sum(FAC_PVHT)                        │ Chiffre d'affaires HT                    │
+  ├───────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────┤
+  │ Coût achat HT         │ sum(FAC_PAHT)                        │ Coût d'achat des produits vendus         │
+  ├───────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────┤
+  │ Nb lignes             │ count(*)                             │ Nombre de lignes de vente                │
+  ├───────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────┤
+  │ Nb lignes rembours.   │ comptage lignes avec code rembourst  │ Volume de ventes prescrites vs libres    │
+  └───────────────────────┴──────────────────────────────────────┴──────────────────────────────────────────┘
 
 *Exemple : l'opérateur MARTIN a vendu 45 lignes entre 9h et 10h le 15 janvier, pour un CA TTC de 380 EUR. Sur ces 45 lignes, 30 sont des produits remboursables.*
 
@@ -303,14 +323,21 @@ Ces modèles croisent plusieurs tables de faits entre elles pour calculer des in
 
 **Grain** : pharmacie, produit, mois.
 
-| KPI | Formule |
-|-----|---------|
-| Stock moyen | `avg(stock_apres)` sur le mois |
-| Stock min | `min(stock_apres)` |
-| Stock max | `max(stock_apres)` |
-| Nb jours rupture | Nombre de jours où `stock_apres = 0` |
-| Taux de rupture stock | `nb_jours_rupture / nb_jours_mouvement` |
-| Rotation de stock | `quantite_vendue / stock_moyen` |
+  ┌───────────────────────┬──────────────────────────────────────────────┐
+  │ KPI                   │ Formule                                      │
+  ├───────────────────────┼──────────────────────────────────────────────┤
+  │ Stock moyen           │ avg(stock_apres) sur le mois                 │
+  ├───────────────────────┼──────────────────────────────────────────────┤
+  │ Stock min             │ min(stock_apres)                             │
+  ├───────────────────────┼──────────────────────────────────────────────┤
+  │ Stock max             │ max(stock_apres)                             │
+  ├───────────────────────┼──────────────────────────────────────────────┤
+  │ Nb jours rupture      │ Nombre de jours où stock_apres = 0           │
+  ├───────────────────────┼──────────────────────────────────────────────┤
+  │ Taux de rupture stock │ nb_jours_rupture / nb_jours_mouvement        │
+  ├───────────────────────┼──────────────────────────────────────────────┤
+  │ Rotation de stock     │ quantite_vendue / stock_moyen                │
+  └───────────────────────┴──────────────────────────────────────────────┘
 
 **Explications et exemples :**
 
@@ -339,14 +366,21 @@ Ces modèles croisent plusieurs tables de faits entre elles pour calculer des in
 
 **Grain** : pharmacie, produit, mois.
 
-| KPI | Formule |
-|-----|---------|
-| Quantité commandée | `sum(quantite_commandee)` |
-| Montant commandé | `sum(montant_pahtnet)` |
-| Nb commandes | `count(distinct commande_id)` |
-| Quantité vendue | `sum(quantite_vendue)` |
-| CA HT | `sum(ca_ht)` |
-| Taux d'écoulement | `quantite_vendue / quantite_commandee` |
+  ┌──────────────────────┬──────────────────────────────────────────────┐
+  │ KPI                  │ Formule                                      │
+  ├──────────────────────┼──────────────────────────────────────────────┤
+  │ Quantité commandée   │ sum(quantite_commandee)                      │
+  ├──────────────────────┼──────────────────────────────────────────────┤
+  │ Montant commandé     │ sum(montant_pahtnet)                         │
+  ├──────────────────────┼──────────────────────────────────────────────┤
+  │ Nb commandes         │ count(distinct commande_id)                  │
+  ├──────────────────────┼──────────────────────────────────────────────┤
+  │ Quantité vendue      │ sum(quantite_vendue)                         │
+  ├──────────────────────┼──────────────────────────────────────────────┤
+  │ CA HT                │ sum(ca_ht)                                   │
+  ├──────────────────────┼──────────────────────────────────────────────┤
+  │ Taux d'écoulement    │ quantite_vendue / quantite_commandee         │
+  └──────────────────────┴──────────────────────────────────────────────┘
 
 **Explications et exemples :**
 
@@ -382,16 +416,25 @@ Ces modèles croisent plusieurs tables de faits entre elles pour calculer des in
 
 **Grain** : pharmacie, produit, mois.
 
-| KPI | Formule |
-|-----|---------|
-| Nb lignes manquantes | `sum(nb_lignes_manquantes)` sur le mois |
-| Nb boîtes manquantes | `sum(nb_boites_manquantes)` sur le mois |
-| Nb clients impactés | `sum(nb_clients_impactes)` sur le mois |
-| Nb factures impactées | `sum(nb_factures_impactees)` sur le mois |
-| Nb jours rupture | `count(distinct date_rupture)` dans le mois |
-| Taux de rupture demande | `nb_lignes_manquantes / (nb_lignes_vendues + nb_lignes_manquantes)` |
-| CA estimé perdu | `nb_boites_manquantes × prix_public_moyen` |
-| Marge estimée perdue | `nb_boites_manquantes × (prix_public_moyen - prix_achat_net_moyen)` |
+  ┌─────────────────────────┬──────────────────────────────────────────────────────────────────┐
+  │ KPI                     │ Formule                                                          │
+  ├─────────────────────────┼──────────────────────────────────────────────────────────────────┤
+  │ Nb lignes manquantes    │ sum(nb_lignes_manquantes) sur le mois                            │
+  ├─────────────────────────┼──────────────────────────────────────────────────────────────────┤
+  │ Nb boîtes manquantes    │ sum(nb_boites_manquantes) sur le mois                            │
+  ├─────────────────────────┼──────────────────────────────────────────────────────────────────┤
+  │ Nb clients impactés     │ sum(nb_clients_impactes) sur le mois                             │
+  ├─────────────────────────┼──────────────────────────────────────────────────────────────────┤
+  │ Nb factures impactées   │ sum(nb_factures_impactees) sur le mois                           │
+  ├─────────────────────────┼──────────────────────────────────────────────────────────────────┤
+  │ Nb jours rupture        │ count(distinct date_rupture) dans le mois                        │
+  ├─────────────────────────┼──────────────────────────────────────────────────────────────────┤
+  │ Taux de rupture demande │ nb_lignes_manquantes / (nb_lignes_vendues + nb_lignes_manquantes)│
+  ├─────────────────────────┼──────────────────────────────────────────────────────────────────┤
+  │ CA estimé perdu         │ nb_boites_manquantes × prix_public_moyen                         │
+  ├─────────────────────────┼──────────────────────────────────────────────────────────────────┤
+  │ Marge estimée perdue    │ nb_boites_manquantes × (prix_public_moyen - prix_achat_net_moyen)│
+  └─────────────────────────┴──────────────────────────────────────────────────────────────────┘
 
 **Explications et exemples :**
 
@@ -415,13 +458,19 @@ Ces modèles croisent plusieurs tables de faits entre elles pour calculer des in
 
 **Différence avec mart_kpi_stock.taux_rupture_stock** :
 
-| | mart_kpi_stock | mart_kpi_ruptures |
-|---|---|---|
-| **Colonne** | `taux_rupture_stock` | `taux_rupture_demande` |
-| **Source** | MODSTOCK (mouvements de stock) | MANQHISTORY (demandes non servies) |
-| **Mesure** | % jours à stock zéro | % lignes de vente non satisfaites |
-| **Question** | "Combien de temps était-on en rupture ?" | "Combien de clients a-t-on perdus ?" |
-| **Chiffrage CA** | Non | Oui (via prix moyen) |
+  ┌────────────────┬──────────────────────────────────────┬──────────────────────────────────────────┐
+  │                │ mart_kpi_stock                       │ mart_kpi_ruptures                        │
+  ├────────────────┼──────────────────────────────────────┼──────────────────────────────────────────┤
+  │ Colonne        │ taux_rupture_stock                   │ taux_rupture_demande                     │
+  ├────────────────┼──────────────────────────────────────┼──────────────────────────────────────────┤
+  │ Source         │ MODSTOCK (mouvements de stock)       │ MANQHISTORY (demandes non servies)       │
+  ├────────────────┼──────────────────────────────────────┼──────────────────────────────────────────┤
+  │ Mesure         │ % jours à stock zéro                 │ % lignes de vente non satisfaites        │
+  ├────────────────┼──────────────────────────────────────┼──────────────────────────────────────────┤
+  │ Question       │ "Combien de temps en rupture ?"      │ "Combien de clients a-t-on perdus ?"     │
+  ├────────────────┼──────────────────────────────────────┼──────────────────────────────────────────┤
+  │ Chiffrage CA   │ Non                                  │ Oui (via prix moyen)                     │
+  └────────────────┴──────────────────────────────────────┴──────────────────────────────────────────┘
 
 Les deux indicateurs sont complémentaires : un produit peut avoir le stock à zéro un dimanche sans impact client (`taux_rupture_stock` élevé, `taux_rupture_demande` nul), ou inversement avoir du stock mais des lignes manquantes pour un autre motif (produit bloqué, réservé).
 
@@ -435,13 +484,19 @@ Les deux indicateurs sont complémentaires : un produit peut avoir le stock à z
 
 **Grain** : pharmacie, mois.
 
-| KPI | Formule | Description |
-|-----|---------|-------------|
-| Panier moyen | `CA total / nb factures` | Valeur moyenne d'un passage en caisse |
-| % espèces | `montant espèces / CA total` | Part des paiements en espèces |
-| % CB | `montant CB / CA total` | Part des paiements par carte |
-| % tiers-payant | `(mutuelle + centre + subrogation) / CA total` | Part prise en charge par les organismes |
-| % marge remboursable | `marge remboursable / marge totale` | Part de la marge provenant des produits remboursés |
+  ┌──────────────────────┬────────────────────────────────────────┬──────────────────────────────────────────────┐
+  │ KPI                  │ Formule                                │ Description                                  │
+  ├──────────────────────┼────────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ Panier moyen         │ CA total / nb factures                 │ Valeur moyenne d'un passage en caisse        │
+  ├──────────────────────┼────────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ % espèces            │ montant espèces / CA total             │ Part des paiements en espèces                │
+  ├──────────────────────┼────────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ % CB                 │ montant CB / CA total                  │ Part des paiements par carte                 │
+  ├──────────────────────┼────────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ % tiers-payant       │ (mutuelle + centre + subrog.) / CA tot │ Part prise en charge par les organismes      │
+  ├──────────────────────┼────────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ % marge rembours.    │ marge remboursable / marge totale      │ Part marge provenant des produits remboursés │
+  └──────────────────────┴────────────────────────────────────────┴──────────────────────────────────────────────┘
 
 **Explications et exemples :**
 
@@ -463,14 +518,21 @@ Les deux indicateurs sont complémentaires : un produit peut avoir le stock à z
 
 **Grain** : pharmacie, produit, mois.
 
-| KPI | Formule | Description |
-|-----|---------|-------------|
-| Valeur stock PA fin mois | `stock_fin_mois × prix_achat_net` | Valeur du stock immobilisé (besoin en fonds de roulement) |
-| Valeur stock PV fin mois | `stock_fin_mois × prix_public` | Valeur de revente potentielle |
-| Marge latente moyenne | `avg(valeur PV - valeur PA)` | Marge potentielle moyenne en rayon |
-| Couverture stock (jours) | `stock_fin_mois × 30 / quantite_vendue` | Nombre de jours de vente couverts par le stock actuel |
-| Variation prix achat | `(prix fin - prix debut) / prix debut` | Variation du prix d'achat net dans le mois |
-| Stock dormant | `true si stock > 0 et 0 ventes` | Produits immobilisant du capital sans rotation |
+  ┌──────────────────────────┬──────────────────────────────────────────┬──────────────────────────────────────────────────┐
+  │ KPI                      │ Formule                                  │ Description                                      │
+  ├──────────────────────────┼──────────────────────────────────────────┼──────────────────────────────────────────────────┤
+  │ Valeur stock PA fin mois │ stock_fin_mois × prix_achat_net          │ Valeur du stock immobilisé (BFR)                 │
+  ├──────────────────────────┼──────────────────────────────────────────┼──────────────────────────────────────────────────┤
+  │ Valeur stock PV fin mois │ stock_fin_mois × prix_public             │ Valeur de revente potentielle                    │
+  ├──────────────────────────┼──────────────────────────────────────────┼──────────────────────────────────────────────────┤
+  │ Marge latente moyenne    │ avg(valeur PV - valeur PA)               │ Marge potentielle moyenne en rayon               │
+  ├──────────────────────────┼──────────────────────────────────────────┼──────────────────────────────────────────────────┤
+  │ Couverture stock (jours) │ stock_fin_mois × 30 / quantite_vendue    │ Nb jours de vente couverts par le stock actuel   │
+  ├──────────────────────────┼──────────────────────────────────────────┼──────────────────────────────────────────────────┤
+  │ Variation prix achat     │ (prix fin - prix debut) / prix debut     │ Variation du prix d'achat net dans le mois       │
+  ├──────────────────────────┼──────────────────────────────────────────┼──────────────────────────────────────────────────┤
+  │ Stock dormant            │ true si stock > 0 et 0 ventes            │ Produits immobilisant du capital sans rotation   │
+  └──────────────────────────┴──────────────────────────────────────────┴──────────────────────────────────────────────────┘
 
 **Explications et exemples :**
 
@@ -492,12 +554,17 @@ Les deux indicateurs sont complémentaires : un produit peut avoir le stock à z
 
 **Grain** : pharmacie (snapshot, non temporel).
 
-| KPI | Formule | Description |
-|-----|---------|-------------|
-| Heures depuis sync | `current_timestamp - DATE_SYNC` | Fraîcheur des données par pharmacie |
-| Statut fraîcheur | OK / ALERTE / CRITIQUE | OK ≤ 24h, ALERTE 24-48h, CRITIQUE > 48h |
-| Taux pharmacies OK | `nb OK / nb total` | Part des pharmacies avec données fraîches |
-| Nb erreurs total | `count(*)` | Nombre total d'erreurs de synchronisation |
+  ┌────────────────────┬────────────────────────────────┬──────────────────────────────────────────────┐
+  │ KPI                │ Formule                        │ Description                                  │
+  ├────────────────────┼────────────────────────────────┼──────────────────────────────────────────────┤
+  │ Heures depuis sync │ current_timestamp - DATE_SYNC  │ Fraîcheur des données par pharmacie          │
+  ├────────────────────┼────────────────────────────────┼──────────────────────────────────────────────┤
+  │ Statut fraîcheur   │ OK / ALERTE / CRITIQUE         │ OK ≤ 24h, ALERTE 24-48h, CRITIQUE > 48h      │
+  ├────────────────────┼────────────────────────────────┼──────────────────────────────────────────────┤
+  │ Taux pharmacies OK │ nb OK / nb total               │ Part des pharmacies avec données fraîches    │
+  ├────────────────────┼────────────────────────────────┼──────────────────────────────────────────────┤
+  │ Nb erreurs total   │ count(*)                       │ Nombre total d'erreurs de synchronisation    │
+  └────────────────────┴────────────────────────────────┴──────────────────────────────────────────────┘
 
 **Explications et exemples :**
 
@@ -516,14 +583,21 @@ Les deux indicateurs sont complémentaires : un produit peut avoir le stock à z
 
 **Grain** : pharmacie, opérateur, mois.
 
-| KPI | Formule | Description |
-|-----|---------|-------------|
-| CA TTC | `sum(ca_ttc)` | Chiffre d'affaires total de l'opérateur |
-| Panier moyen | `CA TTC / nb lignes` | Montant moyen par ligne de vente |
-| CA moyen par jour | `CA TTC / nb jours activité` | Productivité journalière |
-| Taux de marge | `(CA HT - coût achat) / CA HT` | Rentabilité des ventes de l'opérateur |
-| % lignes remboursables | `nb lignes remboursables / nb lignes` | Profil de vente prescrit vs libre |
-| Heure pic CA | heure avec le plus de CA TTC | Créneau de plus forte activité |
+  ┌────────────────────────┬──────────────────────────────────────┬──────────────────────────────────────────────┐
+  │ KPI                    │ Formule                              │ Description                                  │
+  ├────────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ CA TTC                 │ sum(ca_ttc)                          │ CA total de l'opérateur                      │
+  ├────────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ Panier moyen           │ CA TTC / nb lignes                   │ Montant moyen par ligne de vente             │
+  ├────────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ CA moyen par jour      │ CA TTC / nb jours activité           │ Productivité journalière                     │
+  ├────────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ Taux de marge          │ (CA HT - coût achat) / CA HT         │ Rentabilité des ventes de l'opérateur        │
+  ├────────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ % lignes rembours.     │ nb lignes rembours. / nb lignes      │ Profil de vente prescrit vs libre            │
+  ├────────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ Heure pic CA           │ heure avec le plus de CA TTC         │ Créneau de plus forte activité               │
+  └────────────────────────┴──────────────────────────────────────┴──────────────────────────────────────────────┘
 
 **Explications et exemples :**
 
@@ -545,12 +619,17 @@ Les deux indicateurs sont complémentaires : un produit peut avoir le stock à z
 
 **Grain** : pharmacie, produit, mois.
 
-| KPI | Formule | Description |
-|-----|---------|-------------|
-| Rang | `row_number() order by CA desc` | Position du produit dans le classement |
-| % CA | `CA produit / CA total pharmacie` | Poids du produit dans le CA |
-| % CA cumulé | somme cumulée du % CA | Courbe de Pareto |
-| Classe ABC | A si ≤ 80%, B si ≤ 95%, C sinon | Classification Pareto |
+  ┌────────────────┬──────────────────────────────────────┬──────────────────────────────────────────────┐
+  │ KPI            │ Formule                              │ Description                                  │
+  ├────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ Rang           │ row_number() order by CA desc        │ Position du produit dans le classement       │
+  ├────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ % CA           │ CA produit / CA total pharmacie      │ Poids du produit dans le CA                  │
+  ├────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ % CA cumulé    │ somme cumulée du % CA                │ Courbe de Pareto                             │
+  ├────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ Classe ABC     │ A si ≤ 80%, B si ≤ 95%, C sinon      │ Classification Pareto                        │
+  └────────────────┴──────────────────────────────────────┴──────────────────────────────────────────────┘
 
 **Explications et exemples :**
 
@@ -573,12 +652,17 @@ Les deux indicateurs sont complémentaires : un produit peut avoir le stock à z
 
 Tous les KPIs ci-dessus peuvent être filtrés et ventilés selon les axes suivants :
 
-| Dimension | Colonnes disponibles |
-|-----------|---------------------|
-| dim_pharmacie | PHA_NOM, external_city, postal_code, PHA_GERS |
-| dim_produit | PRD_NOM, EAN13, PRD_CODEREMBT, PRD_CODEACTE, LPP_CODE, PRD_TVA |
-| dim_fournisseur | FOU_NOM, FOU_VILLE, FOU_TYPE, FOU_REPARTITEUR |
-| Temporel | date_vente, date_commande, date_prix, date_mouvement, mois |
+  ┌──────────────────┬────────────────────────────────────────────────────────────────┐
+  │ Dimension        │ Colonnes disponibles                                           │
+  ├──────────────────┼────────────────────────────────────────────────────────────────┤
+  │ dim_pharmacie    │ PHA_NOM, external_city, postal_code, PHA_GERS                  │
+  ├──────────────────┼────────────────────────────────────────────────────────────────┤
+  │ dim_produit      │ PRD_NOM, EAN13, PRD_CODEREMBT, PRD_CODEACTE, LPP_CODE, PRD_TVA │
+  ├──────────────────┼────────────────────────────────────────────────────────────────┤
+  │ dim_fournisseur  │ FOU_NOM, FOU_VILLE, FOU_TYPE, FOU_REPARTITEUR                  │
+  ├──────────────────┼────────────────────────────────────────────────────────────────┤
+  │ Temporel         │ date_vente, date_commande, date_prix, date_mouvement, mois     │
+  └──────────────────┴────────────────────────────────────────────────────────────────┘
 
 **Exemples d'analyses possibles :**
 
@@ -664,11 +748,15 @@ inner join stg_receptions r
 
 **KPIs qui deviendraient alors disponibles :**
 
-| KPI | Formule |
-|-----|---------|
-| Délai d'approvisionnement | `avg(date_reception - date_commande)` |
-| Taux de service | `sum(quantite_recue) / sum(quantite_commandee)` |
-| Taux de livraison complète | `count(réceptions complètes) / count(commandes)` |
+  ┌────────────────────────────┬─────────────────────────────────────────────────────┐
+  │ KPI                        │ Formule                                             │
+  ├────────────────────────────┼─────────────────────────────────────────────────────┤
+  │ Délai d'approvisionnement  │ avg(date_reception - date_commande)                 │
+  ├────────────────────────────┼─────────────────────────────────────────────────────┤
+  │ Taux de service            │ sum(quantite_recue) / sum(quantite_commandee)       │
+  ├────────────────────────────┼─────────────────────────────────────────────────────┤
+  │ Taux de livraison complète │ count(réceptions complètes) / count(commandes)      │
+  └────────────────────────────┴─────────────────────────────────────────────────────┘
 
 **Exemples :**
 

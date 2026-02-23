@@ -22,6 +22,14 @@ echo "✅ kafka:9092 ready"
 until (echo > /dev/tcp/mysql_cdc/3306) >/dev/null 2>&1; do echo "⏳ mysql_cdc:3306..."; sleep 2; done
 echo "✅ mysql_cdc:3306 ready"
 
+# Validation credentials Snowflake (fail-fast avant batch loop)
+echo "🔑 Validating Snowflake credentials..."
+if ! python scripts/healthcheck.py; then
+  echo "❌ Snowflake connection failed — check SNOWFLAKE_ACCOUNT/USER/PASSWORD"
+  exit 1
+fi
+echo "✅ Snowflake credentials OK"
+
 # Nettoyage lock file residuel (si bulk_load.py a crash lors du run precedent)
 rm -f /tmp/bulk_load.lock /tmp/ref_bulk_done_today
 
