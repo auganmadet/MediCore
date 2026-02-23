@@ -36,19 +36,3 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD python scripts/healthcheck.py || exit 1
 
 ENTRYPOINT ["./scripts/entrypoint.sh"]
-
-# -----------------------------------
-
-# FROM python:3.11-slim as builder
-# WORKDIR /app
-# COPY requirements.txt .
-# RUN pip install --no-cache-dir --user -r requirements.txt
-
-# FROM python:3.11-slim
-# WORKDIR /app
-# COPY --from=builder /root/.local /root/.local
-# ENV PATH=/root/.local/bin:$PATH
-# COPY . .
-# COPY ./scripts/entrypoint.sh ./scripts/entrypoint.sh
-# RUN chmod +x ./scripts/entrypoint.sh
-# ENTRYPOINT ["./scripts/entrypoint.sh"]
