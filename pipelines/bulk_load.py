@@ -242,13 +242,19 @@ def bulk_load_table(mysql_conn, sf_conn, mysql_table, sf_table, chunk_size, trun
 
         # Écrire fichier Parquet local
         parquet_file = os.path.join(EXPORT_DIR, f"{sf_table}_{chunk_num:04d}.parquet")
-        df.to_parquet(parquet_file, engine='pyarrow', index=False,
-                      coerce_timestamps='us', allow_truncated_timestamps=True)
+        try:
+            df.to_parquet(parquet_file, engine='pyarrow', index=False,
+                          coerce_timestamps='us', allow_truncated_timestamps=True)
+        except Exception as e:
+            raise RuntimeError(f"[Parquet write] {sf_table} chunk {chunk_num} ({len(df)} rows): {e}") from e
         file_size_mb = os.path.getsize(parquet_file) / (1024 * 1024)
 
         # PUT vers stage Snowflake
         put_query = f"PUT 'file://{parquet_file}' {stage_path} AUTO_COMPRESS=FALSE OVERWRITE=TRUE"
-        sf_cursor.execute(put_query)
+        try:
+            sf_cursor.execute(put_query)
+        except Exception as e:
+            raise RuntimeError(f"[PUT @stage] {sf_table} chunk {chunk_num} ({file_size_mb:.1f} Mo): {e}") from e
 
         # Supprimer fichier local (nettoyage progressif)
         os.remove(parquet_file)
@@ -274,13 +280,16 @@ def bulk_load_table(mysql_conn, sf_conn, mysql_table, sf_table, chunk_size, trun
     logger.info(f"  COPY INTO {sf_table} depuis {stage_path} ({chunk_num} fichiers)...")
     copy_start = time.time()
     force_clause = "FORCE = TRUE" if force else ""
-    sf_cursor.execute(f"""
-        COPY INTO {sf_table}
-        FROM {stage_path}
-        FILE_FORMAT = (TYPE = PARQUET USE_LOGICAL_TYPE = TRUE)
-        MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE
-        {force_clause}
-    """)
+    try:
+        sf_cursor.execute(f"""
+            COPY INTO {sf_table}
+            FROM {stage_path}
+            FILE_FORMAT = (TYPE = PARQUET USE_LOGICAL_TYPE = TRUE)
+            MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE
+            {force_clause}
+        """)
+    except Exception as e:
+        raise RuntimeError(f"[COPY INTO] {sf_table} ({chunk_num} fichiers, {total_rows} rows): {e}") from e
     copy_time = time.time() - copy_start
     logger.info(f"  COPY INTO terminé en {copy_time:.1f}s")
 
