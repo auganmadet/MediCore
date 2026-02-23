@@ -30,7 +30,6 @@ export DBT_PROFILES_DIR=${DBT_PROFILES_DIR:-/app/dbt}
 echo "📦 dbt deps..."
 dbt deps --project-dir /app/dbt --target ${ENV:-dev}
 
-# Launch batch
-export BATCH_INTERVAL_MIN=${BATCH_INTERVAL_MIN:-5}
-echo "🔄 Launching batch loop - ${BATCH_INTERVAL_MIN}min"
+# Launch batch (BATCH_INTERVAL_MIN est determine par batch_loop.sh selon ENV)
+echo "🔄 Launching batch loop - ENV: ${ENV:-dev}"
 exec ./scripts/batch_loop.sh

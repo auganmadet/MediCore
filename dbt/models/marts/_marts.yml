@@ -77,10 +77,18 @@ models:
         description: "Chiffre d'affaires HT"
         tests:
           - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+              config:
+                severity: warn
       - name: ca_ttc
         description: "Chiffre d'affaires TTC"
         tests:
           - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+              config:
+                severity: warn
 
   - name: fact_commandes
     description: "Commandes fournisseurs"
@@ -281,6 +289,10 @@ models:
       - name: ca_total_jour
         tests:
           - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+              config:
+                severity: warn
       - name: marge_totale
         tests:
           - not_null
@@ -324,8 +336,18 @@ models:
           - not_null
       - name: valeur_stock_pa
         description: "Quantite * prix achat net"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+              config:
+                severity: warn
       - name: valeur_stock_pv
         description: "Quantite * prix public"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+              config:
+                severity: warn
       - name: marge_latente
         description: "Valeur PV - valeur PA (marge en rayon non realisee)"
 
@@ -382,6 +404,10 @@ models:
       - name: ca_ttc
         tests:
           - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+              config:
+                severity: warn
 
   - name: mart_kpi_operateur
     description: "Performance operateur mensuelle : CA, panier moyen, marge, mix rembourse/libre, heure de pic (source: MEDIPRIX_FACTURES)"
