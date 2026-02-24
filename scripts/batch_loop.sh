@@ -13,7 +13,7 @@ REF_RELOAD_HOUR=${REF_RELOAD_HOUR:-03}
 
 # Alerting Teams (optionnel : si TEAMS_WEBHOOK_URL est vide, les erreurs sont loguees sans alerte)
 ALERT_THRESHOLD=${ALERT_THRESHOLD:-3}
-REF_FAIL=0; CDC_FAIL=0; STG_FAIL=0; MARTS_FAIL=0; TEST_FAIL=0; FRESH_FAIL=0
+REF_FAIL=0; CDC_FAIL=0; STG_FAIL=0; MARTS_FAIL=0; TEST_FAIL=0; FRESH_FAIL=0; ZERO_VOL=0
 
 send_teams_alert() {
   local component="$1" fail_count="$2" status="${3:-failure}"
@@ -158,6 +158,18 @@ while true; do
   if python /app/pipelines/daily_cdc_batch.py; then
     [ $CDC_FAIL -ge $ALERT_THRESHOLD ] && send_teams_alert "CDC batch" "$CDC_FAIL" "recovery"
     CDC_FAIL=0
+
+    # Volume check : alerte si 0 events inseres N fois consecutives
+    CDC_COUNT=$(cat /tmp/cdc_last_count 2>/dev/null || echo "-1")
+    if [ "$CDC_COUNT" = "0" ]; then
+      ZERO_VOL=$((ZERO_VOL + 1))
+      echo "CDC volume: 0 events ($ZERO_VOL consecutive)"
+      [ $ZERO_VOL -eq $ALERT_THRESHOLD ] && send_teams_alert "CDC volume (0 events)" "$ZERO_VOL"
+    else
+      [ $ZERO_VOL -ge $ALERT_THRESHOLD ] && send_teams_alert "CDC volume" "$ZERO_VOL" "recovery"
+      ZERO_VOL=0
+      echo "CDC volume: $CDC_COUNT events"
+    fi
   else
     CDC_FAIL=$((CDC_FAIL + 1))
     echo "CDC failed ($CDC_FAIL consecutive)"

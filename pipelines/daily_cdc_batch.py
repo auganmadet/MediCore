@@ -129,6 +129,7 @@ class MediCoreCDC:
         consumer.commit()
         logger.info(f"Batch termine: {processed} events inseres, {errors} erreurs")
         consumer.close()
+        return processed
     
     def _decode_debezium_decimal(self, value, scale: int):
         """Decode un DECIMAL Debezium encodé en base64 (BYTES logical type)."""
@@ -233,6 +234,8 @@ class MediCoreCDC:
 if __name__ == "__main__":
     cdc = MediCoreCDC()
     try:
-        cdc.consume_cdc_batch()
+        processed = cdc.consume_cdc_batch()
+        with open('/tmp/cdc_last_count', 'w') as f:
+            f.write(str(processed))
     finally:
         cdc.close()
