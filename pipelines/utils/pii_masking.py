@@ -1,6 +1,7 @@
 """
 Module partagé de masquage PII - RGPD compliant
 Utilisé par daily_cdc_batch.py (CDC) et bulk_load.py (bulk load initial)
+--> n'est plus utilisé car le masking PII se fait désormais par les models dbt
 """
 
 import hashlib

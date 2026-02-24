@@ -32,6 +32,7 @@ class MediCoreCDC:
         self.kafka_servers = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'kafka:9092')
         self.sf_conn = self._get_snowflake_conn()
         self.sf_cursor = self.sf_conn.cursor()
+        self._ensure_dlq()
 
     def _get_snowflake_conn(self):
         """Connexion Snowflake RAW"""
@@ -44,6 +45,32 @@ class MediCoreCDC:
             warehouse='MEDIcore_WH',
             schema='RAW'
         )
+
+    def _ensure_dlq(self):
+        """Crée la table _DLQ si elle n'existe pas."""
+        self.sf_cursor.execute("""
+            CREATE TABLE IF NOT EXISTS _DLQ (
+                DLQ_ID NUMBER AUTOINCREMENT,
+                SOURCE VARCHAR(20) NOT NULL,
+                TABLE_NAME VARCHAR(50) NOT NULL,
+                TOPIC VARCHAR(100),
+                PAYLOAD VARCHAR,
+                ERROR_MESSAGE VARCHAR,
+                CREATED_AT TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
+            )
+        """)
+
+    def _write_dlq(self, source, table_name, topic, payload, error_msg):
+        """Écrit un message/row invalide dans la dead-letter queue."""
+        try:
+            payload_json = json.dumps(payload, default=str)
+            self.sf_cursor.execute(
+                "INSERT INTO _DLQ (SOURCE, TABLE_NAME, TOPIC, PAYLOAD, ERROR_MESSAGE) "
+                "VALUES (%s, %s, %s, %s, %s)",
+                (source, table_name, topic, payload_json, str(error_msg)[:4000])
+            )
+        except Exception as dlq_err:
+            logger.warning(f"DLQ write failed: {dlq_err}")
 
     def consume_cdc_batch(self):
         """Consomme les topics Kafka winstat_rds.winstat.* → RAW_* Snowflake (micro-batch)"""
@@ -88,6 +115,7 @@ class MediCoreCDC:
             except Exception as e:
                 errors += 1
                 logger.error(f"ERROR {topic}: {e}")
+                self._write_dlq('cdc_parse', table_name, topic, message.value, e)
                 continue
 
         # Flush les buffers restants (timeout Kafka atteint, plus de messages)
@@ -190,6 +218,7 @@ class MediCoreCDC:
                     inserted += 1
                 except Exception as row_err:
                     logger.error(f"  Row {i} failed: {row_err}")
+                    self._write_dlq('cdc_insert', table_name, None, events[i], row_err)
             logger.info(f"  Fallback: {inserted}/{len(events)} rows inserted")
 
     def close(self):
