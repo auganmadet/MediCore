@@ -84,6 +84,7 @@ class MediCoreCDC:
             bootstrap_servers=self.kafka_servers,
             group_id='medi_core_cdc_batch_dev2',
             auto_offset_reset='earliest',
+            enable_auto_commit=False,
             value_deserializer=lambda x: json.loads(x.decode('utf-8')),
             consumer_timeout_ms=BATCH_TIMEOUT_SEC * 1000,
         )
@@ -111,6 +112,7 @@ class MediCoreCDC:
                     self._flush_batch(table_name, buffers[table_name])
                     processed += len(buffers[table_name])
                     buffers[table_name] = []
+                    consumer.commit()
 
             except Exception as e:
                 errors += 1
@@ -124,6 +126,7 @@ class MediCoreCDC:
                 self._flush_batch(table_name, events)
                 processed += len(events)
 
+        consumer.commit()
         logger.info(f"Batch termine: {processed} events inseres, {errors} erreurs")
         consumer.close()
     
