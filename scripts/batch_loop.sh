@@ -13,7 +13,7 @@ REF_RELOAD_HOUR=${REF_RELOAD_HOUR:-03}
 
 # Alerting Teams (optionnel : si TEAMS_WEBHOOK_URL est vide, les erreurs sont loguees sans alerte)
 ALERT_THRESHOLD=${ALERT_THRESHOLD:-3}
-REF_FAIL=0; CDC_FAIL=0; STG_FAIL=0; MARTS_FAIL=0; TEST_FAIL=0; FRESH_FAIL=0; ZERO_VOL=0
+REF_FAIL=0; CDC_FAIL=0; STG_FAIL=0; SNAP_FAIL=0; MARTS_FAIL=0; TEST_FAIL=0; FRESH_FAIL=0; ZERO_VOL=0
 
 send_teams_alert() {
   local component="$1" fail_count="$2" status="${3:-failure}"
@@ -189,6 +189,17 @@ while true; do
     [ $STG_FAIL -eq $ALERT_THRESHOLD ] && send_teams_alert "dbt staging" "$STG_FAIL"
   fi
   send_dbt_run_summary "staging"
+
+  # 3. Snapshots SCD2 (apres staging, avant marts)
+  echo "Phase snapshots"
+  if dbt snapshot --target $ENV; then
+    [ $SNAP_FAIL -ge $ALERT_THRESHOLD ] && send_teams_alert "dbt snapshot" "$SNAP_FAIL" "recovery"
+    SNAP_FAIL=0
+  else
+    SNAP_FAIL=$((SNAP_FAIL + 1))
+    echo "dbt snapshot failed ($SNAP_FAIL consecutive)"
+    [ $SNAP_FAIL -eq $ALERT_THRESHOLD ] && send_teams_alert "dbt snapshot" "$SNAP_FAIL"
+  fi
 
   if dbt run --select tag:marts --target $ENV; then
     [ $MARTS_FAIL -ge $ALERT_THRESHOLD ] && send_teams_alert "dbt marts" "$MARTS_FAIL" "recovery"

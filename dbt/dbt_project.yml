@@ -5,6 +5,7 @@ config-version: 2
 profile: 'medicore'
 
 model-paths: ["models"]
+snapshot-paths: ["snapshots"]
 
 target-path: "target"
 clean-targets: ["target", "dbt_packages"]
