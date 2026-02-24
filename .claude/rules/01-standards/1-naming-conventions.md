@@ -1,19 +1,19 @@
 ---
-description: Conventions de nommage PEP 8 et SQL appliquees systematiquement.
+description: Conventions de nommage PEP 8 et SQL appliquées systématiquement.
 ---
 
-- Python `snake_case` : fonctions, methodes, variables
+- Python `snake_case` : fonctions, méthodes, variables
 - Python `PascalCase` : classes
 - Python `UPPER_SNAKE_CASE` : constantes
-- Prefixer booleens : `is_`, `has_`, `should_`
-- Prefixer methodes privees : `_`
+- Préfixer booléens : `is_`, `has_`, `should_`
+- Préfixer méthodes privées : `_`
 - Verbes pour les actions, noms pour les valeurs
-- Pas d'abbreviations sauf courantes (db, id, url, config, sf, dbt)
-- Pas de noms a une lettre (sauf boucles `i`, `j`)
-- Noms revelant l'intention
-- Coherence dans tout le projet
-- SQL : `UPPERCASE` pour mots-cles (SELECT, FROM, WHERE, JOIN)
+- Pas d'abréviations sauf courantes (db, id, url, config, sf, dbt)
+- Pas de noms à une lettre (sauf boucles `i`, `j`)
+- Noms révélant l'intention
+- Cohérence dans tout le projet
+- SQL : `UPPERCASE` pour mots-clés (SELECT, FROM, WHERE, JOIN)
 - SQL : `snake_case` pour noms de colonnes dbt
-- SQL : prefixe `stg_` pour staging, `dim_` pour dimensions, `fact_` pour faits
-- SQL : prefixe `mart_kpi_` pour les KPIs metier
+- SQL : préfixe `stg_` pour staging, `dim_` pour dimensions, `fact_` pour faits
+- SQL : préfixe `mart_kpi_` pour les KPIs métier
 - dbt : tags descriptifs (`staging`, `marts`, `high_volume`, `incremental`)

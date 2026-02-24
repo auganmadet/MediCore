@@ -1,5 +1,5 @@
 ---
-description: Modele de donnees pharmacie. Tables, dimensions, faits, KPIs.
+description: Modèle de données pharmacie. Tables, dimensions, faits, KPIs.
 globs: "dbt/models/**/*.sql"
 ---
 
@@ -7,12 +7,12 @@ globs: "dbt/models/**/*.sql"
 - 3 dimensions : `dim_pharmacie`, `dim_produit`, `dim_fournisseur`
 - Surrogate keys via `ROW_NUMBER()` sur les dimensions
 - Faits : ventes, commandes, ruptures, stock mouvements, stock valorisation
-- KPIs : marge, ecoulement, ABC (Pareto), ruptures, tresorerie
-- Cles metier : `PHA_ID` (pharmacie), `PRD_ID` (produit), `FOU_ID` (fournisseur)
+- KPIs : marge, écoulement, ABC (Pareto), ruptures, trésorerie
+- Clés métier : `PHA_ID` (pharmacie), `PRD_ID` (produit), `FOU_ID` (fournisseur)
 - Enrichissement produit : EAN13 + LPPR (codes pharmaceutiques)
 - Star schema : faits -> LEFT JOIN -> dimensions
 - Gestion des orphelins : `COALESCE(dim.sk, -1)` pour les FK manquantes
-- Granularite temporelle : jour (`DBD_DATE`, `COM_DATE`, `FAC_DATE`)
-- Volumetrie haute : COMMANDES, FACTURES, MODSTOCK, DAYBYDAY
-- Prefixe colonnes source preserve dans staging
-- Renommage metier dans marts uniquement
+- Granularité temporelle : jour (`DBD_DATE`, `COM_DATE`, `FAC_DATE`)
+- Volumétrie haute : COMMANDES, FACTURES, MODSTOCK, DAYBYDAY
+- Préfixe colonnes source préservé dans staging
+- Renommage métier dans marts uniquement

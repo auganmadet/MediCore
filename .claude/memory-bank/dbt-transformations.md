@@ -5,12 +5,12 @@
 - **Projet** : `medicore` (dbt_project.yml)
 - **Profil** : `medicore` (profiles.yml)
 - **Packages** : `dbt_utils` (packages.yml)
-- **Target dev** : `MEDIcore_WH` (XS), schema suffixe `_DEV`
-- **Target prod** : `MEDIcore_WH` (XL), schemas `STAGING`/`MARTS`
+- **Target dev** : `MEDIcore_WH` (XS), schéma suffixé `_DEV`
+- **Target prod** : `MEDIcore_WH` (XL), schémas `STAGING`/`MARTS`
 
-## Modeles staging (18)
+## Modèles staging (18)
 
-**Materialisation** : `incremental` avec `merge` strategy
+**Matérialisation** : `incremental` avec `merge` strategy
 
 **Pattern standard** :
 ```sql
@@ -43,21 +43,25 @@ FROM dedup_cdc WHERE rn = 1
 ```
 
 **Transformations staging** :
-- Dedup CDC : `ROW_NUMBER()` sur PK + `ORDER BY cdc_timestamp DESC`
+- Dédup CDC : `ROW_NUMBER()` sur PK + `ORDER BY cdc_timestamp DESC`
 - Filtre deletes : `WHERE cdc_operation != 'D'`
 - PII masking : `{{ mask_pii('nom_pharmacie') }}` -> MD5
 - Type casting : `upper(trim(FOU_ID))`
 - Renommage : `cdc_timestamp AS loaded_at`
 
-## Modeles marts
+## Modèles marts
 
 ### Dimensions (3)
 
-| Modele | Cle surrogate | Source staging |
-|--------|--------------|---------------|
-| `dim_pharmacie` | `pharmacie_sk` | `stg_pharmacie` |
-| `dim_produit` | `produit_sk` | `stg_produits` + `stg_ean13` + `stg_lppr` |
-| `dim_fournisseur` | `fournisseur_sk` | `stg_fournisseurs` |
+  ┌───────────────────┬──────────────────┬───────────────────────────────────────────┐
+  │      Modèle       │  Clé surrogate   │              Source staging               │
+  ├───────────────────┼──────────────────┼───────────────────────────────────────────┤
+  │ `dim_pharmacie`   │ `pharmacie_sk`   │ `stg_pharmacie`                           │
+  ├───────────────────┼──────────────────┼───────────────────────────────────────────┤
+  │ `dim_produit`     │ `produit_sk`     │ `stg_produits` + `stg_ean13` + `stg_lppr` │
+  ├───────────────────┼──────────────────┼───────────────────────────────────────────┤
+  │ `dim_fournisseur` │ `fournisseur_sk` │ `stg_fournisseurs`                        │
+  └───────────────────┴──────────────────┴───────────────────────────────────────────┘
 
 **Pattern dimension** : `ROW_NUMBER() OVER (ORDER BY natural_key)` pour surrogate key
 
@@ -65,9 +69,9 @@ FROM dedup_cdc WHERE rn = 1
 
 Jointures LEFT JOIN vers dimensions, `COALESCE(dim.sk, -1)` pour orphelins.
 
-### KPIs metier
+### KPIs métier
 
-Calculs agreges sur les faits, documentes dans `docs/KPIs.md`.
+Calculs agrégés sur les faits, documentés dans `docs/KPIs.md`.
 
 ## Macros
 
@@ -80,7 +84,7 @@ Calculs agreges sur les faits, documentes dans `docs/KPIs.md`.
 
 {% macro guard_full_refresh() %}
     {% if flags.FULL_REFRESH %}
-        {{ exceptions.raise_compiler_error("FULL_REFRESH interdit sur ce modele") }}
+        {{ exceptions.raise_compiler_error("FULL_REFRESH interdit sur ce modèle") }}
     {% endif %}
 {% endmacro %}
 ```
@@ -88,29 +92,29 @@ Calculs agreges sur les faits, documentes dans `docs/KPIs.md`.
 ## Tests dbt
 
 ### Fichiers de tests
-- `_staging.yml` : tests sur modeles staging
-- `_marts.yml` : tests sur modeles marts
+- `_staging.yml` : tests sur modèles staging
+- `_marts.yml` : tests sur modèles marts
 
 ### Types de tests
-- `not_null` : cles primaires, champs obligatoires
-- `unique` : cles primaires, surrogate keys
+- `not_null` : clés primaires, champs obligatoires
+- `unique` : clés primaires, surrogate keys
 - `relationships` : FK entre faits et dimensions
-- `accepted_values` : enumerations (operations CDC)
+- `accepted_values` : énumérations (opérations CDC)
 
 ### Freshness (sources.yml)
 - CDC : `warn_after: {count: 12, period: hour}`, `error_after: {count: 24, period: hour}`
-- Reference : `warn_after: {count: 36, period: hour}`, `error_after: {count: 48, period: hour}`
+- Référence : `warn_after: {count: 36, period: hour}`, `error_after: {count: 48, period: hour}`
 
 ## Commandes dbt courantes
 
 ```bash
-dbt run --select tag:staging          # Tous les modeles staging
-dbt run --select tag:marts            # Tous les modeles marts
-dbt run --select stg_commandes        # Un modele specifique
-dbt run --select +fact_ventes         # Modele + ses dependances
+dbt run --select tag:staging          # Tous les modèles staging
+dbt run --select tag:marts            # Tous les modèles marts
+dbt run --select stg_commandes        # Un modèle spécifique
+dbt run --select +fact_ventes         # Modèle + ses dépendances
 dbt test --select stg_*               # Tests staging
 dbt test --select _marts              # Tests marts
-dbt source freshness                  # Fraicheur des sources
+dbt source freshness                  # Fraîcheur des sources
 dbt debug                             # Diagnostic connexion
 dbt deps                              # Installer packages
 ```

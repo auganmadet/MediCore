@@ -8,7 +8,7 @@
 │ (winstat) │             │ (Connect)│         │ 4 topics│
 └─────┬─────┘             └──────────┘         └────┬────┘
       │                                             │
-      │  SELECT * (14 ref)                          │ consume (4 CDC)
+      │  SELECT * (14 réf)                          │ consume (4 CDC)
       │                                             │
       ▼                                             ▼
 ┌─────────────┐                           ┌──────────────────┐
@@ -25,7 +25,7 @@
                       │ dbt run tag:staging
                       ▼
               ┌───────────────┐
-              │ Snowflake STG │  18 modeles (dedup CDC + PII masking)
+              │ Snowflake STG │  18 modèles (dédup CDC + PII masking)
               └───────┬───────┘
                       │ dbt run tag:marts
                       ▼
@@ -37,32 +37,32 @@
 ## Layers Snowflake
 
 ### RAW Layer
-- Donnees brutes depuis CDC (Kafka) et bulk load (MySQL SELECT)
+- Données brutes depuis CDC (Kafka) et bulk load (MySQL SELECT)
 - Colonnes metadata : CDC_OPERATION, CDC_TIMESTAMP, CDC_SCHEMA, CDC_TABLE, CDC_LSN
 - CLUSTER BY (CDC_TIMESTAMP) sur les 4 tables CDC
 - Aucune transformation
 
 ### STAGING Layer
-- Deduplication CDC (ROW_NUMBER OVER PARTITION BY PK ORDER BY CDC_TIMESTAMP DESC)
+- Déduplication CDC (ROW_NUMBER OVER PARTITION BY PK ORDER BY CDC_TIMESTAMP DESC)
 - Filtre CDC_OPERATION != 'D' (exclut les deletes)
-- PII masking (md5 sur colonnes sensibles : noms, adresses, telephones)
+- PII masking (md5 sur colonnes sensibles : noms, adresses, téléphones)
 - Renommage et cast colonnes
 
 ### MARTS Layer
 - Star schema : dimensions + faits
-- Dimensions avec membre par defaut INCONNU (SK = md5('-1' || '-' || '-1'))
+- Dimensions avec membre par défaut INCONNU (SK = md5('-1' || '-' || '-1'))
 - LEFT JOIN facts → dims avec COALESCE pour orphan rows
-- Materialisees en tables
+- Matérialisées en tables
 
 ## Services Docker
 
 ```
 ┌────────────────────┬───────────────────────────────────┬───────────────────────────────────┬──────────────────────────────┐
-│ Service            │ Image                             │ Role                              │ Healthcheck                  │
+│ Service            │ Image                             │ Rôle                              │ Healthcheck                  │
 ├────────────────────┼───────────────────────────────────┼───────────────────────────────────┼──────────────────────────────┤
 │ medicore_elt_batch │ Build local (Dockerfile)          │ Pipeline principal (batch_loop.sh)│ healthcheck.py (Snowflake)   │
 ├────────────────────┼───────────────────────────────────┼───────────────────────────────────┼──────────────────────────────┤
-│ mysql_cdc          │ debezium/example-mysql:2.7.3      │ MySQL demo (Winstat local)        │ mysqladmin ping              │
+│ mysql_cdc          │ debezium/example-mysql:2.7.3      │ MySQL démo (Winstat local)        │ mysqladmin ping              │
 ├────────────────────┼───────────────────────────────────┼───────────────────────────────────┼──────────────────────────────┤
 │ zookeeper          │ confluentinc/cp-zookeeper:7.7.0   │ Coordination Kafka                │ echo ruok                    │
 ├────────────────────┼───────────────────────────────────┼───────────────────────────────────┼──────────────────────────────┤
@@ -76,20 +76,20 @@
 
 ## Monitoring
 
-- **Teams webhook** : alertes echec (seuil consecutif) + recovery
-- **Source freshness** : CDC 12h warn / 24h error, reference 36h warn / 48h error
+- **Teams webhook** : alertes échec (seuil consécutif) + recovery
+- **Source freshness** : CDC 12h warn / 24h error, référence 36h warn / 48h error
 - **dbt test** : not_null, unique, relationships, expression_is_true (severity warn)
 - **Docker healthcheck** : depends_on condition: service_healthy
 
-## Fichiers cles
+## Fichiers clés
 
 ```
 ┌──────────────────────────────────┬────────────────────────────────────────────────────────────────┐
-│ Fichier                          │ Role                                                           │
+│ Fichier                          │ Rôle                                                           │
 ├──────────────────────────────────┼────────────────────────────────────────────────────────────────┤
 │ scripts/setup.sh                 │ Premier lancement (HOST : DDL + Docker + Debezium)             │
 ├──────────────────────────────────┼────────────────────────────────────────────────────────────────┤
-│ scripts/entrypoint.sh            │ Demarrage container (wait deps + dbt deps + cleanup lock)      │
+│ scripts/entrypoint.sh            │ Démarrage container (wait deps + dbt deps + cleanup lock)      │
 ├──────────────────────────────────┼────────────────────────────────────────────────────────────────┤
 │ scripts/batch_loop.sh            │ Boucle principale (CDC + dbt + tests + freshness + alertes)    │
 ├──────────────────────────────────┼────────────────────────────────────────────────────────────────┤

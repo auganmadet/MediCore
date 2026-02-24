@@ -9,25 +9,30 @@
 
 ## Tables CDC (4)
 
-| Table MySQL | Topic Kafka | Cle primaire |
-|-------------|------------|--------------|
-| `COMMANDES` | `winstat.winstat.COMMANDES` | PHA_ID, COM_GROI, PRD_ID |
-| `FACTURES` | `winstat.winstat.FACTURES` | PHA_ID, FAC_DATE, PRD_ID |
-| `ORDERS` | `winstat.winstat.ORDERS` | PHA_ID, ORD_ID |
-| `MODSTOCK` | `winstat.winstat.MODSTOCK` | PHA_ID, MOD_DATE, PRD_ID |
+  ┌─────────────┬─────────────────────────────┬──────────────────────────┐
+  │ Table MySQL │         Topic Kafka         │       Clé primaire       │
+  ├─────────────┼─────────────────────────────┼──────────────────────────┤
+  │ `COMMANDES` │ `winstat.winstat.COMMANDES` │ PHA_ID, COM_GROI, PRD_ID │
+  ├─────────────┼─────────────────────────────┼──────────────────────────┤
+  │ `FACTURES`  │ `winstat.winstat.FACTURES`  │ PHA_ID, FAC_DATE, PRD_ID │
+  ├─────────────┼─────────────────────────────┼──────────────────────────┤
+  │ `ORDERS`    │ `winstat.winstat.ORDERS`    │ PHA_ID, ORD_ID           │
+  ├─────────────┼─────────────────────────────┼──────────────────────────┤
+  │ `MODSTOCK`  │ `winstat.winstat.MODSTOCK`  │ PHA_ID, MOD_DATE, PRD_ID │
+  └─────────────┴─────────────────────────────┴──────────────────────────┘
 
-## Flux CDC detaille
+## Flux CDC détaillé
 
-1. **MySQL binlog** : Debezium lit les changements en temps reel
-2. **Kafka topics** : events publies au format JSON Debezium
+1. **MySQL binlog** : Debezium lit les changements en temps réel
+2. **Kafka topics** : events publiés au format JSON Debezium
 3. **Consumer** (`daily_cdc_batch.py`) :
    - `KafkaConsumer` avec `auto_offset_reset='earliest'`
    - `enable_auto_commit=False` (commit manuel)
    - Accumule 500 events (ou timeout 30s)
    - Parse le payload Debezium
    - INSERT batch dans Snowflake RAW
-   - Commit offset Kafka apres flush reussi
-4. **DLQ** : events malformes -> table `_DLQ` avec message d'erreur
+   - Commit offset Kafka après flush réussi
+4. **DLQ** : events malformés -> table `_DLQ` avec message d'erreur
 
 ## Format event Debezium
 
@@ -43,35 +48,46 @@
 }
 ```
 
-## Mapping operations
+## Mapping opérations
 
-| Debezium `op` | Signification | `cdc_operation` RAW |
-|---------------|--------------|---------------------|
-| `c` | Create (insert) | `I` |
-| `r` | Read (snapshot) | `I` |
-| `u` | Update | `U` |
-| `d` | Delete | `D` |
+  ┌───────────────┬─────────────────┬─────────────────────┐
+  │ Debezium `op` │  Signification  │ `cdc_operation` RAW │
+  ├───────────────┼─────────────────┼─────────────────────┤
+  │ `c`           │ Create (insert) │ `I`                 │
+  ├───────────────┼─────────────────┼─────────────────────┤
+  │ `r`           │ Read (snapshot) │ `I`                 │
+  ├───────────────┼─────────────────┼─────────────────────┤
+  │ `u`           │ Update          │ `U`                 │
+  ├───────────────┼─────────────────┼─────────────────────┤
+  │ `d`           │ Delete          │ `D`                 │
+  └───────────────┴─────────────────┴─────────────────────┘
 
-## Metadonnees CDC ajoutees
+## Métadonnées CDC ajoutées
 
-| Colonne | Source | Description |
-|---------|--------|-------------|
-| `cdc_operation` | `op` mappe | Type d'operation (I/U/D/S) |
-| `cdc_timestamp` | `source.ts_ms` | Horodatage event MySQL |
-| `cdc_schema` | `source.schema` | Schema source |
-| `cdc_table` | `source.table` | Table source |
-| `cdc_lsn` | `source.pos` | Position binlog |
+  ┌─────────────────┬─────────────────┬────────────────────────────┐
+  │     Colonne     │     Source      │        Description         │
+  ├─────────────────┼─────────────────┼────────────────────────────┤
+  │ `cdc_operation` │ `op` mappé      │ Type d'opération (I/U/D/S) │
+  ├─────────────────┼─────────────────┼────────────────────────────┤
+  │ `cdc_timestamp` │ `source.ts_ms`  │ Horodatage event MySQL     │
+  ├─────────────────┼─────────────────┼────────────────────────────┤
+  │ `cdc_schema`    │ `source.schema` │ Schéma source              │
+  ├─────────────────┼─────────────────┼────────────────────────────┤
+  │ `cdc_table`     │ `source.table`  │ Table source               │
+  ├─────────────────┼─────────────────┼────────────────────────────┤
+  │ `cdc_lsn`       │ `source.pos`    │ Position binlog            │
+  └─────────────────┴─────────────────┴────────────────────────────┘
 
-## Bulk load reference (14 tables)
+## Bulk load référence (14 tables)
 
-- Execution quotidienne a 03h00 via `batch_loop.sh`
+- Exécution quotidienne à 03h00 via `batch_loop.sh`
 - `bulk_load.py --ref-only --truncate`
 - Flux : MySQL SELECT -> pandas DataFrame -> Parquet -> PUT @stage -> COPY INTO
-- TRUNCATE avant reload (tables reference = snapshot complet)
+- TRUNCATE avant reload (tables référence = snapshot complet)
 
 ## Monitoring CDC
 
-- Source freshness dbt : warn 12h, error 24h (CDC), warn 36h, error 48h (reference)
-- Alertes Teams apres 3 echecs consecutifs
+- Source freshness dbt : warn 12h, error 24h (CDC), warn 36h, error 48h (référence)
+- Alertes Teams après 3 échecs consécutifs
 - Notification recovery automatique
-- DLQ a surveiller regulierement pour events non traites
+- DLQ à surveiller régulièrement pour events non traités
