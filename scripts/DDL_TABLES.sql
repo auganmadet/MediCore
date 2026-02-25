@@ -380,3 +380,44 @@ CREATE TABLE IF NOT EXISTS MEDICORE.RAW._DLQ (
     ERROR_MESSAGE VARCHAR,
     CREATED_AT TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
 );
+
+-- ============================================================
+-- AUDIT : lineage opérationnel et persistance résultats
+-- ============================================================
+
+CREATE SCHEMA IF NOT EXISTS MEDICORE.AUDIT;
+
+-- 1 ligne par itération batch_loop.sh
+CREATE TABLE IF NOT EXISTS MEDICORE.AUDIT.PIPELINE_RUNS (
+    RUN_ID       VARCHAR(36) NOT NULL,
+    RUN_START    TIMESTAMP_NTZ NOT NULL,
+    RUN_END      TIMESTAMP_NTZ,
+    STATUS       VARCHAR(20) DEFAULT 'RUNNING',
+    ENV          VARCHAR(10) NOT NULL,
+    TRIGGERED_BY VARCHAR(50) DEFAULT 'batch_loop',
+    PRIMARY KEY (RUN_ID)
+);
+
+-- 1 ligne par phase (cdc, ref_reload, dbt_staging, dbt_snapshot, dbt_marts, dbt_test, freshness)
+CREATE TABLE IF NOT EXISTS MEDICORE.AUDIT.PIPELINE_STEP_RUNS (
+    RUN_ID        VARCHAR(36) NOT NULL,
+    STEP_NAME     VARCHAR(50) NOT NULL,
+    STEP_START    TIMESTAMP_NTZ NOT NULL,
+    STEP_END      TIMESTAMP_NTZ,
+    STATUS        VARCHAR(20) DEFAULT 'RUNNING',
+    ROWS_AFFECTED NUMBER,
+    ERROR_MESSAGE VARCHAR(4000),
+    PRIMARY KEY (RUN_ID, STEP_NAME)
+);
+
+-- 1 ligne par modèle/test dbt exécuté
+CREATE TABLE IF NOT EXISTS MEDICORE.AUDIT.DBT_MODEL_RUNS (
+    RUN_ID            VARCHAR(36) NOT NULL,
+    DBT_INVOCATION_ID VARCHAR(64),
+    MODEL_NAME        VARCHAR(100) NOT NULL,
+    MODEL_SCHEMA      VARCHAR(50),
+    STATUS            VARCHAR(20) NOT NULL,
+    EXECUTION_TIME_S  FLOAT,
+    ROWS_AFFECTED     NUMBER,
+    CREATED_AT        TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
+);

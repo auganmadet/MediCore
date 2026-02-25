@@ -232,6 +232,11 @@ class MediCoreCDC:
 
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description='Consumer CDC Kafka -> Snowflake RAW')
+    parser.add_argument('--run-id', default=None, help='Pipeline run ID pour audit')
+    args = parser.parse_args()
+
     cdc = MediCoreCDC()
     try:
         processed = cdc.consume_cdc_batch()

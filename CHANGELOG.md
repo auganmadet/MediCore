@@ -5,6 +5,19 @@ Chaque entrée décrit **ce qui a changé** du point de vue métier et son impac
 
 ---
 
+## [2026-02-25] — Lineage opérationnel et audit persistant
+
+### Ajouts
+- **Schéma AUDIT Snowflake** : 3 tables (`PIPELINE_RUNS`, `PIPELINE_STEP_RUNS`, `DBT_MODEL_RUNS`) pour tracer chaque itération du batch loop, chaque phase et chaque modèle dbt exécuté.
+- **RUN_ID unique par batch** : chaque cycle du batch_loop génère un UUID propagé à toutes les phases (CDC, ref-reload, dbt staging/snapshot/marts/test, freshness). Permet de relier les données produites au batch qui les a générées.
+- **Persistance résultats dbt** : macro `persist_dbt_results` insère automatiquement le statut, le temps d'exécution et les rows affected de chaque modèle/test dbt dans `AUDIT.DBT_MODEL_RUNS` via le hook `on-run-end`.
+- **3 vues audit dbt** : `audit_run_summary` (résumé par run), `audit_dbt_summary` (résumé par invocation dbt), `audit_latest_runs` (7 derniers jours, détail step par step).
+- **Column-level lineage** : descriptions enrichies dans les YAML staging et marts avec le chemin source de chaque colonne clé (ex: `source: RAW_COMMANDES.PHA_ID ← winstat.COMMANDES.PHA_ID`). Navigable via `dbt docs generate`.
+- **Rétention audit 90 jours** : purge automatique quotidienne à 01h des données AUDIT de plus de 90 jours.
+- **Argument `--run-id`** : `daily_cdc_batch.py` et `bulk_load.py` acceptent désormais un identifiant de run pour le suivi audit.
+
+---
+
 ## [2026-02-24] — Fiabilité CDC + historisation
 
 ### Ajouts

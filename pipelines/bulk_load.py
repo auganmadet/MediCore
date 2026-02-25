@@ -328,6 +328,7 @@ def main():
     parser.add_argument('--ref-only', action='store_true', help='14 tables reference uniquement')
     parser.add_argument('--chunk-size', type=int, default=500000, help='Lignes par fichier Parquet (defaut: 500000)')
     parser.add_argument('--truncate', action='store_true', help='TRUNCATE TABLE avant insertion')
+    parser.add_argument('--run-id', default=None, help='Pipeline run ID pour audit')
     args = parser.parse_args()
 
     # Déterminer les tables à charger

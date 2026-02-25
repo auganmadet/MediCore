@@ -12,6 +12,9 @@ clean-targets: ["target", "dbt_packages"]
 
 on-run-end: "{{ log_run_summary(results) }}"
 
+vars:
+  run_id: 'manual'
+
 models:
   medicore:
     staging:
@@ -20,3 +23,6 @@ models:
     marts:
       +materialized: table
       +schema: MARTS
+    audit:
+      +materialized: view
+      +schema: AUDIT

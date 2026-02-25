@@ -16,5 +16,8 @@
     {% endfor %}
     {% set total = results | length %}
     {{ log("DBT_SUMMARY | total=" ~ total ~ " ok=" ~ ns.ok ~ " warn=" ~ ns.warn ~ " error=" ~ ns.err ~ " skip=" ~ ns.skip ~ " elapsed=" ~ (ns.elapsed | round(1)) ~ "s", info=True) }}
+
+    {# Persistance audit #}
+    {{ persist_dbt_results(results) }}
   {% endif %}
 {% endmacro %}

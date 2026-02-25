@@ -2,13 +2,16 @@ version: 2
 
 models:
   - name: stg_commandes
-    description: "Commandes nettoyées et dédupliquées"
+    description: "Commandes nettoyées et dédupliquées (source: RAW_COMMANDES ← winstat.COMMANDES)"
     columns:
       - name: PHA_ID
+        description: "ID pharmacie (source: RAW_COMMANDES.PHA_ID ← winstat.COMMANDES.PHA_ID)"
         tests: [not_null]
       - name: COM_GROI
+        description: "ID grossiste (source: RAW_COMMANDES.COM_GROI ← winstat.COMMANDES.COM_GROI)"
         tests: [not_null]
       - name: PRD_ID
+        description: "ID produit (source: RAW_COMMANDES.PRD_ID ← winstat.COMMANDES.PRD_ID)"
         tests:
           - not_null
           - relationships:
@@ -17,7 +20,7 @@ models:
               config:
                 severity: warn
       - name: FOU_ID
-        description: "ID fournisseur"
+        description: "ID fournisseur (source: RAW_COMMANDES.FOU_ID ← winstat.COMMANDES.FOU_ID)"
         tests:
           - relationships:
               to: ref('stg_fournisseurs')
@@ -25,6 +28,7 @@ models:
               config:
                 severity: warn
       - name: COM_QUANTITE
+        description: "Quantité commandée (source: RAW_COMMANDES.COM_QUANTITE)"
         tests:
           - dbt_utils.expression_is_true:
               expression: ">= 0"
@@ -32,11 +36,13 @@ models:
                 severity: warn
 
   - name: stg_daybyday
-    description: "Prix journaliers nettoyés"
+    description: "Prix journaliers nettoyés (source: RAW_DAYBYDAY ← winstat.DAYBYDAY)"
     columns:
       - name: PHA_ID
+        description: "ID pharmacie (source: RAW_DAYBYDAY.PHA_ID)"
         tests: [not_null]
       - name: DBD_DATE
+        description: "Date du jour (source: RAW_DAYBYDAY.DBD_DATE)"
         tests: [not_null]
       - name: PRD_ID
         tests:
@@ -48,9 +54,10 @@ models:
                 severity: warn
 
   - name: stg_ean13
-    description: "Mapping EAN13 par produit"
+    description: "Mapping EAN13 par produit (source: RAW_EAN13 ← winstat.EAN13)"
     columns:
       - name: PHA_ID
+        description: "ID pharmacie (source: RAW_EAN13.PHA_ID)"
         tests: [not_null]
       - name: PRD_ID
         tests:
@@ -64,15 +71,19 @@ models:
         tests: [not_null]
 
   - name: stg_factures
-    description: "Factures nettoyées et dédupliquées"
+    description: "Factures nettoyées et dédupliquées (source: RAW_FACTURES ← winstat.FACTURES)"
     columns:
       - name: PHA_ID
+        description: "ID pharmacie (source: RAW_FACTURES.PHA_ID ← winstat.FACTURES.PHA_ID)"
         tests: [not_null]
       - name: FAC_ID
+        description: "ID facture (source: RAW_FACTURES.FAC_ID ← winstat.FACTURES.FAC_ID)"
         tests: [not_null]
       - name: FAC_TI
+        description: "Type item facture (source: RAW_FACTURES.FAC_TI)"
         tests: [not_null]
       - name: FAC_DATE
+        description: "Date facture (source: RAW_FACTURES.FAC_DATE)"
         tests: [not_null]
       - name: PRD_ID
         tests:
@@ -90,31 +101,36 @@ models:
                 severity: warn
 
   - name: stg_fournisseurs
-    description: "Fournisseurs nettoyés"
+    description: "Fournisseurs nettoyés (source: RAW_FOURNISSEURS ← winstat.FOURNISSEURS)"
     columns:
       - name: PHA_ID
+        description: "ID pharmacie (source: RAW_FOURNISSEURS.PHA_ID)"
         tests: [not_null]
       - name: FOU_ID
+        description: "ID fournisseur (source: RAW_FOURNISSEURS.FOU_ID)"
         tests: [not_null]
 
   - name: stg_history
-    description: "Historique CA journalier nettoyé"
+    description: "Historique CA journalier nettoyé (source: RAW_HISTORY ← winstat.HISTORY)"
     columns:
       - name: PHA_ID
+        description: "ID pharmacie (source: RAW_HISTORY.PHA_ID)"
         tests: [not_null]
       - name: '"Date"'
         tests: [not_null]
 
   - name: stg_log
-    description: "Logs de synchronisation"
+    description: "Logs de synchronisation (source: RAW_LOG ← winstat.LOG)"
     columns:
       - name: PHA_ID
+        description: "ID pharmacie (source: RAW_LOG.PHA_ID)"
         tests: [not_null, unique]
 
   - name: stg_lppr
-    description: "LPPR par produit"
+    description: "LPPR par produit (source: RAW_LPPR ← winstat.LPPR)"
     columns:
       - name: PHA_ID
+        description: "ID pharmacie (source: RAW_LPPR.PHA_ID)"
         tests: [not_null]
       - name: PRD_ID
         tests:
@@ -130,11 +146,13 @@ models:
         tests: [not_null]
 
   - name: stg_manqhistory
-    description: "Historique manquants"
+    description: "Historique manquants (source: RAW_MANQHISTORY ← winstat.MANQHISTORY)"
     columns:
       - name: PHA_ID
+        description: "ID pharmacie (source: RAW_MANQHISTORY.PHA_ID)"
         tests: [not_null]
       - name: MNQ_DATE
+        description: "Date manquant (source: RAW_MANQHISTORY.MNQ_DATE)"
         tests: [not_null]
       - name: PRD_ID
         tests:
@@ -148,7 +166,7 @@ models:
         tests: [not_null]
 
   - name: stg_mediprix_factures
-    description: "Factures Mediprix nettoyées"
+    description: "Factures Mediprix nettoyées (source: RAW_MEDIPRIX_FACTURES ← winstat.MEDIPRIX_FACTURES)"
     columns:
       - name: id
         tests: [not_null, unique]
@@ -166,11 +184,13 @@ models:
                 severity: warn
 
   - name: stg_modstock
-    description: "Mouvements de stock"
+    description: "Mouvements de stock (source: RAW_MODSTOCK ← winstat.MODSTOCK)"
     columns:
       - name: PHA_ID
+        description: "ID pharmacie (source: RAW_MODSTOCK.PHA_ID ← winstat.MODSTOCK.PHA_ID)"
         tests: [not_null]
       - name: MOD_DATE
+        description: "Date mouvement (source: RAW_MODSTOCK.MOD_DATE ← winstat.MODSTOCK.MOD_DATE)"
         tests: [not_null]
       - name: PRD_ID
         tests:
@@ -184,31 +204,39 @@ models:
         tests: [not_null]
 
   - name: stg_orders
-    description: "Ordres / ordonnances"
+    description: "Ordres / ordonnances (source: RAW_ORDERS ← winstat.ORDERS)"
     columns:
       - name: PHA_ID
+        description: "ID pharmacie (source: RAW_ORDERS.PHA_ID ← winstat.ORDERS.PHA_ID)"
         tests: [not_null]
       - name: FAC_ID
+        description: "ID facture (source: RAW_ORDERS.FAC_ID ← winstat.ORDERS.FAC_ID)"
         tests: [not_null]
       - name: ORD_DATE
+        description: "Date ordonnance (source: RAW_ORDERS.ORD_DATE)"
         tests: [not_null]
 
   - name: stg_pharmacie
-    description: "Pharmacie master"
+    description: "Pharmacie master (source: RAW_PHARMACIE ← winstat.PHARMACIE)"
     columns:
       - name: PHA_ID
+        description: "ID pharmacie (source: RAW_PHARMACIE.PHA_ID ← winstat.PHARMACIE.PHA_ID)"
         tests: [not_null, unique]
       - name: PHA_NOM
+        description: "Nom pharmacie masqué MD5 (source: RAW_PHARMACIE.PHA_NOM, masqué via mask_pii)"
         tests: [not_null]
 
   - name: stg_produits
-    description: "Catalogue produits nettoyé"
+    description: "Catalogue produits nettoyé (source: RAW_PRODUITS ← winstat.PRODUITS)"
     columns:
       - name: PHA_ID
+        description: "ID pharmacie (source: RAW_PRODUITS.PHA_ID)"
         tests: [not_null]
       - name: PRD_ID
+        description: "ID produit (source: RAW_PRODUITS.PRD_ID ← winstat.PRODUITS.PRD_ID)"
         tests: [not_null]
       - name: PRD_NOM
+        description: "Nom produit (source: RAW_PRODUITS.PRD_NOM)"
         tests: [not_null]
       - name: FOU_ID
         tests:
@@ -226,15 +254,16 @@ models:
                 severity: warn
 
   - name: stg_produits_negatifs
-    description: "Produits négatifs"
+    description: "Produits négatifs (source: RAW_PRODUITS_NEGATIFS ← winstat.PRODUITS_NEGATIFS)"
     columns:
       - name: PRD_ID
         tests: [not_null, unique]
 
   - name: stg_stockhistory
-    description: "Historique stock"
+    description: "Historique stock (source: RAW_STOCKHISTORY ← winstat.STOCKHISTORY)"
     columns:
       - name: PHA_ID
+        description: "ID pharmacie (source: RAW_STOCKHISTORY.PHA_ID)"
         tests: [not_null]
       - name: PRD_ID
         tests:
@@ -248,7 +277,7 @@ models:
         tests: [not_null]
 
   - name: stg_pharmacies
-    description: "Pharmacies référentiel externe"
+    description: "Pharmacies référentiel externe (source: RAW_PHARMACIES ← winstat.pharmacies)"
     columns:
       - name: id
         tests: [not_null, unique]
@@ -256,7 +285,7 @@ models:
         tests: [not_null]
 
   - name: stg_pharmacies_erreur
-    description: "Erreurs de mapping pharmacies"
+    description: "Erreurs de mapping pharmacies (source: RAW_PHARMACIES_ERREUR ← winstat.pharmacies_erreur)"
     columns:
       - name: id
       - name: code_erreur

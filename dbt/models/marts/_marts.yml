@@ -3,15 +3,15 @@ version: 2
 models:
   # DIMENSIONS
   - name: dim_pharmacie
-    description: "Pharmacies (table de référence)"
+    description: "Pharmacies (table de référence, source: stg_pharmacie ← RAW_PHARMACIE)"
     columns:
       - name: pharmacie_sk
-        description: "Surrogate key"
+        description: "Surrogate key (ROW_NUMBER sur stg_pharmacie.PHA_ID)"
         tests:
           - unique
           - not_null
       - name: PHA_ID
-        description: "Business key pharmacie"
+        description: "Business key pharmacie (source: stg_pharmacie.PHA_ID ← RAW_PHARMACIE.PHA_ID)"
         tests:
           - unique
           - not_null
@@ -20,7 +20,7 @@ models:
           - not_null
 
   - name: dim_produit
-    description: "Produits enrichis (EAN13 + LPPR)"
+    description: "Produits enrichis EAN13 + LPPR (sources: stg_produits + stg_ean13 + stg_lppr)"
     columns:
       - name: produit_sk
         tests:
@@ -37,7 +37,7 @@ models:
       - name: FOU_ID
 
   - name: dim_fournisseur
-    description: "Fournisseurs hiérarchiques"
+    description: "Fournisseurs hiérarchiques (source: stg_fournisseurs ← RAW_FOURNISSEURS)"
     columns:
       - name: fournisseur_sk
         tests:
@@ -52,7 +52,7 @@ models:
 
   # FAITS
   - name: fact_ventes
-    description: "Ventes journalières agrégées"
+    description: "Ventes journalières agrégées (sources: stg_factures + dim_pharmacie + dim_produit)"
     columns:
       - name: pharmacie_sk
         tests:
@@ -74,7 +74,7 @@ models:
         tests:
           - not_null
       - name: ca_ht
-        description: "Chiffre d'affaires HT"
+        description: "Chiffre d'affaires HT (source: SUM(stg_factures.FAC_PVHT))"
         tests:
           - not_null
           - dbt_utils.expression_is_true:
@@ -82,7 +82,7 @@ models:
               config:
                 severity: warn
       - name: ca_ttc
-        description: "Chiffre d'affaires TTC"
+        description: "Chiffre d'affaires TTC (source: SUM(stg_factures.FAC_PVTTC))"
         tests:
           - not_null
           - dbt_utils.expression_is_true:
@@ -91,7 +91,7 @@ models:
                 severity: warn
 
   - name: fact_commandes
-    description: "Commandes fournisseurs"
+    description: "Commandes fournisseurs (sources: stg_commandes + dim_pharmacie + dim_produit + dim_fournisseur)"
     columns:
       - name: pharmacie_sk
         tests:
@@ -122,7 +122,7 @@ models:
               severity: warn
 
   - name: fact_stock_mouvement
-    description: "Mouvements stock granulaire"
+    description: "Mouvements stock granulaire (sources: stg_modstock + dim_pharmacie + dim_produit)"
     columns:
       - name: pharmacie_sk
         tests:
@@ -144,7 +144,7 @@ models:
           - not_null
 
   - name: fact_prix_journalier
-    description: "Prix évolutifs par jour"
+    description: "Prix évolutifs par jour (sources: stg_daybyday + dim_pharmacie + dim_produit)"
     columns:
       - name: pharmacie_sk
         tests:
@@ -169,7 +169,7 @@ models:
 
   # KPIs CROISES
   - name: mart_kpi_marge
-    description: "Marge journalière par pharmacie et produit (croisement ventes x prix)"
+    description: "Marge journalière par pharmacie et produit (sources: fact_ventes + fact_prix_journalier)"
     columns:
       - name: pharmacie_sk
         tests:
@@ -187,7 +187,7 @@ models:
         description: "Ratio marge_brute / ca_ht (null si ca_ht = 0)"
 
   - name: mart_kpi_stock
-    description: "Rotation de stock et taux de rupture mensuels (croisement stock x ventes)"
+    description: "Rotation de stock et taux de rupture mensuels (sources: fact_stock_mouvement + fact_ventes)"
     columns:
       - name: pharmacie_sk
         tests:
@@ -207,7 +207,7 @@ models:
         description: "Ratio quantite_vendue / stock_moyen (null si stock_moyen = 0)"
 
   - name: mart_kpi_ecoulement
-    description: "Taux d'écoulement mensuel (croisement commandes x ventes)"
+    description: "Taux d'écoulement mensuel (sources: fact_commandes + fact_ventes)"
     columns:
       - name: pharmacie_sk
         tests:
@@ -222,7 +222,7 @@ models:
         description: "Ratio quantite_vendue / quantite_commandee (null si aucune commande)"
 
   - name: fact_ruptures
-    description: "Ruptures de stock journalieres par pharmacie et produit (demande non servie, source: MANQHISTORY)"
+    description: "Ruptures de stock journalieres par pharmacie et produit (sources: stg_manqhistory + dim_pharmacie + dim_produit)"
     columns:
       - name: pharmacie_sk
         tests:
@@ -256,7 +256,7 @@ models:
           - not_null
 
   - name: mart_kpi_ruptures
-    description: "Impact des ruptures et estimation CA/marge perdus mensuels (croisement ruptures x ventes x prix)"
+    description: "Impact des ruptures et estimation CA/marge perdus mensuels (sources: fact_ruptures + fact_ventes + fact_prix_journalier)"
     columns:
       - name: pharmacie_sk
         tests:
@@ -275,7 +275,7 @@ models:
         description: "Boites manquantes * (prix public - prix achat) moyen du mois"
 
   - name: fact_tresorerie
-    description: "Tresorerie journaliere par pharmacie (modes de paiement, marges, TVA, source: HISTORY)"
+    description: "Tresorerie journaliere par pharmacie (sources: stg_history + dim_pharmacie)"
     columns:
       - name: pharmacie_sk
         tests:
@@ -298,7 +298,7 @@ models:
           - not_null
 
   - name: mart_kpi_tresorerie
-    description: "Tresorerie mensuelle : panier moyen, repartition paiements, marges rembourse/libre (source: HISTORY)"
+    description: "Tresorerie mensuelle : panier moyen, repartition paiements, marges (source: fact_tresorerie)"
     columns:
       - name: pharmacie_sk
         tests:
@@ -317,7 +317,7 @@ models:
         description: "Part marge remboursable / marge totale"
 
   - name: fact_stock_valorisation
-    description: "Snapshots stock quotidiens valorises par pharmacie et produit (source: STOCKHISTORY)"
+    description: "Snapshots stock quotidiens valorises par pharmacie et produit (sources: stg_stockhistory + dim_pharmacie + dim_produit)"
     columns:
       - name: pharmacie_sk
         tests:
@@ -352,7 +352,7 @@ models:
         description: "Valeur PV - valeur PA (marge en rayon non realisee)"
 
   - name: mart_kpi_stock_valorisation
-    description: "Valorisation stock, couverture en jours, detection stock dormant et inflation (croisement stock valorise x ventes)"
+    description: "Valorisation stock, couverture en jours, detection stock dormant et inflation (sources: fact_stock_valorisation + fact_ventes)"
     columns:
       - name: pharmacie_sk
         tests:
@@ -371,7 +371,7 @@ models:
         description: "true si stock moyen > 0 et aucune vente dans le mois"
 
   - name: mart_kpi_qualite_donnees
-    description: "Fraicheur des donnees et erreurs de synchronisation par pharmacie (sources: LOG + PHARMACIES_ERREUR)"
+    description: "Fraicheur des donnees et erreurs de synchronisation par pharmacie (sources: stg_log + stg_pharmacies_erreur + dim_pharmacie)"
     columns:
       - name: pharmacie_sk
         tests:
@@ -387,7 +387,7 @@ models:
         description: "Part des pharmacies avec statut OK"
 
   - name: fact_operateur
-    description: "Ventes horaires par operateur et pharmacie (source: MEDIPRIX_FACTURES)"
+    description: "Ventes horaires par operateur et pharmacie (sources: stg_mediprix_factures + dim_pharmacie)"
     columns:
       - name: pharmacie_sk
         tests:
@@ -410,7 +410,7 @@ models:
                 severity: warn
 
   - name: mart_kpi_operateur
-    description: "Performance operateur mensuelle : CA, panier moyen, marge, mix rembourse/libre, heure de pic (source: MEDIPRIX_FACTURES)"
+    description: "Performance operateur mensuelle : CA, panier moyen, marge, mix rembourse/libre, heure de pic (source: fact_operateur)"
     columns:
       - name: pharmacie_sk
         tests:
@@ -431,7 +431,7 @@ models:
         description: "Heure de la journee avec le plus de CA TTC"
 
   - name: mart_kpi_abc
-    description: "Classification ABC mensuelle des produits par pharmacie (Pareto : A=80% CA, B=95%, C=reste)"
+    description: "Classification ABC mensuelle des produits par pharmacie (sources: fact_ventes + dim_pharmacie + dim_produit)"
     columns:
       - name: pharmacie_sk
         tests:
