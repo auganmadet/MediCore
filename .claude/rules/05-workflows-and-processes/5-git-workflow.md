@@ -1,5 +1,6 @@
 ---
 description: Workflow Git du projet. Commits en français, branches descriptives, historique propre.
+globs: ".git*,**/.gitignore,CHANGELOG.md"
 ---
 
 - Messages de commit en français

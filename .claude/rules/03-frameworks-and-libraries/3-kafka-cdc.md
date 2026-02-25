@@ -1,6 +1,6 @@
 ---
 description: Patterns kafka-python et Debezium CDC. Consumer, micro-batch, DLQ, offset management.
-globs: "pipelines/daily_cdc_batch.py"
+globs: "pipelines/*cdc*.py,pipelines/*kafka*.py,pipelines/*consumer*.py"
 ---
 
 - `KafkaConsumer` avec `bootstrap_servers` depuis env

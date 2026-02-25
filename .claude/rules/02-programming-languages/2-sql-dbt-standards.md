@@ -1,6 +1,6 @@
 ---
 description: Standards SQL Snowflake et conventions dbt. Jinja2, CTEs, matérialisation.
-globs: "**/*.sql,**/*.yml"
+globs: "dbt/**/*.sql,dbt/**/*.yml,scripts/**/*.sql"
 ---
 
 - Mots-clés SQL en UPPERCASE : `SELECT`, `FROM`, `WHERE`, `JOIN`, `ORDER BY`
