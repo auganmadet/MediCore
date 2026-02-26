@@ -1,0 +1,116 @@
+version: 2
+
+snapshots:
+  - name: snap_pharmacie
+    description: >
+      SCD Type 2 des pharmacies. Capture les changements sur PHA_NOM, PHA_GERS,
+      PHA_DATE_INSTAL_WP via strategy 'check'. Source: stg_pharmacie.
+    columns:
+      - name: PHA_ID
+        description: "Business key pharmacie (source: stg_pharmacie.PHA_ID)"
+        tests:
+          - not_null
+      - name: dbt_scd_id
+        description: "Surrogate key SCD generee par dbt snapshot"
+        tests:
+          - unique
+          - not_null
+      - name: dbt_valid_from
+        description: "Date de debut de validite de la version"
+        tests:
+          - not_null
+      - name: dbt_valid_to
+        description: "Date de fin de validite (null = version courante)"
+      - name: PHA_NOM
+        description: "Nom de la pharmacie (colonne trackee)"
+        tests:
+          - not_null
+      - name: PHA_IDNAT
+        description: "Identifiant national pharmacie"
+      - name: PHA_GERS
+        description: "Code GERS pharmacie (colonne trackee)"
+      - name: PHA_DATE_INSTAL_WP
+        description: "Date d'installation WinPharma (colonne trackee)"
+
+  - name: snap_produit
+    description: >
+      SCD Type 2 des produits par pharmacie. Capture les changements sur
+      PRD_NOM, PRD_CODEREMBT, PRD_CODEACTE, PRD_TVA, FOU_ID via strategy 'check'.
+      Cle composite PHA_ID || '-' || PRD_ID. Source: stg_produits.
+    columns:
+      - name: PHA_ID
+        description: "Business key pharmacie"
+        tests:
+          - not_null
+      - name: PRD_ID
+        description: "Business key produit"
+        tests:
+          - not_null
+      - name: dbt_scd_id
+        description: "Surrogate key SCD generee par dbt snapshot"
+        tests:
+          - unique
+          - not_null
+      - name: dbt_valid_from
+        description: "Date de debut de validite de la version"
+        tests:
+          - not_null
+      - name: dbt_valid_to
+        description: "Date de fin de validite (null = version courante)"
+      - name: PRD_NOM
+        description: "Nom du produit (colonne trackee)"
+        tests:
+          - not_null
+      - name: PRD_EAN13
+        description: "Code-barres EAN13"
+      - name: PRD_CODEREMBT
+        description: "Code remboursement (colonne trackee)"
+      - name: PRD_CODEACTE
+        description: "Code acte (colonne trackee)"
+      - name: PRD_TVA
+        description: "Taux TVA applicable (colonne trackee)"
+      - name: FOU_ID
+        description: "Fournisseur principal (colonne trackee)"
+
+  - name: snap_fournisseur
+    description: >
+      SCD Type 2 des fournisseurs par pharmacie. Capture les changements sur
+      FOU_NOM, FOU_TYPE, FOU_REPARTITEUR, FOU_ADRESSE, FOU_CP, FOU_VILLE
+      via strategy 'check'. Cle composite PHA_ID || '-' || FOU_ID.
+      Source: stg_fournisseurs.
+    columns:
+      - name: PHA_ID
+        description: "Business key pharmacie"
+        tests:
+          - not_null
+      - name: FOU_ID
+        description: "Business key fournisseur"
+        tests:
+          - not_null
+      - name: dbt_scd_id
+        description: "Surrogate key SCD generee par dbt snapshot"
+        tests:
+          - unique
+          - not_null
+      - name: dbt_valid_from
+        description: "Date de debut de validite de la version"
+        tests:
+          - not_null
+      - name: dbt_valid_to
+        description: "Date de fin de validite (null = version courante)"
+      - name: FOU_NOM
+        description: "Nom du fournisseur (colonne trackee)"
+        tests:
+          - not_null
+      - name: FOU_ADRESSE
+        description: "Adresse postale (colonne trackee)"
+      - name: FOU_CP
+        description: "Code postal (colonne trackee)"
+      - name: FOU_VILLE
+        description: "Ville (colonne trackee)"
+      - name: FOU_TYPE
+        description: "Type de fournisseur (colonne trackee)"
+      - name: FOU_REPARTITEUR
+        description: "Flag repartiteur (colonne trackee)"
+      - name: FOU_ETABLISSEMENT
+        description: "Etablissement fournisseur"
