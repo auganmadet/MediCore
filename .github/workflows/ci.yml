@@ -27,6 +27,14 @@ jobs:
   validate-dbt:
     name: Valider syntaxe dbt
     runs-on: ubuntu-latest
+    env:
+      DBT_PROFILES_DIR: dbt
+      SNOWFLAKE_ACCOUNT: ci_dummy
+      SNOWFLAKE_USER: ci_dummy
+      SNOWFLAKE_PASSWORD: ci_dummy
+      SNOWFLAKE_DATABASE: ci_dummy
+      SNOWFLAKE_WAREHOUSE_NAME: ci_dummy
+      SNOWFLAKE_DBT_ROLE_NAME: ci_dummy
     steps:
       - uses: actions/checkout@v4
 
@@ -40,19 +48,9 @@ jobs:
 
       - name: dbt deps
         run: dbt deps --project-dir dbt
-        env:
-          DBT_PROFILES_DIR: dbt
-          SNOWFLAKE_ACCOUNT: ci_dummy
-          SNOWFLAKE_USER: ci_dummy
-          SNOWFLAKE_PASSWORD: ci_dummy
 
       - name: dbt parse (validation syntaxe)
         run: dbt parse --project-dir dbt
-        env:
-          DBT_PROFILES_DIR: dbt
-          SNOWFLAKE_ACCOUNT: ci_dummy
-          SNOWFLAKE_USER: ci_dummy
-          SNOWFLAKE_PASSWORD: ci_dummy
 
   build-docker:
     name: Build Docker image
