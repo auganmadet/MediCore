@@ -12,6 +12,13 @@ sources:
           error_after: {count: 24, period: hour}
         loaded_at_field: CDC_TIMESTAMP
         columns:
+          - name: cdc_operation
+            description: "Opération CDC Debezium (C=create, U=update, D=delete, R=read/snapshot)"
+            tests:
+              - accepted_values:
+                  values: ['C', 'U', 'D', 'R']
+                  config:
+                    severity: warn
           - name: PHA_ID
             description: "ID pharmacie"
             tests: [not_null]
@@ -447,6 +454,13 @@ sources:
           error_after: {count: 24, period: hour}
         loaded_at_field: CDC_TIMESTAMP
         columns:
+          - name: cdc_operation
+            description: "Opération CDC Debezium (C=create, U=update, D=delete, R=read/snapshot)"
+            tests:
+              - accepted_values:
+                  values: ['C', 'U', 'D', 'R']
+                  config:
+                    severity: warn
           - name: PHA_ID
             description: "ID pharmacie"
             tests: [not_null]
@@ -466,6 +480,13 @@ sources:
           error_after: {count: 24, period: hour}
         loaded_at_field: CDC_TIMESTAMP
         columns:
+          - name: cdc_operation
+            description: "Opération CDC Debezium (C=create, U=update, D=delete, R=read/snapshot)"
+            tests:
+              - accepted_values:
+                  values: ['C', 'U', 'D', 'R']
+                  config:
+                    severity: warn
           - name: PHA_ID
             description: "ID pharmacie"
             tests: [not_null]
@@ -480,6 +501,13 @@ sources:
           error_after: {count: 24, period: hour}
         loaded_at_field: CDC_TIMESTAMP
         columns:
+          - name: cdc_operation
+            description: "Opération CDC Debezium (C=create, U=update, D=delete, R=read/snapshot)"
+            tests:
+              - accepted_values:
+                  values: ['C', 'U', 'D', 'R']
+                  config:
+                    severity: warn
           - name: PHA_ID
             description: "ID pharmacie"
             tests: [not_null]
