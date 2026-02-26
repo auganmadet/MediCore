@@ -97,11 +97,26 @@ scripts/DDL_TABLES.sql          -> DDL 18 tables RAW (avec CLUSTER BY)
 
 ## Workflow Git
 
-- Branches : `main`, `feature/xxx`, `fix/xxx`
+- **Branche principale** : `main` (protégée, CI obligatoire)
+- **Branche de développement** : `Architecture-Medicore` (travail courant)
+- **Branches feature** : `feature/xxx`, `fix/xxx` (si nécessaire)
 - Messages de commit en français, simples et atomiques
 - Ne jamais mentionner Claude ou l'IA comme auteur
 - Ne jamais commiter `.env` ou credentials
 - Nettoyer l'historique avant merge
+- **Règle stricte** : toujours commiter sur `Architecture-Medicore`, jamais directement sur `main`
+
+## CI/CD (GitHub Actions)
+
+- **Fichier** : `.github/workflows/ci.yml`
+- **Déclenchement** : push sur `main`, pull requests
+- **5 jobs** :
+  1. Lint Python (flake8)
+  2. Valider syntaxe dbt (dbt deps + dbt parse)
+  3. Build Docker image
+  4. Lint Bash (ShellCheck)
+  5. Push Docker image → GHCR (`ghcr.io/auganmadet/medicore:latest`)
+- **Registry** : GitHub Container Registry (GHCR)
 
 ## Ajout d'une nouvelle table source
 

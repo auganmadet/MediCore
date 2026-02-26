@@ -4,7 +4,7 @@
 
 - Docker et Docker Compose
 - Accès à une instance MySQL RDS (base `winstat`)
-- Compte Snowflake avec rôle `MEDIcore_DBT_EXECUTOR`
+- Compte Snowflake avec rôle `MEDICORE_DBT_EXECUTOR`
 - Webhook Microsoft Teams (optionnel, pour monitoring)
 
 ## Premier lancement

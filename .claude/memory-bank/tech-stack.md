@@ -77,5 +77,11 @@
 - **Gestionnaire de paquets** : pip (requirements.txt)
 - **VCS** : Git
 - **Transformations** : dbt 1.8.0
-- **Tests** : dbt tests (not_null, unique, relationships, freshness)
-- **CI/CD** : Non configuré (orchestration via batch_loop.sh)
+- **Tests** : dbt tests (not_null, unique, relationships, expression_is_true, accepted_values, freshness)
+- **CI/CD** : GitHub Actions (`.github/workflows/ci.yml`) — 5 jobs :
+  - Lint Python (flake8)
+  - Valider syntaxe dbt (dbt deps + dbt parse)
+  - Build Docker image
+  - Lint Bash (ShellCheck)
+  - Push Docker image vers GHCR (`ghcr.io/auganmadet/medicore:latest`)
+- **Registry** : GitHub Container Registry (GHCR) — image publiée automatiquement à chaque push sur main

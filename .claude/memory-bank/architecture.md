@@ -129,6 +129,22 @@ MySQL RDS (winstat)
 - **Audit trail** : 3 modèles audit dbt traçant les runs et métriques qualité
 - **Cluster keys** : `CLUSTER BY (CDC_TIMESTAMP)` sur tables RAW high-volume (commandes, daybyday, orders)
 
+## CI/CD Pipeline (GitHub Actions)
+
+```
+Push / PR sur main
+    |
+    +-- Job 1 : Lint Python (flake8)
+    +-- Job 2 : Valider syntaxe dbt (dbt deps + dbt parse)
+    +-- Job 3 : Build Docker image
+    +-- Job 4 : Lint Bash (ShellCheck)
+    +-- Job 5 : Push Docker image → GHCR (ghcr.io/auganmadet/medicore:latest)
+```
+
+- **Fichier** : `.github/workflows/ci.yml`
+- **Registry** : GitHub Container Registry (GHCR)
+- **Déclenchement** : push sur `main`, pull requests
+
 ## Points d'architecture clés
 
 - **RAW = source de vérité brute** : aucune transformation, métadonnées CDC préservées
