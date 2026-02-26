@@ -1,0 +1,67 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main, 'feature/*', 'fix/*']
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-python:
+    name: Lint Python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Installer les dependances
+        run: pip install -r requirements.txt flake8
+
+      - name: Flake8 lint
+        run: flake8 pipelines/ --max-line-length=120 --ignore=E501,W503
+
+  validate-dbt:
+    name: Valider syntaxe dbt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Installer dbt
+        run: pip install dbt-core==1.8.0 dbt-snowflake==1.8.0
+
+      - name: dbt deps
+        run: dbt deps --project-dir dbt
+        env:
+          DBT_PROFILES_DIR: dbt
+
+      - name: dbt parse (validation syntaxe)
+        run: dbt parse --project-dir dbt
+        env:
+          DBT_PROFILES_DIR: dbt
+
+  build-docker:
+    name: Build Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t medicore-elt:ci .
+
+  shellcheck:
+    name: Lint Bash
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ShellCheck
+        run: shellcheck scripts/*.sh --severity=warning || true
