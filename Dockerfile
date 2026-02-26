@@ -1,6 +1,6 @@
 # MediCore ELT Pipeline - Multi-stage build
 # Premier stage : builder
-FROM python:3.11-slim as builder
+FROM python:3.11-slim AS builder
 
 # Installer git (nécessaire pour dbt deps / packages.yml)
 RUN apt-get update && \
