@@ -8,17 +8,18 @@ PII masking : non appliqué ici (RAW = données brutes).
 Le masquage est effectué dans les modèles dbt STAGING (stg_orders, stg_pharmacie, etc.)
 """
 
+import base64
 import json
+import logging
 import os
 import sys
 import time
 from datetime import datetime, timedelta
-from typing import Dict, List, Any
+from decimal import Decimal
+from typing import Any, Dict, List, Optional, Tuple
+
 import snowflake.connector
 from kafka import KafkaConsumer
-import logging
-import base64
-from decimal import Decimal
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -28,26 +29,28 @@ BATCH_SIZE = 500
 BATCH_TIMEOUT_SEC = int(os.getenv('CDC_BATCH_TIMEOUT_SEC', '30'))
 
 class MediCoreCDC:
-    def __init__(self):
-        self.kafka_servers = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'kafka:9092')
-        self.sf_conn = self._get_snowflake_conn()
+    """Consumer CDC Kafka -> Snowflake RAW pour les 4 tables CDC Debezium."""
+
+    def __init__(self) -> None:
+        self.kafka_servers: str = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'kafka:9092')
+        self.sf_conn: snowflake.connector.SnowflakeConnection = self._get_snowflake_conn()
         self.sf_cursor = self.sf_conn.cursor()
         self._ensure_dlq()
 
-    def _get_snowflake_conn(self):
-        """Connexion Snowflake RAW"""
+    def _get_snowflake_conn(self) -> snowflake.connector.SnowflakeConnection:
+        """Connexion Snowflake vers le schema RAW."""
         return snowflake.connector.connect(
             account=os.getenv('SNOWFLAKE_ACCOUNT'),
             user=os.getenv('SNOWFLAKE_USER'),
             password=os.getenv('SNOWFLAKE_PASSWORD'),
-            role='MEDIcore_DBT_EXECUTOR',
-            database='MEDIcore',
-            warehouse='MEDIcore_WH',
+            role=os.getenv('SNOWFLAKE_DBT_ROLE_NAME', 'MEDIcore_DBT_EXECUTOR'),
+            database=os.getenv('SNOWFLAKE_DATABASE', 'MEDIcore'),
+            warehouse=os.getenv('SNOWFLAKE_WAREHOUSE_NAME', 'MEDIcore_WH'),
             schema='RAW'
         )
 
-    def _ensure_dlq(self):
-        """Crée la table _DLQ si elle n'existe pas."""
+    def _ensure_dlq(self) -> None:
+        """Cree la table _DLQ si elle n'existe pas."""
         self.sf_cursor.execute("""
             CREATE TABLE IF NOT EXISTS _DLQ (
                 DLQ_ID NUMBER AUTOINCREMENT,
@@ -60,8 +63,16 @@ class MediCoreCDC:
             )
         """)
 
-    def _write_dlq(self, source, table_name, topic, payload, error_msg):
-        """Écrit un message/row invalide dans la dead-letter queue."""
+    def _write_dlq(self, source: str, table_name: str, topic: Optional[str], payload: Any, error_msg: Any) -> None:
+        """Ecrit un message/row invalide dans la dead-letter queue.
+
+        Args:
+            source: Origine de l'erreur (cdc_parse, cdc_insert).
+            table_name: Table Snowflake concernee.
+            topic: Topic Kafka source.
+            payload: Contenu du message en erreur.
+            error_msg: Message d'erreur associe.
+        """
         try:
             payload_json = json.dumps(payload, default=str)
             self.sf_cursor.execute(
@@ -69,11 +80,17 @@ class MediCoreCDC:
                 "VALUES (%s, %s, %s, %s, %s)",
                 (source, table_name, topic, payload_json, str(error_msg)[:4000])
             )
-        except Exception as dlq_err:
+        except snowflake.connector.errors.ProgrammingError as dlq_err:
             logger.warning(f"DLQ write failed: {dlq_err}")
 
-    def consume_cdc_batch(self):
-        """Consomme les topics Kafka winstat_rds.winstat.* → RAW_* Snowflake (micro-batch)"""
+    def consume_cdc_batch(self) -> int:
+        """Consomme les topics Kafka winstat_rds.winstat.* vers RAW_* Snowflake.
+
+        Accumule les events en micro-batch (BATCH_SIZE) avant flush.
+
+        Returns:
+            Nombre total d'events inseres.
+        """
         consumer = KafkaConsumer(
             *[
                 'winstat_rds.winstat.COMMANDES',
@@ -131,8 +148,16 @@ class MediCoreCDC:
         consumer.close()
         return processed
     
-    def _decode_debezium_decimal(self, value, scale: int):
-        """Decode un DECIMAL Debezium encodé en base64 (BYTES logical type)."""
+    def _decode_debezium_decimal(self, value: Any, scale: int) -> Optional[float]:
+        """Decode un DECIMAL Debezium encode en base64 (BYTES logical type).
+
+        Args:
+            value: Valeur base64 a decoder.
+            scale: Nombre de decimales du type DECIMAL source.
+
+        Returns:
+            Valeur float decodee, ou None si valeur nulle.
+        """
         if value is None:
             return None
         if not isinstance(value, str):
@@ -144,11 +169,21 @@ class MediCoreCDC:
             decimal_val = Decimal(int_val) / Decimal(10 ** scale)
             return float(decimal_val)
         except Exception:
-            logger.warning(f"⚠️ DECIMAL base64 non décodable: {value}")
+            logger.warning(f"[DECIMAL] base64 non décodable: {value}")
             return value
         
-    def _parse_debezium_event(self, payload: Dict) -> Dict:
-        """Parse Debezium → format RAW avec CDC metadata"""
+    def _parse_debezium_event(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse un event Debezium vers le format RAW avec metadata CDC.
+
+        Args:
+            payload: Event Debezium brut (avec cle 'payload').
+
+        Returns:
+            Dict contenant les donnees + metadata CDC.
+
+        Raises:
+            ValueError: Si le payload est invalide ou l'operation inconnue.
+        """
         if 'payload' not in payload:
             raise ValueError(f"No 'payload' in event: {list(payload.keys())}")
 
@@ -196,8 +231,13 @@ class MediCoreCDC:
         return event
     
 	
-    def _flush_batch(self, table_name: str, events: List[Dict]):
-        """INSERT micro-batch via executemany() — 10-50x plus rapide que row-by-row."""
+    def _flush_batch(self, table_name: str, events: List[Dict[str, Any]]) -> None:
+        """INSERT micro-batch via executemany(), fallback row-by-row en cas d'erreur.
+
+        Args:
+            table_name: Table Snowflake cible (ex: RAW_COMMANDES).
+            events: Liste d'events a inserer.
+        """
         if not events:
             return
 
@@ -225,7 +265,7 @@ class MediCoreCDC:
                     self._write_dlq('cdc_insert', table_name, None, events[i], row_err)
             logger.info(f"  Fallback: {inserted}/{len(events)} rows inserted")
 
-    def close(self):
+    def close(self) -> None:
         """Ferme proprement le curseur et la connexion Snowflake."""
         self.sf_cursor.close()
         self.sf_conn.close()

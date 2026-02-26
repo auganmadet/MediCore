@@ -20,8 +20,8 @@ def _get_audit_conn() -> snowflake.connector.SnowflakeConnection:
         account=os.getenv('SNOWFLAKE_ACCOUNT'),
         user=os.getenv('SNOWFLAKE_USER'),
         password=os.getenv('SNOWFLAKE_PASSWORD'),
-        database='MEDIcore',
-        warehouse='MEDIcore_WH',
+        database=os.getenv('SNOWFLAKE_DATABASE', 'MEDIcore'),
+        warehouse=os.getenv('SNOWFLAKE_WAREHOUSE_NAME', 'MEDIcore_WH'),
         schema='AUDIT',
     )
 

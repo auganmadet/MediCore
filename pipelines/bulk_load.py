@@ -13,14 +13,15 @@ Usage:
 
 import argparse
 import gc
+import logging
 import os
 import sys
 import time
 from datetime import datetime
-import logging
+from typing import Any, Dict, List, Set, Tuple
 
-import pandas as pd
 import mysql.connector
+import pandas as pd
 import snowflake.connector
 
 
@@ -61,17 +62,20 @@ CDC_TABLES = ['COMMANDES', 'FACTURES', 'ORDERS', 'MODSTOCK']
 REF_TABLES = [t for t in TABLE_MAPPING if t not in CDC_TABLES]
 
 
-def get_mysql_conn():
-    """Connexion MySQL RDS avec timeout élevé pour bulk load"""
+def get_mysql_conn() -> mysql.connector.MySQLConnection:
+    """Connexion MySQL RDS avec timeout eleve pour bulk load.
+
+    Returns:
+        Connexion MySQL configuree avec timeouts etendus.
+    """
     conn = mysql.connector.connect(
         host=os.getenv('MYSQL_HOST'),
         port=int(os.getenv('MYSQL_PORT', '3306')),
         user=os.getenv('MYSQL_USER'),
         password=os.getenv('MYSQL_PASSWORD'),
         database=os.getenv('MYSQL_DATABASE', 'winstat'),
-        connection_timeout=600,
+        connection_timeout=int(os.getenv('MYSQL_CONNECTION_TIMEOUT', '600')),
     )
-    # Timeout session élevé : entre chaque chunk, le PUT Snowflake peut prendre >60s
     cursor = conn.cursor()
     cursor.execute("SET SESSION wait_timeout = 28800")
     cursor.execute("SET SESSION net_read_timeout = 600")
@@ -80,22 +84,34 @@ def get_mysql_conn():
     return conn
 
 
-def get_snowflake_conn():
-    """Connexion Snowflake RAW"""
+def get_snowflake_conn() -> snowflake.connector.SnowflakeConnection:
+    """Connexion Snowflake vers le schema RAW.
+
+    Returns:
+        Connexion Snowflake configuree pour le bulk load.
+    """
     return snowflake.connector.connect(
         account=os.getenv('SNOWFLAKE_ACCOUNT'),
         user=os.getenv('SNOWFLAKE_USER'),
         password=os.getenv('SNOWFLAKE_PASSWORD'),
         role=os.getenv('SNOWFLAKE_ROLE_NAME', 'MEDICORE_RAW_WRITER'),
-        database='MEDIcore',
-        warehouse='MEDIcore_WH',
+        database=os.getenv('SNOWFLAKE_DATABASE', 'MEDIcore'),
+        warehouse=os.getenv('SNOWFLAKE_WAREHOUSE_NAME', 'MEDIcore_WH'),
         schema='RAW',
         insecure_mode=True  # Bypass OCSP pour PUT vers S3 stage
     )
 
 
-def get_snowflake_columns(sf_conn, table_name):
-    """Récupère les noms de colonnes et types Snowflake (casing exact)."""
+def get_snowflake_columns(sf_conn: Any, table_name: str) -> Tuple[List[str], Set[str]]:
+    """Recupere les noms de colonnes et types Snowflake (casing exact).
+
+    Args:
+        sf_conn: Connexion Snowflake active.
+        table_name: Nom de la table a decrire.
+
+    Returns:
+        Tuple (liste_colonnes, ensemble_colonnes_boolean).
+    """
     cursor = sf_conn.cursor()
     cursor.execute(f"DESCRIBE TABLE {table_name}")
     rows = cursor.fetchall()
@@ -106,26 +122,34 @@ def get_snowflake_columns(sf_conn, table_name):
     return columns, bool_columns
 
 
-def ensure_stage(sf_conn):
-    """Crée le stage interne s'il n'existe pas."""
+def ensure_stage(sf_conn: Any) -> None:
+    """Cree le stage interne Snowflake s'il n'existe pas."""
     cursor = sf_conn.cursor()
     cursor.execute(f"CREATE STAGE IF NOT EXISTS {STAGE_NAME}")
     cursor.close()
     logger.info(f"Stage {STAGE_NAME} prêt")
 
 
-def ensure_export_dir():
-    """Crée le répertoire temporaire pour les fichiers Parquet."""
+def ensure_export_dir() -> None:
+    """Cree le repertoire temporaire pour les fichiers Parquet."""
     os.makedirs(EXPORT_DIR, exist_ok=True)
 
-def bulk_load_table(mysql_conn, sf_conn, mysql_table, sf_table, chunk_size, truncate, force=False):
-    """
-    Charge une table MySQL → Snowflake RAW via Parquet + stage + COPY INTO.
+def bulk_load_table(mysql_conn: Any, sf_conn: Any, mysql_table: str, sf_table: str, chunk_size: int, truncate: bool, force: bool = False) -> int:
+    """Charge une table MySQL vers Snowflake RAW via Parquet + stage + COPY INTO.
 
-    Flux :
-      MySQL → chunks de N lignes → PII masking → Parquet local → PUT @stage
-      → 1 seul COPY INTO (Snowflake parallélise sur tous les fichiers)
-      → REMOVE @stage/<table>/
+    Flux : MySQL -> chunks -> Parquet local -> PUT @stage -> COPY INTO -> REMOVE.
+
+    Args:
+        mysql_conn: Connexion MySQL active.
+        sf_conn: Connexion Snowflake active.
+        mysql_table: Nom de la table MySQL source.
+        sf_table: Nom de la table Snowflake cible.
+        chunk_size: Nombre de lignes par fichier Parquet.
+        truncate: Si True, TRUNCATE la table avant insertion.
+        force: Si True, FORCE=TRUE dans COPY INTO.
+
+    Returns:
+        Nombre total de lignes chargees.
     """
     logger.info(f"{'='*60}")
     logger.info(f"Loading {mysql_table} -> {sf_table}...")
@@ -305,14 +329,14 @@ def bulk_load_table(mysql_conn, sf_conn, mysql_table, sf_table, chunk_size, trun
 LOCK_FILE = '/tmp/bulk_load.lock'
 
 
-def acquire_lock():
+def acquire_lock() -> None:
     """Pose un lock file pour empecher la boucle batch de tourner pendant le bulk load."""
     with open(LOCK_FILE, 'w') as f:
         f.write(f"{os.getpid()} {datetime.now().isoformat()}")
     logger.info(f"Lock acquis: {LOCK_FILE}")
 
 
-def release_lock():
+def release_lock() -> None:
     """Retire le lock file."""
     try:
         os.remove(LOCK_FILE)
@@ -321,7 +345,8 @@ def release_lock():
         pass
 
 
-def main():
+def main() -> None:
+    """Point d'entree : bulk load MySQL -> Snowflake RAW via Parquet + stage."""
     parser = argparse.ArgumentParser(description='Bulk load MySQL RDS -> Snowflake RAW (18 tables) via Parquet + stage')
     parser.add_argument('--tables', nargs='+', help='Tables specifiques (ex: PHARMACIE PRODUITS)')
     parser.add_argument('--cdc-only', action='store_true', help='4 tables CDC uniquement')
