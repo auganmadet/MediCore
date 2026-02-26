@@ -28,6 +28,11 @@ logger = logging.getLogger(__name__)
 BATCH_SIZE = 500
 BATCH_TIMEOUT_SEC = int(os.getenv('CDC_BATCH_TIMEOUT_SEC', '30'))
 
+# Topics Kafka Debezium (prefix.TABLE pour chaque table CDC)
+CDC_KAFKA_TOPIC_PREFIX = os.getenv('CDC_KAFKA_TOPIC_PREFIX', 'winstat_rds.winstat')
+CDC_KAFKA_GROUP_ID = os.getenv('CDC_KAFKA_GROUP_ID', 'medi_core_cdc_batch_dev2')
+CDC_TABLES_KAFKA = ['COMMANDES', 'FACTURES', 'ORDERS', 'MODSTOCK']
+
 class MediCoreCDC:
     """Consumer CDC Kafka -> Snowflake RAW pour les 4 tables CDC Debezium."""
 
@@ -91,15 +96,11 @@ class MediCoreCDC:
         Returns:
             Nombre total d'events inseres.
         """
+        topics = [f"{CDC_KAFKA_TOPIC_PREFIX}.{t}" for t in CDC_TABLES_KAFKA]
         consumer = KafkaConsumer(
-            *[
-                'winstat_rds.winstat.COMMANDES',
-                'winstat_rds.winstat.FACTURES',
-                'winstat_rds.winstat.ORDERS',
-                'winstat_rds.winstat.MODSTOCK',
-            ],
+            *topics,
             bootstrap_servers=self.kafka_servers,
-            group_id='medi_core_cdc_batch_dev2',
+            group_id=CDC_KAFKA_GROUP_ID,
             auto_offset_reset='earliest',
             enable_auto_commit=False,
             value_deserializer=lambda x: json.loads(x.decode('utf-8')),
@@ -131,7 +132,7 @@ class MediCoreCDC:
                     buffers[table_name] = []
                     consumer.commit()
 
-            except Exception as e:
+            except (ValueError, KeyError, TypeError, json.JSONDecodeError) as e:
                 errors += 1
                 logger.error(f"ERROR {topic}: {e}")
                 self._write_dlq('cdc_parse', table_name, topic, message.value, e)
@@ -168,8 +169,8 @@ class MediCoreCDC:
             int_val = int.from_bytes(decoded, byteorder="big", signed=True)
             decimal_val = Decimal(int_val) / Decimal(10 ** scale)
             return float(decimal_val)
-        except Exception:
-            logger.warning(f"[DECIMAL] base64 non décodable: {value}")
+        except (ValueError, TypeError) as exc:
+            logger.warning(f"[DECIMAL] base64 non decodable: {value} ({exc})")
             return value
         
     def _parse_debezium_event(self, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -252,7 +253,7 @@ class MediCoreCDC:
         try:
             self.sf_cursor.executemany(query, values_list)
             logger.info(f"INSERT {table_name}: {len(events)} rows (batch)")
-        except Exception as e:
+        except snowflake.connector.errors.Error as e:
             logger.error(f"BATCH INSERT {table_name} failed ({len(events)} rows): {e}")
             # Fallback row-by-row pour identifier l'event problematique
             inserted = 0
@@ -260,7 +261,7 @@ class MediCoreCDC:
                 try:
                     self.sf_cursor.execute(query, vals)
                     inserted += 1
-                except Exception as row_err:
+                except snowflake.connector.errors.Error as row_err:
                     logger.error(f"  Row {i} failed: {row_err}")
                     self._write_dlq('cdc_insert', table_name, None, events[i], row_err)
             logger.info(f"  Fallback: {inserted}/{len(events)} rows inserted")

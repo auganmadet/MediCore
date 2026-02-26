@@ -134,6 +134,67 @@ def ensure_export_dir() -> None:
     """Cree le repertoire temporaire pour les fichiers Parquet."""
     os.makedirs(EXPORT_DIR, exist_ok=True)
 
+def _write_chunk_to_stage(sf_cursor: Any, df: pd.DataFrame, sf_table: str, stage_path: str, chunk_num: int) -> float:
+    """Ecrit un DataFrame en Parquet et le PUT vers le stage Snowflake.
+
+    Args:
+        sf_cursor: Curseur Snowflake actif.
+        df: DataFrame a ecrire.
+        sf_table: Nom de la table Snowflake cible.
+        stage_path: Chemin du stage Snowflake.
+        chunk_num: Numero du chunk (pour nommage fichier).
+
+    Returns:
+        Taille du fichier Parquet en Mo.
+    """
+    parquet_file = os.path.join(EXPORT_DIR, f"{sf_table}_{chunk_num:04d}.parquet")
+    try:
+        df.to_parquet(parquet_file, engine='pyarrow', index=False,
+                      coerce_timestamps='us', allow_truncated_timestamps=True)
+    except (OSError, MemoryError) as e:
+        raise RuntimeError(f"[Parquet write] {sf_table} chunk {chunk_num} ({len(df)} rows): {e}") from e
+    file_size_mb = os.path.getsize(parquet_file) / (1024 * 1024)
+
+    put_query = f"PUT 'file://{parquet_file}' {stage_path} AUTO_COMPRESS=FALSE OVERWRITE=TRUE"
+    try:
+        sf_cursor.execute(put_query)
+    except snowflake.connector.errors.Error as e:
+        raise RuntimeError(f"[PUT @stage] {sf_table} chunk {chunk_num} ({file_size_mb:.1f} Mo): {e}") from e
+
+    os.remove(parquet_file)
+    return file_size_mb
+
+
+def _copy_into_and_cleanup(sf_cursor: Any, sf_table: str, stage_path: str, chunk_num: int, force: bool) -> float:
+    """Execute COPY INTO depuis le stage, puis nettoie les fichiers.
+
+    Args:
+        sf_cursor: Curseur Snowflake actif.
+        sf_table: Nom de la table Snowflake cible.
+        stage_path: Chemin du stage Snowflake.
+        chunk_num: Nombre de fichiers Parquet dans le stage.
+        force: Si True, ajoute FORCE=TRUE pour ignorer le load metadata.
+
+    Returns:
+        Temps d'execution en secondes.
+    """
+    copy_start = time.time()
+    force_clause = "FORCE = TRUE" if force else ""
+    try:
+        sf_cursor.execute(f"""
+            COPY INTO {sf_table}
+            FROM {stage_path}
+            FILE_FORMAT = (TYPE = PARQUET USE_LOGICAL_TYPE = TRUE)
+            MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE
+            {force_clause}
+        """)
+    except snowflake.connector.errors.Error as e:
+        raise RuntimeError(f"[COPY INTO] {sf_table} ({chunk_num} fichiers): {e}") from e
+
+    sf_cursor.execute(f"REMOVE {stage_path}")
+    return time.time() - copy_start
+
+
 def bulk_load_table(mysql_conn: Any, sf_conn: Any, mysql_table: str, sf_table: str, chunk_size: int, truncate: bool, force: bool = False) -> int:
     """Charge une table MySQL vers Snowflake RAW via Parquet + stage + COPY INTO.
 
@@ -204,17 +265,17 @@ def bulk_load_table(mysql_conn: Any, sf_conn: Any, mysql_table: str, sf_table: s
                 mysql.connector.errors.DatabaseError) as e:
             reconnect_count += 1
             if reconnect_count > MAX_RECONNECT:
-                raise Exception(f"Abandon après {MAX_RECONNECT} reconnexions MySQL") from e
+                raise RuntimeError(f"Abandon après {MAX_RECONNECT} reconnexions MySQL") from e
             logger.warning(f"  MySQL déconnecté au row {total_rows}: {e}")
             # Fermer proprement l'ancienne connexion
             try:
                 cursor_mysql.close()
-            except Exception:
-                pass
+            except (mysql.connector.errors.Error, OSError):
+                logger.debug("Fermeture curseur MySQL echouee (connexion perdue)")
             try:
                 current_mysql_conn.close()
-            except Exception:
-                pass
+            except (mysql.connector.errors.Error, OSError):
+                logger.debug("Fermeture connexion MySQL echouee (connexion perdue)")
             # Reconnexion avec backoff
             for attempt in range(1, 6):
                 try:
@@ -224,10 +285,10 @@ def bulk_load_table(mysql_conn: Any, sf_conn: Any, mysql_table: str, sf_table: s
                     cursor_mysql = mysql_open_cursor(current_mysql_conn, mysql_table, offset=total_rows)
                     logger.info(f"  Reconnecté, reprise à la ligne {total_rows}")
                     break
-                except Exception as re_err:
-                    logger.warning(f"  Tentative {attempt} échouée: {re_err}")
+                except (mysql.connector.errors.Error, OSError) as re_err:
+                    logger.warning(f"  Tentative {attempt} echouee: {re_err}")
             else:
-                raise Exception("Impossible de se reconnecter à MySQL après 5 tentatives")
+                raise RuntimeError("Impossible de se reconnecter a MySQL apres 5 tentatives")
             continue
 
         if not rows:
@@ -264,24 +325,8 @@ def bulk_load_table(mysql_conn: Any, sf_conn: Any, mysql_table: str, sf_table: s
         valid_cols = [c for c in df.columns if c in sf_col_set]
         df = df[valid_cols]
 
-        # Écrire fichier Parquet local
-        parquet_file = os.path.join(EXPORT_DIR, f"{sf_table}_{chunk_num:04d}.parquet")
-        try:
-            df.to_parquet(parquet_file, engine='pyarrow', index=False,
-                          coerce_timestamps='us', allow_truncated_timestamps=True)
-        except Exception as e:
-            raise RuntimeError(f"[Parquet write] {sf_table} chunk {chunk_num} ({len(df)} rows): {e}") from e
-        file_size_mb = os.path.getsize(parquet_file) / (1024 * 1024)
-
-        # PUT vers stage Snowflake
-        put_query = f"PUT 'file://{parquet_file}' {stage_path} AUTO_COMPRESS=FALSE OVERWRITE=TRUE"
-        try:
-            sf_cursor.execute(put_query)
-        except Exception as e:
-            raise RuntimeError(f"[PUT @stage] {sf_table} chunk {chunk_num} ({file_size_mb:.1f} Mo): {e}") from e
-
-        # Supprimer fichier local (nettoyage progressif)
-        os.remove(parquet_file)
+        # Parquet local + PUT vers stage Snowflake
+        file_size_mb = _write_chunk_to_stage(sf_cursor, df, sf_table, stage_path, chunk_num)
 
         total_rows += len(df)
         chunk_time = time.time() - chunk_start
@@ -300,25 +345,10 @@ def bulk_load_table(mysql_conn: Any, sf_conn: Any, mysql_table: str, sf_table: s
         logger.warning(f"  {sf_table}: table vide (0 rows)")
         return 0
 
-    # COPY INTO : 1 seule opération pour tous les fichiers Parquet du stage
+    # COPY INTO : 1 seule operation pour tous les fichiers Parquet du stage
     logger.info(f"  COPY INTO {sf_table} depuis {stage_path} ({chunk_num} fichiers)...")
-    copy_start = time.time()
-    force_clause = "FORCE = TRUE" if force else ""
-    try:
-        sf_cursor.execute(f"""
-            COPY INTO {sf_table}
-            FROM {stage_path}
-            FILE_FORMAT = (TYPE = PARQUET USE_LOGICAL_TYPE = TRUE)
-            MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE
-            {force_clause}
-        """)
-    except Exception as e:
-        raise RuntimeError(f"[COPY INTO] {sf_table} ({chunk_num} fichiers, {total_rows} rows): {e}") from e
-    copy_time = time.time() - copy_start
-    logger.info(f"  COPY INTO terminé en {copy_time:.1f}s")
-
-    # Nettoyer le stage
-    sf_cursor.execute(f"REMOVE {stage_path}")
+    copy_time = _copy_into_and_cleanup(sf_cursor, sf_table, stage_path, chunk_num, force)
+    logger.info(f"  COPY INTO termine en {copy_time:.1f}s")
     sf_cursor.close()
 
     elapsed = time.time() - start
@@ -402,7 +432,7 @@ def main() -> None:
                 rows = bulk_load_table(mysql_conn, sf_conn, mysql_table, sf_table, args.chunk_size, args.truncate, force=args.truncate)
                 grand_total += rows
                 results.append((sf_table, rows))
-            except Exception as e:
+            except (RuntimeError, mysql.connector.errors.Error, snowflake.connector.errors.Error, OSError) as e:
                 logger.error(f"ERREUR {mysql_table}: {e}")
                 errors.append(mysql_table)
             finally:
