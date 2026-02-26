@@ -18,7 +18,7 @@ import os
 import sys
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any, List, Set, Tuple
 
 import mysql.connector
 import pandas as pd
@@ -134,6 +134,7 @@ def ensure_export_dir() -> None:
     """Cree le repertoire temporaire pour les fichiers Parquet."""
     os.makedirs(EXPORT_DIR, exist_ok=True)
 
+
 def _write_chunk_to_stage(sf_cursor: Any, df: pd.DataFrame, sf_table: str, stage_path: str, chunk_num: int) -> float:
     """Ecrit un DataFrame en Parquet et le PUT vers le stage Snowflake.
 
@@ -227,9 +228,6 @@ def bulk_load_table(mysql_conn: Any, sf_conn: Any, mysql_table: str, sf_table: s
     sf_columns, sf_bool_columns = get_snowflake_columns(sf_conn, sf_table)
     sf_col_upper_map = {c.upper(): c for c in sf_columns}
     sf_col_set = set(sf_columns)
-
-    # Colonnes CDC metadata
-    cdc_cols = {'CDC_OPERATION', 'CDC_TIMESTAMP', 'CDC_SCHEMA', 'CDC_TABLE', 'CDC_LSN'}
 
     # Nettoyer le sous-dossier stage pour cette table
     stage_path = f"@{STAGE_NAME}/{sf_table}/"
@@ -443,7 +441,7 @@ def main() -> None:
 
         # Résumé final
         logger.info(f"{'='*60}")
-        logger.info(f"RÉSUMÉ BULK LOAD")
+        logger.info("RESUME BULK LOAD")
         logger.info(f"{'='*60}")
         for sf_table, rows in results:
             logger.info(f"  {sf_table:30s} : {rows:>12,} rows")

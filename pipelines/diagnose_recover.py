@@ -23,11 +23,13 @@ import signal
 import sys
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Set, Tuple
+
+import snowflake.connector
 
 from bulk_load import (
     get_mysql_conn, get_snowflake_conn, bulk_load_table,
-    TABLE_MAPPING, CDC_TABLES, ensure_stage, ensure_export_dir,
+    TABLE_MAPPING, ensure_stage, ensure_export_dir,
 )
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

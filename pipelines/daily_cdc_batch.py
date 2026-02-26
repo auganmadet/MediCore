@@ -12,11 +12,9 @@ import base64
 import json
 import logging
 import os
-import sys
-import time
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import snowflake.connector
 from kafka import KafkaConsumer
@@ -32,6 +30,7 @@ BATCH_TIMEOUT_SEC = int(os.getenv('CDC_BATCH_TIMEOUT_SEC', '30'))
 CDC_KAFKA_TOPIC_PREFIX = os.getenv('CDC_KAFKA_TOPIC_PREFIX', 'winstat_rds.winstat')
 CDC_KAFKA_GROUP_ID = os.getenv('CDC_KAFKA_GROUP_ID', 'medi_core_cdc_batch_dev2')
 CDC_TABLES_KAFKA = ['COMMANDES', 'FACTURES', 'ORDERS', 'MODSTOCK']
+
 
 class MediCoreCDC:
     """Consumer CDC Kafka -> Snowflake RAW pour les 4 tables CDC Debezium."""
@@ -148,7 +147,7 @@ class MediCoreCDC:
         logger.info(f"Batch termine: {processed} events inseres, {errors} erreurs")
         consumer.close()
         return processed
-    
+
     def _decode_debezium_decimal(self, value: Any, scale: int) -> Optional[float]:
         """Decode un DECIMAL Debezium encode en base64 (BYTES logical type).
 
@@ -172,7 +171,7 @@ class MediCoreCDC:
         except (ValueError, TypeError) as exc:
             logger.warning(f"[DECIMAL] base64 non decodable: {value} ({exc})")
             return value
-        
+
     def _parse_debezium_event(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Parse un event Debezium vers le format RAW avec metadata CDC.
 
@@ -230,8 +229,7 @@ class MediCoreCDC:
         }
 
         return event
-    
-	
+
     def _flush_batch(self, table_name: str, events: List[Dict[str, Any]]) -> None:
         """INSERT micro-batch via executemany(), fallback row-by-row en cas d'erreur.
 
