@@ -1,0 +1,95 @@
+version: 2
+
+models:
+  - name: audit_run_summary
+    description: >
+      Résumé par run : durée, nombre de steps ok/failed, rows total.
+      Joint PIPELINE_RUNS et PIPELINE_STEP_RUNS.
+    tags: ['audit']
+    columns:
+      - name: RUN_ID
+        description: "Identifiant unique du run (UUID)"
+        tests:
+          - not_null
+          - unique
+      - name: RUN_START
+        description: "Horodatage début du run"
+        tests: [not_null]
+      - name: STATUS
+        description: "Statut du run (SUCCESS, FAILED, RUNNING)"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['SUCCESS', 'FAILED', 'RUNNING']
+      - name: ENV
+        description: "Environnement (dev, prod)"
+      - name: TRIGGERED_BY
+        description: "Déclencheur (batch_loop, manual)"
+      - name: duration_seconds
+        description: "Durée totale du run en secondes"
+      - name: total_steps
+        description: "Nombre total de steps"
+      - name: steps_ok
+        description: "Nombre de steps réussis"
+      - name: steps_failed
+        description: "Nombre de steps échoués"
+      - name: total_rows
+        description: "Nombre total de lignes traitées"
+
+  - name: audit_dbt_summary
+    description: >
+      Résumé dbt par invocation : models ok/warn/error, temps total.
+      Agrège DBT_MODEL_RUNS par RUN_ID et DBT_INVOCATION_ID.
+    tags: ['audit']
+    columns:
+      - name: RUN_ID
+        description: "Identifiant unique du run (UUID)"
+        tests: [not_null]
+      - name: DBT_INVOCATION_ID
+        description: "Identifiant invocation dbt"
+        tests: [not_null]
+      - name: total_models
+        description: "Nombre total de modèles exécutés"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      - name: models_ok
+        description: "Modèles réussis (pass/success)"
+      - name: models_warn
+        description: "Modèles avec warnings"
+      - name: models_error
+        description: "Modèles en erreur (error/fail)"
+      - name: models_skip
+        description: "Modèles ignorés"
+      - name: total_execution_time_s
+        description: "Temps total d'exécution dbt en secondes"
+      - name: total_rows_affected
+        description: "Nombre total de lignes affectées"
+
+  - name: audit_latest_runs
+    description: >
+      Détail step par step des 7 derniers jours.
+      Joint PIPELINE_RUNS et PIPELINE_STEP_RUNS filtrés sur 7j glissants.
+    tags: ['audit']
+    columns:
+      - name: RUN_ID
+        description: "Identifiant unique du run (UUID)"
+        tests: [not_null]
+      - name: RUN_START
+        description: "Horodatage début du run"
+        tests: [not_null]
+      - name: run_status
+        description: "Statut global du run"
+      - name: ENV
+        description: "Environnement (dev, prod)"
+      - name: STEP_NAME
+        description: "Nom de l'étape (cdc_consume, ref_reload, dbt_staging, etc.)"
+      - name: step_status
+        description: "Statut de l'étape"
+      - name: ROWS_AFFECTED
+        description: "Lignes traitées par cette étape"
+      - name: ERROR_MESSAGE
+        description: "Message d'erreur (si step_status = FAILED)"
+      - name: step_duration_seconds
+        description: "Durée de l'étape en secondes"
