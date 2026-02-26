@@ -8,7 +8,7 @@ Chaque entrée décrit **ce qui a changé** du point de vue métier et son impac
 ## [2026-02-26] — Durcissement et refactoring
 
 ### Ajouts
-- **CI/CD GitHub Actions** : pipeline de validation automatique (lint Python, validation syntaxe dbt, build Docker, ShellCheck bash).
+- **CI/CD GitHub Actions** : pipeline de validation automatique (lint Python, validation syntaxe dbt, build Docker, ShellCheck bash) + déploiement continu vers GitHub Container Registry (GHCR). L'image Docker est automatiquement publiée sur `ghcr.io/auganmadet/medicore` (tags SHA + latest) après passage des 4 jobs CI sur `main`.
 - **Guide opérationnel** : documentation `docs/operations.md` avec architecture batch, variables d'environnement, commandes utiles et procédures de diagnostic.
 - **Tests marts** : `dbt test --select tag:marts` exécuté après les tests staging dans le batch loop, avec compteur d'échecs et alertes Teams.
 - **Timeout par phase** : chaque phase du batch loop est limitée par `PHASE_TIMEOUT_SEC` (défaut 30 min) pour éviter les blocages.
@@ -23,6 +23,11 @@ Chaque entrée décrit **ce qui a changé** du point de vue métier et son impac
 - **Docstrings Google-style** : documentation des fonctions avec sections Args, Returns, Raises.
 - **Exceptions spécifiques** : remplacement de `except Exception` par des exceptions ciblées (`ProgrammingError`, `RuntimeError`, `OSError`).
 - **Imports** : réorganisation selon la convention stdlib → third-party → local.
+
+### Corrections
+- **CI lint Python** : suppression des imports inutilisés, correction whitespace/tabs, ajout import manquant `snowflake.connector` dans `diagnose_recover.py`.
+- **CI dbt parse** : ajout de toutes les variables d'environnement Snowflake requises par `profiles.yml` (valeurs factices pour validation syntaxe uniquement).
+- **Dockerfile** : correction du warning `FromAsCasing` (`as` → `AS` pour cohérence avec `FROM`).
 
 ### Nettoyage
 - Suppression de `pipelines/utils/pii_masking.py` (code mort, masquage assuré par dbt).
