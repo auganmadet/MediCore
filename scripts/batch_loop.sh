@@ -1,6 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
+# Timeout par phase (surchargeable via PHASE_TIMEOUT_SEC, defaut 30 min)
+PHASE_TIMEOUT_SEC=${PHASE_TIMEOUT_SEC:-1800}
+
+# Graceful shutdown : trap SIGTERM/SIGINT pour que docker stop ne laisse pas de zombies
+SHUTDOWN_REQUESTED=0
+trap 'echo "Signal recu, arret apres la phase en cours..."; SHUTDOWN_REQUESTED=1' SIGTERM SIGINT
+
 # Intervalle entre batches : 5 min en dev, 30 min en prod (surchargeable via BATCH_INTERVAL_MIN)
 if [ "${ENV}" = "prod" ]; then
   INTERVAL_MIN=${BATCH_INTERVAL_MIN:-30}
@@ -13,7 +20,7 @@ REF_RELOAD_HOUR=${REF_RELOAD_HOUR:-03}
 
 # Alerting Teams (optionnel : si TEAMS_WEBHOOK_URL est vide, les erreurs sont loguees sans alerte)
 ALERT_THRESHOLD=${ALERT_THRESHOLD:-3}
-REF_FAIL=0; CDC_FAIL=0; STG_FAIL=0; SNAP_FAIL=0; MARTS_FAIL=0; TEST_FAIL=0; FRESH_FAIL=0; ZERO_VOL=0
+REF_FAIL=0; CDC_FAIL=0; STG_FAIL=0; SNAP_FAIL=0; MARTS_FAIL=0; TEST_FAIL=0; MARTS_TEST_FAIL=0; FRESH_FAIL=0; ZERO_VOL=0
 
 send_teams_alert() {
   local component="$1" fail_count="$2" status="${3:-failure}"
@@ -136,11 +143,17 @@ while true; do
   echo "RUN_ID: $RUN_ID"
   python3 -c "from pipelines.utils.audit import log_run_start; log_run_start('$RUN_ID', '${ENV}')" 2>/dev/null || true
 
-  # Verifier qu'un bulk load n'est pas en cours
+  # Verifier qu'un bulk load n'est pas en cours (stale lock detection)
   if [ -f "$LOCK_FILE" ]; then
-    echo "Bulk load en cours (lock: $LOCK_FILE) - batch skippe"
-    sleep $((INTERVAL_MIN * 60))
-    continue
+    LOCK_PID=$(awk '{print $1}' "$LOCK_FILE" 2>/dev/null)
+    if [ -n "$LOCK_PID" ] && [ -d "/proc/$LOCK_PID" ]; then
+      echo "Bulk load en cours (PID $LOCK_PID, lock: $LOCK_FILE) - batch skippe"
+      sleep $((INTERVAL_MIN * 60))
+      continue
+    else
+      echo "Stale lock detecte (PID $LOCK_PID absent) - suppression de $LOCK_FILE"
+      rm -f "$LOCK_FILE"
+    fi
   fi
 
   # 0. Re-bulk quotidien des 14 tables reference (1x/jour a ${REF_RELOAD_HOUR}h)
@@ -148,7 +161,7 @@ while true; do
   if [ "$HOUR" = "$REF_RELOAD_HOUR" ] && [ ! -f "$REF_DONE_FLAG" ]; then
     echo "Phase ref-reload: 14 tables reference (truncate + bulk load)"
     python3 -c "from pipelines.utils.audit import log_step_start; log_step_start('$RUN_ID', 'ref_reload')" 2>/dev/null || true
-    if python /app/pipelines/bulk_load.py --ref-only --truncate --run-id "$RUN_ID"; then
+    if timeout "$PHASE_TIMEOUT_SEC" python /app/pipelines/bulk_load.py --ref-only --truncate --run-id "$RUN_ID"; then
       python3 -c "from pipelines.utils.audit import log_step_end; log_step_end('$RUN_ID', 'ref_reload', 'SUCCESS')" 2>/dev/null || true
       [ $REF_FAIL -ge $ALERT_THRESHOLD ] && send_teams_alert "Ref-reload" "$REF_FAIL" "recovery"
       REF_FAIL=0
@@ -183,7 +196,7 @@ print('Audit purge terminee')
   # 1. CDC (Kafka -> Snowflake RAW)
   echo "Phase CDC"
   python3 -c "from pipelines.utils.audit import log_step_start; log_step_start('$RUN_ID', 'cdc_batch')" 2>/dev/null || true
-  if python /app/pipelines/daily_cdc_batch.py --run-id "$RUN_ID"; then
+  if timeout "$PHASE_TIMEOUT_SEC" python /app/pipelines/daily_cdc_batch.py --run-id "$RUN_ID"; then
     CDC_COUNT=$(cat /tmp/cdc_last_count 2>/dev/null || echo "0")
     python3 -c "from pipelines.utils.audit import log_step_end; log_step_end('$RUN_ID', 'cdc_batch', 'SUCCESS', ${CDC_COUNT})" 2>/dev/null || true
     [ $CDC_FAIL -ge $ALERT_THRESHOLD ] && send_teams_alert "CDC batch" "$CDC_FAIL" "recovery"
@@ -211,7 +224,7 @@ print('Audit purge terminee')
   cd /app/dbt
 
   python3 -c "from pipelines.utils.audit import log_step_start; log_step_start('$RUN_ID', 'dbt_staging')" 2>/dev/null || true
-  if dbt run --select tag:staging --target $ENV --vars "{run_id: '$RUN_ID'}"; then
+  if timeout "$PHASE_TIMEOUT_SEC" dbt run --select tag:staging --target $ENV --vars "{run_id: '$RUN_ID'}"; then
     python3 -c "from pipelines.utils.audit import log_step_end; log_step_end('$RUN_ID', 'dbt_staging', 'SUCCESS')" 2>/dev/null || true
     [ $STG_FAIL -ge $ALERT_THRESHOLD ] && send_teams_alert "dbt staging" "$STG_FAIL" "recovery"
     STG_FAIL=0
@@ -226,7 +239,7 @@ print('Audit purge terminee')
   # 3. Snapshots SCD2 (apres staging, avant marts)
   echo "Phase snapshots"
   python3 -c "from pipelines.utils.audit import log_step_start; log_step_start('$RUN_ID', 'dbt_snapshot')" 2>/dev/null || true
-  if dbt snapshot --target $ENV --vars "{run_id: '$RUN_ID'}"; then
+  if timeout "$PHASE_TIMEOUT_SEC" dbt snapshot --target $ENV --vars "{run_id: '$RUN_ID'}"; then
     python3 -c "from pipelines.utils.audit import log_step_end; log_step_end('$RUN_ID', 'dbt_snapshot', 'SUCCESS')" 2>/dev/null || true
     [ $SNAP_FAIL -ge $ALERT_THRESHOLD ] && send_teams_alert "dbt snapshot" "$SNAP_FAIL" "recovery"
     SNAP_FAIL=0
@@ -238,7 +251,7 @@ print('Audit purge terminee')
   fi
 
   python3 -c "from pipelines.utils.audit import log_step_start; log_step_start('$RUN_ID', 'dbt_marts')" 2>/dev/null || true
-  if dbt run --select tag:marts --target $ENV --vars "{run_id: '$RUN_ID'}"; then
+  if timeout "$PHASE_TIMEOUT_SEC" dbt run --select tag:marts --target $ENV --vars "{run_id: '$RUN_ID'}"; then
     python3 -c "from pipelines.utils.audit import log_step_end; log_step_end('$RUN_ID', 'dbt_marts', 'SUCCESS')" 2>/dev/null || true
     [ $MARTS_FAIL -ge $ALERT_THRESHOLD ] && send_teams_alert "dbt marts" "$MARTS_FAIL" "recovery"
     MARTS_FAIL=0
@@ -251,7 +264,7 @@ print('Audit purge terminee')
   send_dbt_run_summary "marts"
 
   python3 -c "from pipelines.utils.audit import log_step_start; log_step_start('$RUN_ID', 'dbt_test')" 2>/dev/null || true
-  if dbt test --select stg_* --target $ENV --vars "{run_id: '$RUN_ID'}"; then
+  if timeout "$PHASE_TIMEOUT_SEC" dbt test --select stg_* --target $ENV --vars "{run_id: '$RUN_ID'}"; then
     python3 -c "from pipelines.utils.audit import log_step_end; log_step_end('$RUN_ID', 'dbt_test', 'SUCCESS')" 2>/dev/null || true
     [ $TEST_FAIL -ge $ALERT_THRESHOLD ] && send_teams_alert "dbt test" "$TEST_FAIL" "recovery"
     TEST_FAIL=0
@@ -263,10 +276,24 @@ print('Audit purge terminee')
   fi
   send_dbt_run_summary "test"
 
+  # 4b. Tests marts
+  python3 -c "from pipelines.utils.audit import log_step_start; log_step_start('$RUN_ID', 'dbt_test_marts')" 2>/dev/null || true
+  if timeout "$PHASE_TIMEOUT_SEC" dbt test --select tag:marts --target $ENV --vars "{run_id: '$RUN_ID'}"; then
+    python3 -c "from pipelines.utils.audit import log_step_end; log_step_end('$RUN_ID', 'dbt_test_marts', 'SUCCESS')" 2>/dev/null || true
+    [ $MARTS_TEST_FAIL -ge $ALERT_THRESHOLD ] && send_teams_alert "dbt test marts" "$MARTS_TEST_FAIL" "recovery"
+    MARTS_TEST_FAIL=0
+  else
+    python3 -c "from pipelines.utils.audit import log_step_end; log_step_end('$RUN_ID', 'dbt_test_marts', 'FAILED', error='dbt test marts failed')" 2>/dev/null || true
+    MARTS_TEST_FAIL=$((MARTS_TEST_FAIL + 1))
+    echo "dbt test marts failed ($MARTS_TEST_FAIL consecutive)"
+    [ $MARTS_TEST_FAIL -eq $ALERT_THRESHOLD ] && send_teams_alert "dbt test marts" "$MARTS_TEST_FAIL"
+  fi
+  send_dbt_run_summary "test-marts"
+
   # 5. Source freshness (detecte données stales même si le process tourne)
   echo "Phase freshness"
   python3 -c "from pipelines.utils.audit import log_step_start; log_step_start('$RUN_ID', 'freshness')" 2>/dev/null || true
-  if dbt source freshness --target $ENV; then
+  if timeout "$PHASE_TIMEOUT_SEC" dbt source freshness --target $ENV; then
     python3 -c "from pipelines.utils.audit import log_step_end; log_step_end('$RUN_ID', 'freshness', 'SUCCESS')" 2>/dev/null || true
     [ $FRESH_FAIL -ge $ALERT_THRESHOLD ] && send_teams_alert "source freshness" "$FRESH_FAIL" "recovery"
     FRESH_FAIL=0
@@ -287,5 +314,12 @@ print('Audit purge terminee')
   fi
 
   echo "Batch termine - Prochain run: $(date -d "+${INTERVAL_MIN} minutes" 2>/dev/null || echo "${INTERVAL_MIN}min")"
+
+  # Graceful shutdown : sortir proprement si SIGTERM/SIGINT recu
+  if [ "$SHUTDOWN_REQUESTED" -eq 1 ]; then
+    echo "Arret propre demande (SIGTERM/SIGINT). Fin du batch loop."
+    exit 0
+  fi
+
   sleep $((INTERVAL_MIN * 60))
 done
