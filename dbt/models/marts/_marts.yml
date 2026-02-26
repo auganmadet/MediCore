@@ -120,6 +120,13 @@ models:
           - dbt_utils.expression_is_true:
               expression: "> 0"
               severity: warn
+      - name: montant_pahtnet
+        description: "Montant prix achat HT net (source: SUM(stg_commandes.COM_PAHTNET))"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+              config:
+                severity: warn
 
   - name: fact_stock_mouvement
     description: "Mouvements stock granulaire (sources: stg_modstock + dim_pharmacie + dim_produit)"
@@ -166,6 +173,27 @@ models:
           - dbt_utils.expression_is_true:
               expression: "> 0"
               severity: warn
+      - name: prix_public
+        description: "Prix public TTC (source: stg_daybyday.DBD_PRIXPUBLIC)"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+              config:
+                severity: warn
+      - name: prix_achat_moyen_pondere
+        description: "PAMP (source: stg_daybyday.DBD_PAMP)"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+              config:
+                severity: warn
+      - name: prix_achat_net
+        description: "Prix achat net (source: stg_daybyday.DBD_PANET)"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+              config:
+                severity: warn
 
   # KPIs CROISES
   - name: mart_kpi_marge
@@ -293,6 +321,34 @@ models:
               expression: ">= 0"
               config:
                 severity: warn
+      - name: montant_especes
+        description: "Encaissements especes du jour"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+              config:
+                severity: warn
+      - name: montant_cb
+        description: "Encaissements carte bancaire du jour"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+              config:
+                severity: warn
+      - name: montant_mutuelle
+        description: "Encaissements mutuelle du jour"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+              config:
+                severity: warn
+      - name: montant_virement
+        description: "Encaissements virement du jour"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+              config:
+                severity: warn
       - name: marge_totale
         tests:
           - not_null
@@ -350,6 +406,34 @@ models:
                 severity: warn
       - name: marge_latente
         description: "Valeur PV - valeur PA (marge en rayon non realisee)"
+      - name: prix_tarif
+        description: "Prix tarif unitaire (source: stg_stockhistory.STH_PRIXTARIF)"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+              config:
+                severity: warn
+      - name: prix_public
+        description: "Prix public unitaire (source: stg_stockhistory.STH_PRIXPUBLIC)"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+              config:
+                severity: warn
+      - name: prix_achat_moyen_pondere
+        description: "PAMP (source: stg_stockhistory.STH_PAMP)"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+              config:
+                severity: warn
+      - name: prix_achat_net
+        description: "Prix achat net (source: stg_stockhistory.STH_PANET)"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+              config:
+                severity: warn
 
   - name: mart_kpi_stock_valorisation
     description: "Valorisation stock, couverture en jours, detection stock dormant et inflation (sources: fact_stock_valorisation + fact_ventes)"
@@ -404,6 +488,20 @@ models:
       - name: ca_ttc
         tests:
           - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+              config:
+                severity: warn
+      - name: ca_ht
+        description: "Chiffre d'affaires HT operateur (source: SUM(stg_mediprix_factures.FAC_PVHT))"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+              config:
+                severity: warn
+      - name: cout_achat_ht
+        description: "Cout d'achat HT (source: SUM(stg_mediprix_factures.FAC_PAHT))"
+        tests:
           - dbt_utils.expression_is_true:
               expression: ">= 0"
               config:
