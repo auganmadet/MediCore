@@ -24,8 +24,8 @@ dedup_cdc as (
     from source_data
 )
 select PHA_ID, upper(trim(FOU_ID))       as FOU_ID,
-    upper(trim(FOU_NOM))      as FOU_NOM,
-    trim(FOU_ADRESSE)         as FOU_ADRESSE,
+    'FOU_' || LEFT(MD5(CAST(FOU_NOM AS VARCHAR)), 4) as FOU_NOM,
+    'ADDR_' || LEFT(MD5(CAST(FOU_ADRESSE AS VARCHAR)), 4) as FOU_ADRESSE,
     trim(FOU_CP)              as FOU_CP,
     upper(trim(FOU_VILLE))    as FOU_VILLE,
     FOU_TYPE,
