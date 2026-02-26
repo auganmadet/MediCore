@@ -32,10 +32,20 @@ MySQL RDS (winstat)
                                          |
                                          | dbt run --select tag:marts
                                          v
-                              Snowflake MARTS (tables)
-                              - 3 dimensions (surrogate keys)
-                              - 8 faits (agrégations)
-                              - KPIs métier
+                               Snowflake MARTS (tables)
+                               - 3 dimensions (surrogate keys + lignes orphelines -1)
+                               - 8 faits (LEFT JOIN + coalesce orphelins)
+                               - KPIs métier
+                                          |
+                                          | dbt snapshot
+                                          v
+                               Snowflake SNAPSHOTS (SCD2)
+                               - snap_pharmacie, snap_produit, snap_fournisseur
+                                          |
+                                          | dbt run --select tag:audit
+                                          v
+                               Snowflake AUDIT (vues)
+                               - audit_run_summary, audit_dbt_summary, audit_latest_runs
 ```
 
 ## Services Docker (6)
@@ -75,7 +85,13 @@ MySQL RDS (winstat)
   ├───────────────────────────────────┼─────────────────────────────────────────────────────┤
   │ `dbt/models/marts/mart_kpi_*.sql` │ KPIs métier calculés                                │
   ├───────────────────────────────────┼─────────────────────────────────────────────────────┤
-  │ `dbt/macros/pii_masking.sql`      │ Macro MD5 pour colonnes PII                         │
+  │ `dbt/macros/pii_masking.sql`      │ Macro pii_mask() pour colonnes PII (MD5 tronqué)    │
+  ├───────────────────────────────────┼─────────────────────────────────────────────────────┤
+  │ `dbt/macros/guard_full_refresh.sql` │ Protection full-refresh sur modèles high_volume   │
+  ├───────────────────────────────────┼─────────────────────────────────────────────────────┤
+  │ `dbt/snapshots/snap_*.sql`        │ 3 snapshots SCD2 (pharmacie, produit, fournisseur)  │
+  ├───────────────────────────────────┼─────────────────────────────────────────────────────┤
+  │ `dbt/models/audit/audit_*.sql`    │ 3 modèles audit (run_summary, dbt_summary, latest)  │
   ├───────────────────────────────────┼─────────────────────────────────────────────────────┤
   │ `scripts/batch_loop.sh`           │ Orchestration boucle (CDC -> STG -> MARTS -> tests) │
   ├───────────────────────────────────┼─────────────────────────────────────────────────────┤
@@ -105,9 +121,13 @@ MySQL RDS (winstat)
 - **Incremental merge** : pas de retraitement complet, merge sur PK
 - **DLQ (Dead Letter Queue)** : events CDC malformés isolés
 - **Micro-batch** : 500 events ou timeout 30s avant flush Snowflake
-- **Star schema** : dimensions (surrogate keys) + faits (FK + mesures)
-- **PII masking** : MD5 en staging, jamais en clair après RAW
+- **Star schema** : dimensions (surrogate keys + lignes orphelines -1/INCONNU) + faits (LEFT JOIN + coalesce FK)
+- **PII masking** : macro `pii_mask()` en staging (MD5 tronqué avec prefix), jamais en clair après RAW
 - **Monitoring adaptatif** : alerte après 3 échecs, notification recovery
+- **Guard full-refresh** : macro bloquant le `--full-refresh` sur modèles `high_volume` (bypass explicite requis)
+- **SCD Type 2** : 3 snapshots dbt (pharmacie, produit, fournisseur) avec strategy `check`
+- **Audit trail** : 3 modèles audit dbt traçant les runs et métriques qualité
+- **Cluster keys** : `CLUSTER BY (CDC_TIMESTAMP)` sur tables RAW high-volume (commandes, daybyday, orders)
 
 ## Points d'architecture clés
 

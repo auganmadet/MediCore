@@ -4,28 +4,39 @@
 
 ### 1. Masquage PII (RGPD)
 
-- Données personnelles masquées par MD5 dans la couche staging
-- Colonnes concernées : noms, adresses, téléphones, emails
-- Tables concernées : `stg_orders` (âge, sexe, département), `stg_pharmacie` (nom)
-- Macro dbt : `{{ mask_pii('column_name') }}` dans `dbt/macros/pii_masking.sql`
-- RAW conserve les données brutes (accès restreint)
+- Données personnelles masquées dans la couche staging via macro dbt centralisée
+- Macro : `{{ pii_mask('column', 'PREFIX', hash_length=4) }}` dans `dbt/macros/pii_masking.sql`
+- Génère : `'PREFIX_' || LEFT(MD5(CAST(col AS VARCHAR)), 4)`
+- Modèles utilisant la macro :
+  - `stg_fournisseurs` : FOU_NOM (prefix FOU), FOU_ADRESSE (prefix ADDR)
+  - `stg_pharmacie` : PHA_NOM (prefix PHARM)
+  - `stg_pharmacies` : name (prefix PHARM)
+  - `stg_orders` : ORD_OPERATEUR (prefix USER)
+  - `stg_mediprix_factures` : ORD_OPERATEUR (prefix USER), PHA_NOM (prefix PHARM)
+- RAW conserve les données brutes (accès restreint au rôle MEDICORE_RAW_WRITER)
 - STAGING et MARTS : aucune PII en clair
 
 ### 2. Gestion des credentials
 
 - Tous les credentials dans `.env` (non versionné, dans `.gitignore`)
-- Variables d'environnement : `SNOWFLAKE_*`, `MYSQL_*`, `KAFKA_*`
+- Template : `.env.example` (versionné, sans valeurs sensibles)
+- Variables d'environnement : `SNOWFLAKE_*`, `MYSQL_*`, `KAFKA_*`, `TEAMS_WEBHOOK_URL`
 - Jamais de credentials dans le code source
 - `python-dotenv` pour le chargement local
 - Docker Compose `env_file` pour les conteneurs
+- **Purge historique git** : effectuée avec `git-filter-repo` (4 secrets purgés : 2 Snowflake, 1 MySQL, 1 Teams webhook)
+- **Rotation requise** : après toute purge git, les credentials exposés doivent être considérés compromis et rotés manuellement
 
 ### 3. Isolation des accès Snowflake
 
-- Rôle dédié : `MEDIcore_DBT_EXECUTOR`
-- Warehouse dédié : `MEDIcore_WH` (XS dev, XL prod)
-- Database : `MEDIcore` avec schémas RAW, STAGING, MARTS
-- Grants minimaux : lecture RAW, écriture STG/MARTS
-- DDL dans `scripts/DDL_WH.sql`
+- **Rôles RBAC** :
+  - `MEDICORE_RAW_WRITER` : écriture RAW uniquement
+  - `MEDICORE_DBT_EXECUTOR` : lecture RAW, écriture STAGING/MARTS/AUDIT
+  - `MEDICORE_ANALYST` : lecture MARTS/AUDIT uniquement
+- **Warehouse** : `MEDICORE_WH` (XSMALL, auto-suspend 60s)
+- **Database** : `MEDICORE` avec schémas RAW, STAGING, MARTS, AUDIT, SNAPSHOTS
+- **Grants** : DDL complet dans `scripts/DDL_WH.sql` (CREATE SCHEMA + GRANT + FUTURE TABLES)
+- **Ownership** : les tables RAW sont owned par `MEDICORE_RAW_WRITER` (ACCOUNTADMIN ne peut pas les ALTER directement)
 
 ### 4. Protection SQL injection
 

@@ -54,6 +54,7 @@ docker-compose.yml              -> 6 services Docker
 Dockerfile                      -> Image multi-stage Python 3.11 + dbt
 requirements.txt                -> Dépendances Python
 .env                            -> Credentials (non versionné)
+.env.example                    -> Template credentials (versionné, sans valeurs)
 
 pipelines/daily_cdc_batch.py    -> Consumer Kafka micro-batch (4 tables CDC)
 pipelines/bulk_load.py          -> MySQL -> Parquet -> COPY INTO (18 tables)
@@ -62,21 +63,27 @@ pipelines/utils/pii_masking.py  -> PII masking legacy (déplacé vers dbt)
 
 dbt/dbt_project.yml             -> Config projet dbt
 dbt/profiles.yml                -> Profils connexion Snowflake
-dbt/models/sources.yml          -> 18 sources RAW + freshness
+dbt/packages.yml                -> dbt_utils 1.3.0 (pin exact)
+dbt/models/sources.yml          -> 18 sources RAW + freshness + tests CDC
 dbt/models/staging/stg_*.sql    -> 18 modèles staging
 dbt/models/staging/_staging.yml -> Tests staging
-dbt/models/marts/dim_*.sql      -> 3 dimensions
-dbt/models/marts/fact_*.sql     -> 8 faits
+dbt/models/marts/dim_*.sql      -> 3 dimensions (avec lignes orphelines -1)
+dbt/models/marts/fact_*.sql     -> 8 faits (LEFT JOIN + coalesce orphelins)
 dbt/models/marts/mart_kpi_*.sql -> KPIs métier
-dbt/models/marts/_marts.yml     -> Tests marts
-dbt/macros/pii_masking.sql      -> Macro masquage PII
+dbt/models/marts/_marts.yml     -> Tests marts (dont prix >= 0 systématisés)
+dbt/models/audit/audit_*.sql    -> 3 modèles audit
+dbt/models/audit/_audit.yml     -> Tests audit
+dbt/snapshots/snap_*.sql        -> 3 snapshots SCD2
+dbt/snapshots/_snapshots.yml    -> Tests snapshots
+dbt/macros/pii_masking.sql      -> Macro pii_mask(column, prefix, hash_length)
+dbt/macros/guard_full_refresh.sql -> Protection full-refresh high_volume
 
 scripts/setup.sh                -> Setup initial complet
 scripts/entrypoint.sh           -> Démarrage conteneur
 scripts/batch_loop.sh           -> Boucle orchestration
 scripts/healthcheck.py          -> Health check Snowflake
-scripts/DDL_WH.sql              -> DDL warehouse et rôles
-scripts/DDL_TABLES.sql          -> DDL 18 tables RAW
+scripts/DDL_WH.sql              -> DDL warehouse, rôles, grants (incl. AUDIT)
+scripts/DDL_TABLES.sql          -> DDL 18 tables RAW (avec CLUSTER BY)
 ```
 
 ## Conventions
