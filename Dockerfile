@@ -18,18 +18,27 @@ FROM python:3.11-slim
 RUN apt-get update && \
     apt-get install -y --no-install-recommends git curl && \
     rm -rf /var/lib/apt/lists/*
-    
+
+# Utilisateur non-root pour le runtime
+RUN groupadd -r appuser && useradd -r -g appuser -d /home/appuser -s /bin/bash -m appuser
+
 WORKDIR /app
-COPY --from=builder /root/.local /root/.local
-# Ajoute /root/.local/bin au PATH pour pouvoir appeler dbt, python, etc.
-ENV PATH=/root/.local/bin:$PATH     
+COPY --from=builder /root/.local /home/appuser/.local
+RUN chown -R appuser:appuser /home/appuser/.local
+ENV PATH=/home/appuser/.local/bin:$PATH
 
 # Copy project
-COPY . .
+COPY --chown=appuser:appuser . .
 RUN chmod +x scripts/*.sh
+
+# Repertoires de travail pour dbt et logs
+RUN mkdir -p /home/appuser/.dbt /app/logs && \
+    chown -R appuser:appuser /home/appuser/.dbt /app/logs
 
 # Expose ports (dbt docs)
 EXPOSE 8080
+
+USER appuser
 
 # Snowflake connection Healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

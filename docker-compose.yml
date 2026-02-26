@@ -22,7 +22,7 @@ services:
       - ./dbt:/app/dbt
       - ./pipelines:/app/pipelines
       - ./logs:/app/logs
-      - dbt_cache:/root/.dbt
+      - dbt_cache:/home/appuser/.dbt
     depends_on:
       # healthcheck Docker
       kafka:
@@ -48,7 +48,7 @@ services:
       - MYSQL_PASSWORD=cdc_password
       - MYSQL_DATABASE=winstat
     ports:
-      - "3307:3306"
+      - "127.0.0.1:3307:3306"
     networks:
       - medicore_net
     restart: unless-stopped
@@ -93,7 +93,7 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
     ports:
-      - "9092:9092"
+      - "127.0.0.1:9092:9092"
     networks:
       - medicore_net
     restart: unless-stopped
@@ -125,7 +125,7 @@ services:
       REST_PORT: 8083
       REST_ADVERTISED_HOST_NAME: localhost
     ports:
-      - "8083:8083"
+      - "127.0.0.1:8083:8083"
     volumes:
       - connect_config:/kafka/connect-configs
       - connect_offset:/kafka/connect-offsets
@@ -152,7 +152,7 @@ services:
     environment:
       KAFKA_BROKERCONNECT: kafka:9092
     ports:
-      - "9000:9000"
+      - "127.0.0.1:9000:9000"
     networks:
       - medicore_net
     restart: unless-stopped
