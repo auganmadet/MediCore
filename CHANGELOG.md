@@ -5,6 +5,32 @@ Chaque entrée décrit **ce qui a changé** du point de vue métier et son impac
 
 ---
 
+## [2026-02-26] — Durcissement et refactoring
+
+### Ajouts
+- **CI/CD GitHub Actions** : pipeline de validation automatique (lint Python, validation syntaxe dbt, build Docker, ShellCheck bash).
+- **Guide opérationnel** : documentation `docs/operations.md` avec architecture batch, variables d'environnement, commandes utiles et procédures de diagnostic.
+- **Tests marts** : `dbt test --select tag:marts` exécuté après les tests staging dans le batch loop, avec compteur d'échecs et alertes Teams.
+- **Timeout par phase** : chaque phase du batch loop est limitée par `PHASE_TIMEOUT_SEC` (défaut 30 min) pour éviter les blocages.
+- **Arrêt graceful** : le batch loop intercepte SIGTERM/SIGINT et termine proprement après la phase en cours (compatible `docker compose stop`).
+- **Détection stale lock** : le batch loop vérifie que le PID dans le lock file est encore actif avant de skipper l'itération.
+
+### Modifications
+- **Ports Docker** : tous les ports exposés sont maintenant bindés sur `127.0.0.1` au lieu de `0.0.0.0` (MySQL 3307, Kafka 9092, Connect 8083, Kafdrop 9000).
+- **Conteneur non-root** : le Dockerfile utilise désormais un utilisateur `appuser` au lieu de `root` pour le runtime.
+- **Valeurs hardcodées → variables d'environnement** : database, warehouse et rôle Snowflake sont configurables via `SNOWFLAKE_DATABASE`, `SNOWFLAKE_WAREHOUSE_NAME` et `SNOWFLAKE_DBT_ROLE_NAME` (avec valeurs par défaut).
+- **Type hints Python** : annotations de type ajoutées sur toutes les signatures de fonctions dans les 4 fichiers Python principaux.
+- **Docstrings Google-style** : documentation des fonctions avec sections Args, Returns, Raises.
+- **Exceptions spécifiques** : remplacement de `except Exception` par des exceptions ciblées (`ProgrammingError`, `RuntimeError`, `OSError`).
+- **Imports** : réorganisation selon la convention stdlib → third-party → local.
+
+### Nettoyage
+- Suppression de `pipelines/utils/pii_masking.py` (code mort, masquage assuré par dbt).
+- Suppression des dépendances commentées dans `requirements.txt`.
+- `diagnose_recover.py` : remplacement de tous les `print()` par `logger.info/warning/error`.
+
+---
+
 ## [2026-02-25] — Lineage opérationnel et audit persistant
 
 ### Ajouts
