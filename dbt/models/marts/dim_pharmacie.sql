@@ -37,3 +37,16 @@ select
     postal_code
 from pharmacies_dedup
 where rn = 1
+
+union all
+
+select
+    md5('-1') as pharmacie_sk,
+    -1 as PHA_ID,
+    'INCONNU' as PHA_NOM,
+    null as PHA_IDNAT,
+    null as PHA_GERS,
+    null as PHA_DATE_INSTAL_WP,
+    null as external_pharmacy_name,
+    null as external_city,
+    null as postal_code

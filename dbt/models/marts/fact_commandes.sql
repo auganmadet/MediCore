@@ -19,12 +19,12 @@ with commandes_enriched as (
         c.COM_QUANTITE,
         c.COM_PAHTNET,
         c.COM_TAUXREMISE,
-        ph.pharmacie_sk,
+        coalesce(ph.pharmacie_sk, md5('-1')) as pharmacie_sk,
         coalesce(prod.produit_sk, md5('-1' || '-' || '-1')) as produit_sk,
         coalesce(f.fournisseur_sk, md5('-1' || '-' || '-1')) as fournisseur_sk,
         c.loaded_at
     from {{ ref('stg_commandes') }} c
-    inner join {{ ref('dim_pharmacie') }} ph
+    left join {{ ref('dim_pharmacie') }} ph
       on c.PHA_ID = ph.PHA_ID
     left join {{ ref('dim_produit') }} prod
       on c.PHA_ID = prod.PHA_ID

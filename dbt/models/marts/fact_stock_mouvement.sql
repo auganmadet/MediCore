@@ -17,7 +17,7 @@ with mouvements as (
         m.MOD_DELTA      as delta_stock,
         m.MOD_STOCK      as stock_apres,
         m.MOD_OPERATION,
-        ph.pharmacie_sk,
+        coalesce(ph.pharmacie_sk, md5('-1')) as pharmacie_sk,
         coalesce(prod.produit_sk, md5('-1' || '-' || '-1')) as produit_sk,
         m.loaded_at,
         row_number() over (
@@ -25,7 +25,7 @@ with mouvements as (
           order by m.loaded_at desc
         ) as rn
     from {{ ref('stg_modstock') }} m
-    inner join {{ ref('dim_pharmacie') }} ph
+    left join {{ ref('dim_pharmacie') }} ph
       on m.PHA_ID = ph.PHA_ID
     left join {{ ref('dim_produit') }} prod
       on m.PHA_ID = prod.PHA_ID

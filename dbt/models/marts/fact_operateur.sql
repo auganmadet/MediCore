@@ -20,10 +20,10 @@ with ventes_operateur as (
         m.FAC_PVTTC,
         m.FAC_PAHT,
         m.FAC_CODEREMBT,
-        ph.pharmacie_sk,
+        coalesce(ph.pharmacie_sk, md5('-1')) as pharmacie_sk,
         m.loaded_at
     from {{ ref('stg_mediprix_factures') }} m
-    inner join {{ ref('dim_pharmacie') }} ph
+    left join {{ ref('dim_pharmacie') }} ph
         on m.PHA_ID = ph.PHA_ID
     where m.ORD_OPERATEUR is not null
     {% if is_incremental() %}

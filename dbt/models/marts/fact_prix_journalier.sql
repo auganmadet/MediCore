@@ -18,7 +18,7 @@ with prix as (
         d.DBD_PRIXPUBLIC,
         d.DBD_PAMP,
         d.DBD_PANET,
-        ph.pharmacie_sk,
+        coalesce(ph.pharmacie_sk, md5('-1')) as pharmacie_sk,
         coalesce(prod.produit_sk, md5('-1' || '-' || '-1')) as produit_sk,
         d.loaded_at,
         row_number() over (
@@ -26,7 +26,7 @@ with prix as (
           order by d.loaded_at desc
         ) as rn
     from {{ ref('stg_daybyday') }} d
-    inner join {{ ref('dim_pharmacie') }} ph
+    left join {{ ref('dim_pharmacie') }} ph
       on d.PHA_ID = ph.PHA_ID
     left join {{ ref('dim_produit') }} prod
       on d.PHA_ID = prod.PHA_ID

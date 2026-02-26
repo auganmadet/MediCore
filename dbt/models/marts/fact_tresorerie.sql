@@ -40,10 +40,10 @@ with tresorerie_enriched as (
         h.CA_Retro_4,
         h.CA_Retro_5,
         h.PointsFidel,
-        ph.pharmacie_sk,
+        coalesce(ph.pharmacie_sk, md5('-1')) as pharmacie_sk,
         h.loaded_at
     from {{ ref('stg_history') }} h
-    inner join {{ ref('dim_pharmacie') }} ph
+    left join {{ ref('dim_pharmacie') }} ph
         on h.PHA_ID = ph.PHA_ID
     {% if is_incremental() %}
     where h.loaded_at >= (select coalesce(max(loaded_at), '1900-01-01') from {{ this }})
