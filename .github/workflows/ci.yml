@@ -24,6 +24,23 @@ jobs:
       - name: Flake8 lint
         run: flake8 pipelines/ --max-line-length=120 --ignore=E501,W503,E241
 
+  test-python:
+    name: Tests Python (audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Installer les dependances
+        run: pip install -r requirements.txt pytest
+
+      - name: Tests audit
+        run: pytest tests/test_audit.py -v
+
   validate-dbt:
     name: Valider syntaxe dbt
     runs-on: ubuntu-latest
@@ -73,7 +90,7 @@ jobs:
   push-image:
     name: Push Docker image (GHCR)
     runs-on: ubuntu-latest
-    needs: [lint-python, validate-dbt, build-docker, shellcheck]
+    needs: [lint-python, test-python, validate-dbt, build-docker, shellcheck]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     permissions:
       packages: write

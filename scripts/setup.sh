@@ -28,11 +28,33 @@ docker system prune -f 2>/dev/null || true
 
 echo "✅ Variables OK → ACCOUNT=$SNOWFLAKE_ACCOUNT USER=$SNOWFLAKE_USER"
 
-# 3. SNOWSQL avec config existante (NE PAS ÉCRASER + ajout manuel [connections.medicore] dans config) --> 'NoneType' object is not subscriptable
-# Vérifier config medicore existe
+# 3. SNOWSQL : 2 connexions requises
+#    - medicore_admin (ACCOUNTADMIN) : pour DDL setup uniquement
+#    - medicore (MEDICORE_RAW_WRITER) : pour opérations quotidiennes
+
+# Vérifier config medicore_admin existe (pour DDL)
+if ! grep -q "\[connections.medicore_admin\]" ~/.snowsql/config 2>/dev/null; then
+  echo "❌ Config medicore_admin manquante dans ~/.snowsql/config"
+  echo "Ajoute manuellement :"
+  echo ""
+  echo "  [connections.medicore_admin]"
+  echo "  accountname = $SNOWFLAKE_ACCOUNT"
+  echo "  username = $SNOWFLAKE_USER"
+  echo "  authenticator = snowflake"
+  echo "  password = $SNOWFLAKE_PASSWORD"
+  echo "  warehousename = $SNOWFLAKE_WAREHOUSE_NAME"
+  echo "  database = $SNOWFLAKE_DATABASE"
+  echo "  schemaname = RAW"
+  echo "  rolename = ACCOUNTADMIN"
+  echo ""
+  exit 1
+fi
+
+# Vérifier config medicore existe (pour opérations)
 if ! grep -q "\[connections.medicore\]" ~/.snowsql/config 2>/dev/null; then
   echo "❌ Config medicore manquante dans ~/.snowsql/config"
   echo "Ajoute manuellement :"
+  echo ""
   echo "  [connections.medicore]"
   echo "  accountname = $SNOWFLAKE_ACCOUNT"
   echo "  username = $SNOWFLAKE_USER"
@@ -40,8 +62,9 @@ if ! grep -q "\[connections.medicore\]" ~/.snowsql/config 2>/dev/null; then
   echo "  password = $SNOWFLAKE_PASSWORD"
   echo "  warehousename = $SNOWFLAKE_WAREHOUSE_NAME"
   echo "  database = $SNOWFLAKE_DATABASE"
-  echo "  schemaname = $SNOWFLAKE_SCHEMA_NAME"
-  echo "  rolename = $SNOWFLAKE_ROLE_NAME"
+  echo "  schemaname = RAW"
+  echo "  rolename = MEDICORE_RAW_WRITER"
+  echo ""
   exit 1
 fi
 
@@ -51,10 +74,10 @@ if [ "${1-}" = "--with-snowflake-ddl" ]; then
 fi
 
 if [ "$RUN_SNOWFLAKE_DDL" = "true" ]; then
-  echo "🔐 Snowflake DDL via SnowSQL (config existante)..."
-  # Utiliser config existante
-  snowsql -c medicore -f scripts/DDL_WH.sql
-  snowsql -c medicore -f scripts/DDL_TABLES.sql
+  echo "🔐 Snowflake DDL via SnowSQL (ACCOUNTADMIN)..."
+  # DDL avec rôle ACCOUNTADMIN
+  snowsql -c medicore_admin -f scripts/DDL_WH.sql
+  snowsql -c medicore_admin -f scripts/DDL_TABLES.sql
   echo "✅ Tables RAW créées"
 else
   echo "⏭️ Skip Snowflake DDL (RUN_SNOWFLAKE_DDL != true)."

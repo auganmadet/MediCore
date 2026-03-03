@@ -52,6 +52,19 @@
   │ Monitoring   │ Kafdrop          │ latest    │ UI Kafka topics                │
   └──────────────┴──────────────────┴───────────┴────────────────────────────────┘
 
+### Configuration Zookeeper (healthcheck)
+
+**Important** : L'image `confluentinc/cp-zookeeper:7.7.0` désactive par défaut les commandes 4-letter (ruok, stat, srvr).
+Pour que le healthcheck fonctionne, il faut ajouter dans `docker-compose.yml` :
+
+```yaml
+environment:
+  KAFKA_OPTS: "-Dzookeeper.4lw.commands.whitelist=ruok,stat,srvr"
+```
+
+Sans cette configuration, le healthcheck `echo ruok | nc localhost 2181` échoue avec :
+`ruok is not executed because it is not in the whitelist.`
+
 ## Patterns techniques
 
 - **Medallion Architecture** — RAW -> STG -> MARTS (3 couches)

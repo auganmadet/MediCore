@@ -3,6 +3,195 @@
 Pipeline ELT industrialisé : MySQL RDS → Kafka CDC → Snowflake RAW → dbt (STG/MARTS).
 18 tables (4 CDC + 14 référence), monitoring Teams webhook, source freshness.
 
+## Prérequis
+
+### 1. Docker Desktop
+
+**Windows** (PowerShell Admin) :
+```powershell
+# Télécharger et installer Docker Desktop
+winget install Docker.DockerDesktop
+
+# Redémarrer le PC, puis vérifier
+docker --version
+docker compose version
+```
+
+**Linux (Ubuntu/Debian)** :
+```bash
+# Installer Docker
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl gnupg
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+# Ajouter l'utilisateur au groupe docker (évite sudo)
+sudo usermod -aG docker $USER
+newgrp docker
+
+# Vérifier
+docker --version
+docker compose version
+```
+
+**macOS** :
+```bash
+brew install --cask docker
+# Lancer Docker Desktop depuis Applications
+docker --version
+```
+
+---
+
+### 2. SnowSQL CLI
+
+**Windows** (PowerShell Admin) :
+```powershell
+# Télécharger l'installeur
+Invoke-WebRequest -Uri "https://sfc-repo.snowflakecomputing.com/snowsql/bootstrap/1.2/windows_x86_64/snowsql-1.2.32-windows_x86_64.msi" -OutFile "$env:TEMP\snowsql.msi"
+
+# Installer silencieusement
+msiexec /i "$env:TEMP\snowsql.msi" /qn
+
+# Ajouter au PATH (redémarrer le terminal après)
+# Le chemin par défaut est : C:\Users\<user>\AppData\Local\Snowflake\SnowSQL
+
+# Vérifier
+snowsql --version
+```
+
+**Linux/macOS** :
+```bash
+# Télécharger et installer
+curl -O https://sfc-repo.snowflakecomputing.com/snowsql/bootstrap/1.2/linux_x86_64/snowsql-1.2.32-linux_x86_64.bash
+bash snowsql-1.2.32-linux_x86_64.bash
+
+# Vérifier
+snowsql --version
+```
+
+---
+
+### 3. jq (JSON processor)
+
+**Windows (Git Bash)** :
+```bash
+mkdir -p ~/bin
+curl -L -o ~/bin/jq.exe https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-win64.exe
+chmod +x ~/bin/jq.exe
+echo 'export PATH="$HOME/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+
+# Vérifier
+jq --version
+```
+
+**Windows (PowerShell)** :
+```powershell
+winget install jqlang.jq
+# ou
+choco install jq
+
+# Vérifier
+jq --version
+```
+
+**Linux** :
+```bash
+sudo apt-get install -y jq
+jq --version
+```
+
+**macOS** :
+```bash
+brew install jq
+jq --version
+```
+
+---
+
+### 4. Configuration snowsql
+
+Créer/éditer `~/.snowsql/config` :
+
+**Windows** : `%USERPROFILE%\.snowsql\config`
+**Linux/macOS** : `~/.snowsql/config`
+
+```ini
+# Connexion ADMIN (pour setup.sh --with-snowflake-ddl uniquement)
+[connections.medicore_admin]
+accountname = YMYUNAB-HR05962
+username = <votre_user>
+authenticator = snowflake
+password = <votre_password>
+warehousename = MEDICORE_WH
+database = MEDICORE
+schemaname = RAW
+rolename = ACCOUNTADMIN
+
+# Connexion opérationnelle (pour reset, vérifications, etc.)
+[connections.medicore]
+accountname = YMYUNAB-HR05962
+username = <votre_user>
+authenticator = snowflake
+password = <votre_password>
+warehousename = MEDICORE_WH
+database = MEDICORE
+schemaname = RAW
+rolename = MEDICORE_RAW_WRITER
+```
+
+Tester les connexions :
+```bash
+snowsql -c medicore_admin -q "SELECT CURRENT_ROLE();"
+snowsql -c medicore -q "SELECT CURRENT_ROLE();"
+```
+
+---
+
+### 5. Fichier .env
+
+```bash
+cp .env.example .env
+# Éditer .env avec vos credentials MySQL RDS, Snowflake, Teams webhook
+```
+
+---
+
+### 6. Vérification complète des prérequis
+
+```bash
+# Tout doit retourner une version
+docker --version           # Docker version 24.x+
+docker compose version     # Docker Compose version v2.20+
+snowsql --version          # SnowSQL 1.2.x
+jq --version               # jq-1.6+
+
+# Tester connexion Snowflake
+snowsql -c medicore_admin -q "SELECT 'OK' AS status;"
+```
+
+---
+
+### Durées estimées
+
+  ┌─────────────────────────────┬───────────────┬───────────────────────────────────────────┐
+  │           Phase             │   Durée       │                 Détails                   │
+  ├─────────────────────────────┼───────────────┼───────────────────────────────────────────┤
+  │ DDL Snowflake               │ ~30s          │ Création DB, schemas, rôles, tables       │
+  ├─────────────────────────────┼───────────────┼───────────────────────────────────────────┤
+  │ Docker stack                │ ~3 min        │ Build image + démarrage 6 services        │
+  ├─────────────────────────────┼───────────────┼───────────────────────────────────────────┤
+  │ Debezium connector          │ ~1 min        │ Connexion RDS + schema_only snapshot      │
+  ├─────────────────────────────┼───────────────┼───────────────────────────────────────────┤
+  │ **Bulk load (920M lignes)** │ **45-90 min** │ MySQL → Parquet → COPY INTO RAW           │
+  ├─────────────────────────────┼───────────────┼───────────────────────────────────────────┤
+  │ **Total setup initial**     │ **~50-95 min**│ Dépend de la bande passante réseau        │
+  └─────────────────────────────┴───────────────┴───────────────────────────────────────────┘
+
 ## Architecture
 
 Voir [Architecture détaillée](docs/ARCHITECTURE.md) pour les schémas complets (flux, services Docker, monitoring).
@@ -42,6 +231,8 @@ MediCore/
 │   ├── setup.sh                        # Premier lancement (HOST : DDL + Docker + Debezium)
 │   ├── entrypoint.sh                   # Démarrage container (wait deps + dbt deps + batch)
 │   ├── batch_loop.sh                   # Boucle principale (CDC + dbt + tests + freshness + alertes)
+│   ├── verify_setup.sh                 # Vérification post-setup (Docker, Kafka, Snowflake, dbt)
+│   ├── reset_and_bulk_load.sh          # Reset CDC + bulk load (quick ou full)
 │   ├── healthcheck.py                  # Docker HEALTHCHECK (connexion Snowflake)
 │   ├── DDL_WH.sql                      # Warehouse, rôles, grants Snowflake
 │   └── DDL_TABLES.sql                  # 18 tables RAW + CLUSTER BY
@@ -53,11 +244,19 @@ MediCore/
 ## Installation
 
 ```bash
-# Prérequis : Docker, snowsql, jq
-# 1. Configurer .env avec les credentials
-# 2. Premier lancement :
+# 1. Configurer .env (voir section Prérequis)
+cp .env.example .env
+# Éditer .env avec vos credentials
+
+# 2. Premier lancement (DDL Snowflake + Docker + bulk load)
+#    Durée : ~50-95 min (920M lignes)
 bash scripts/setup.sh --with-snowflake-ddl
+
+# 3. Vérifier que tout est opérationnel
+bash scripts/verify_setup.sh
 ```
+
+**Note** : Le premier run dbt (staging + marts) démarre automatiquement via `batch_loop.sh` dès que le bulk load est terminé. Pas d'action manuelle requise.
 
 ## Fonctionnement
 
