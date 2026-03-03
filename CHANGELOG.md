@@ -5,6 +5,19 @@ Chaque entrée décrit **ce qui a changé** du point de vue métier et son impac
 
 ---
 
+## [2026-03-03] — Présentation PowerPoint MediCore
+
+### Ajouts
+- **Présentation PowerPoint** : `docs/MediCore_Presentation.pptx` — 21 slides aux couleurs Médiprix couvrant contexte, architecture, ingestion, transformations dbt, opérations, CI/CD et feuille de route.
+- **Générateur Python** : `scripts/generate_pptx.py` — génère la présentation via python-pptx avec schéma d'architecture interactif (zones, sous-groupes, logos, flèches).
+- **Notes du présentateur** : speech complet sur les 21 slides, ton oral, explications des choix techniques (pourquoi Kafka, pourquoi dbt, pourquoi SCD2, pourquoi star schema…).
+- **Logos technologiques** : 10 logos dans `docs/logos/` (AWS, dbt, Debezium, Kafka, Metabase, MySQL, Power BI, Python, Snowflake, Tableau).
+
+### Nettoyage
+- **Historique Git** : suppression des mentions "Generated with Cortex Code" et "Co-Authored-By: Cortex Code" dans les 14 commits concernés.
+
+---
+
 ## [2026-02-26] — Durcissement et refactoring
 
 ### Ajouts
