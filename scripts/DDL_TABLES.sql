@@ -419,4 +419,17 @@ CREATE TABLE IF NOT EXISTS MEDICORE.AUDIT.DBT_MODEL_RUNS (
     STATUS            VARCHAR(20) NOT NULL,
     EXECUTION_TIME_S  FLOAT,
     ROWS_AFFECTED     NUMBER,
-    CREATED_AT        TIMESTAMP_NTZ DEFAULT CURRE
+    CREATED_AT        TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+    PRIMARY KEY (RUN_ID, MODEL_NAME)
+);
+
+-- ============================================================
+-- OWNERSHIP TRANSFER : Tables RAW → MEDICORE_RAW_WRITER
+-- ============================================================
+-- Les tables sont créées par ACCOUNTADMIN, on transfère l'ownership
+-- au rôle approprié pour respecter le RBAC
+
+GRANT OWNERSHIP ON ALL TABLES IN SCHEMA MEDICORE.RAW TO ROLE MEDICORE_RAW_WRITER COPY CURRENT GRANTS;
+
+-- Vérification finale
+SELECT 'DDL_TABLES SUCCESS - 18 RAW + 3 AUDIT tables' AS status;
