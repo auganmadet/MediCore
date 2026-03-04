@@ -2,10 +2,27 @@
 
 ## Infrastructure CDC
 
-- **Source** : MySQL 8.x (RDS), base `winstat`
+- **Source** : MySQL 8.x (RDS ou Docker local), base `winstat`
 - **Capture** : Debezium 2.7.3 via Kafka Connect
-- **Transport** : Kafka 7.5.0 (Confluent)
+- **Transport** : Kafka 7.5.0 (Confluent) avec dual listeners
 - **Consumer** : `pipelines/daily_cdc_batch.py`
+
+## Configuration Kafka (dual listeners)
+
+Pour supporter à la fois les conteneurs Docker et l'accès depuis WSL/host :
+
+```yaml
+# docker-compose.yml
+KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092
+KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+```
+
+| Listener | Port | Usage |
+|----------|------|-------|
+| INTERNAL | 29092 | Conteneurs Docker (kafka:29092) |
+| EXTERNAL | 9092 | Host WSL/Windows (localhost:9092) |
 
 ## Tables CDC (4)
 
@@ -55,12 +72,14 @@
   ├───────────────┼─────────────────┼─────────────────────┤
   │ `c`           │ Create (insert) │ `I`                 │
   ├───────────────┼─────────────────┼─────────────────────┤
-  │ `r`           │ Read (snapshot) │ `I`                 │
+  │ `r`           │ Read (snapshot) │ `S`                 │
   ├───────────────┼─────────────────┼─────────────────────┤
   │ `u`           │ Update          │ `U`                 │
   ├───────────────┼─────────────────┼─────────────────────┤
   │ `d`           │ Delete          │ `D`                 │
   └───────────────┴─────────────────┴─────────────────────┘
+
+**Note** : Les messages tombstone (null value) sont ignorés par le consumer.
 
 ## Métadonnées CDC ajoutées
 
@@ -91,3 +110,41 @@
 - Alertes Teams après 3 échecs consécutifs
 - Notification recovery automatique
 - DLQ à surveiller régulièrement pour events non traités
+
+## Tests CDC (run_all_tests.sh)
+
+Script de tests complet et idempotent : `scripts/run_all_tests.sh`
+
+```bash
+# Lancer les tests avec mesure du temps (~6-7 min)
+cd /mnt/c/Temp/MediCore && STARTTIME=$(date +%s) && ./scripts/run_all_tests.sh 2>&1; echo "=== Durée: $(($(date +%s) - STARTTIME))s ==="
+```
+
+### Étapes du script
+
+| Étape | Description | Vérification |
+|-------|-------------|--------------|
+| 1/6 | pytest (113 tests unitaires) | Tous les tests passent |
+| 2/6 | bulk_load | SKIP (déjà chargé) |
+| 3/6 | CDC INSERT | `cdc_operation = 'I'` |
+| 4/6 | CDC UPDATE | `cdc_operation = 'U'` |
+| 5/6 | CDC DELETE | `cdc_operation = 'D'` |
+| 6/6 | dbt build | PASS (293 modèles) |
+
+### Variables d'environnement CDC (host WSL)
+
+```bash
+CDC_KAFKA_TOPIC_PREFIX=winstat.winstat
+KAFKA_BOOTSTRAP_SERVERS=localhost:9092
+CDC_BATCH_TIMEOUT_SEC=30
+```
+
+### Données de test (IDs fictifs)
+
+```bash
+TEST_PHA_ID=99999
+TEST_COM_GROI=999999999
+TEST_PRD_ID=888888
+```
+
+Ces données sont automatiquement nettoyées (MySQL + Snowflake) avant et après les tests.

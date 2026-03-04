@@ -3,10 +3,12 @@ description: Workflow Git du projet. Commits en français, branches descriptives
 globs: ".git*,**/.gitignore,CHANGELOG.md"
 ---
 
-- Messages de commit en français
+- Conventional Commits obligatoire : `type: message en français`
+- Types : `feat:`, `fix:`, `chore:`, `docs:`, `style:`, `refactor:`, `test:`, `build:`, `ci:`
+- Messages de commit en français après le préfixe
 - Commits simples, concis, atomiques
-- Ne jamais mentionner Claude ou l'IA comme auteur
-- Ne jamais ajouter Co-Authored-By
+- Ne jamais mentionner Claude, Cortex ou l'IA comme auteur
+- Ne jamais ajouter `Co-Authored-By` ou `Generated With`
 - Branches : kebab-case, descriptives
 - Nommage : `feature/xxx`, `fix/xxx`
 - Nettoyer l'historique avant merge
