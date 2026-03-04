@@ -82,6 +82,8 @@ scripts/setup.sh                -> Setup initial complet
 scripts/entrypoint.sh           -> Démarrage conteneur
 scripts/batch_loop.sh           -> Boucle orchestration
 scripts/healthcheck.py          -> Health check Snowflake
+scripts/run_all_tests.sh        -> Tests complets (pytest + CDC + dbt)
+scripts/verify_setup.sh         -> Vérification pipeline opérationnel
 scripts/DDL_WH.sql              -> DDL warehouse, rôles, grants (incl. AUDIT)
 scripts/DDL_TABLES.sql          -> DDL 18 tables RAW (avec CLUSTER BY)
 ```
@@ -100,11 +102,30 @@ scripts/DDL_TABLES.sql          -> DDL 18 tables RAW (avec CLUSTER BY)
 - **Branche principale** : `main` (protégée, CI obligatoire)
 - **Branche de développement** : `Architecture-Medicore` (travail courant)
 - **Branches feature** : `feature/xxx`, `fix/xxx` (si nécessaire)
-- Messages de commit en français, simples et atomiques
 - Ne jamais mentionner Claude ou l'IA comme auteur
+- Ne jamais ajouter Co-Authored-By
 - Ne jamais commiter `.env` ou credentials
 - Nettoyer l'historique avant merge
-- **Règle stricte** : toujours commiter sur `Architecture-Medicore`, jamais directement sur `main`
+
+### Conventions de commit (Conventional Commits)
+
+Format : `type: message en français`
+
+| Préfixe | Usage |
+|---------|-------|
+| `feat:` | Nouvelle fonctionnalité |
+| `fix:` | Correction de bug |
+| `docs:` | Documentation |
+| `chore:` | Maintenance, config |
+| `style:` | Formatage, pas de changement de code |
+| `refactor:` | Refactoring sans changement fonctionnel |
+| `test:` | Ajout/modification de tests |
+| `build:` | Build, dépendances |
+
+Exemples :
+- `feat: ajouter endpoint API pour export CSV`
+- `fix: corriger calcul marge brute`
+- `docs: mise à jour README installation`
 
 ## CI/CD (GitHub Actions)
 
