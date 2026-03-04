@@ -102,7 +102,7 @@ class MediCoreCDC:
             group_id=CDC_KAFKA_GROUP_ID,
             auto_offset_reset='earliest',
             enable_auto_commit=False,
-            value_deserializer=lambda x: json.loads(x.decode('utf-8')),
+            value_deserializer=lambda x: json.loads(x.decode('utf-8')) if x else None,
             consumer_timeout_ms=BATCH_TIMEOUT_SEC * 1000,
         )
 
@@ -115,6 +115,10 @@ class MediCoreCDC:
             topic = message.topic
             table_short = topic.split('.')[-1]
             table_name = f'RAW_{table_short.upper()}'
+
+            # Skip tombstone messages (null value)
+            if message.value is None:
+                continue
 
             try:
                 payload = message.value
@@ -201,6 +205,9 @@ class MediCoreCDC:
         elif op == 'd':  # DELETE
             data = debezium_payload['before']
             cdc_op = 'D'
+        elif op == 'r':  # READ (snapshot initial Debezium)
+            data = debezium_payload['after']
+            cdc_op = 'S'  # Snapshot
         else:
             raise ValueError(f"Unknown op: {op}")
 
