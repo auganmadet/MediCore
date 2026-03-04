@@ -27,32 +27,47 @@
 - **Purge historique git** : effectuée avec `git-filter-repo` (4 secrets purgés : 2 Snowflake, 1 MySQL, 1 Teams webhook)
 - **Rotation requise** : après toute purge git, les credentials exposés doivent être considérés compromis et rotés manuellement
 
-### 3. Isolation des accès Snowflake
+### 3. Isolation des acces Snowflake
 
-- **Rôles RBAC** :
-  - `MEDICORE_RAW_WRITER` : écriture RAW uniquement
-  - `MEDICORE_DBT_EXECUTOR` : lecture RAW, écriture STAGING/MARTS/AUDIT
+- **Roles RBAC** :
+  - `MEDICORE_RAW_WRITER` : ecriture RAW uniquement
+  - `MEDICORE_DBT_EXECUTOR` : lecture RAW, ecriture STAGING/MARTS/AUDIT/SNAPSHOTS
   - `MEDICORE_ANALYST` : lecture MARTS/AUDIT uniquement
+- **Users de service** :
+  - `MEDICORE_DBT` : user principal pour dbt/pipelines (default role = MEDICORE_DBT_EXECUTOR)
+  - `MEDICORE_DBT_SVC` : user secondaire pour CI/CD
 - **Warehouse** : `MEDICORE_WH` (XSMALL, auto-suspend 60s)
-- **Database** : `MEDICORE` avec schémas RAW, STAGING, MARTS, AUDIT, SNAPSHOTS
+- **Database** : `MEDICORE` avec schemas RAW, STAGING, MARTS, AUDIT, SNAPSHOTS
 - **Grants** : DDL complet dans `scripts/DDL_WH.sql` (CREATE SCHEMA + GRANT + FUTURE TABLES)
 - **Ownership** : les tables RAW sont owned par `MEDICORE_RAW_WRITER` (ACCOUNTADMIN ne peut pas les ALTER directement)
 
-### 4. Protection SQL injection
+### 4. Authentication Policy (MFA)
+
+- **Policy** : `MEDICORE_TEMP.AUTH_POLICIES.MEDICORE_NO_MFA_REQUIRED`
+- **Objectif** : Desactiver MFA obligatoire pour connexions programmatiques
+- **Attachee au** : Compte (tous les users en beneficient)
+- **Pourquoi** : Sans cette policy, les connexions Python/dbt/snowsql echouent car pas de prompt MFA possible en mode batch
+- **Config** :
+  - `MFA_ENROLLMENT = OPTIONAL`
+  - `AUTHENTICATION_METHODS = (ALL)`
+  - `CLIENT_TYPES = (ALL)`
+- **DDL** : Cree dans `scripts/DDL_WH.sql` section 1
+
+### 5. Protection SQL injection
 
 - Pipelines Python : requêtes paramétrées ou ORM Snowflake
 - dbt : `{{ source() }}` et `{{ ref() }}` (pas de SQL dynamique brut)
 - Pas d'interpolation de chaînes dans les requêtes SQL
 - Inputs utilisateur inexistants (pipeline batch, pas d'UI)
 
-### 5. Sécurité CDC / Kafka
+### 6. Securite CDC / Kafka
 
 - Debezium : accès lecture seule au binlog MySQL
 - Kafka : communication interne Docker network uniquement
 - DLQ : events malformés isolés (pas de perte silencieuse)
 - Commit offset manuel : pas de perte de données en cas d'échec
 
-### 6. Monitoring et audit
+### 7. Monitoring et audit
 
 - Teams webhook : alertes sur échecs pipeline
 - dbt source freshness : détection données obsolètes
