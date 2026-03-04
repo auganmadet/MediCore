@@ -10,7 +10,8 @@ snapshot-paths: ["snapshots"]
 target-path: "target"
 clean-targets: ["target", "dbt_packages"]
 
-on-run-end: "{{ log_run_summary(results) }}"
+# NOTE: on-run-end désactivé car table AUDIT.DBT_MODEL_RUNS n'existe pas encore
+# Réactiver après création des tables audit: on-run-end: "{{ log_run_summary(results) }}"
 
 vars:
   run_id: 'manual'

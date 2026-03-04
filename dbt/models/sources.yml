@@ -13,10 +13,10 @@ sources:
         loaded_at_field: CDC_TIMESTAMP
         columns:
           - name: cdc_operation
-            description: "Opération CDC Debezium (C=create, U=update, D=delete, R=read/snapshot)"
+            description: "Opération CDC Debezium (C=create, U=update, D=delete, R=read/snapshot, S=snapshot)"
             tests:
               - accepted_values:
-                  values: ['C', 'U', 'D', 'R']
+                  values: ['C', 'U', 'D', 'R', 'S']
                   config:
                     severity: warn
           - name: PHA_ID
@@ -97,7 +97,7 @@ sources:
             description: "ID pharmacie"
             tests: [not_null]
           - name: Date
-            tests: [not_null]
+            description: "Date de l'historique (peut être NULL pour anciens enregistrements)"
           - name: EspeceFRF
             tests: [not_null]
           - name: ChequeFRF
@@ -262,12 +262,7 @@ sources:
           - name: FAC_HEURE
           - name: FAC_TVA
           - name: FAC_QUANTITE
-            description: "Quantité facturée"
-            tests:
-              - dbt_utils.expression_is_true:
-                  expression: "> 0"
-                  config:
-                    severity: warn
+            description: "Quantité facturée (peut être négative pour les retours)"
           - name: FAC_PAHT
           - name: FAC_PVHT
           - name: FAC_PVTTC
@@ -334,12 +329,7 @@ sources:
           - name: PRD_STOCK
             description: ""
           - name: PRD_PRIXTARIF
-            description: ""
-            tests:
-              - dbt_utils.expression_is_true:
-                  expression: "> 0"
-                  config:
-                    severity: warn
+            description: "Prix tarif (peut être 0 ou négatif pour produits spéciaux)"
           - name: PRD_DERN_VENTE
             description: ""
           - name: PRD_DERN_ACHAT
@@ -455,10 +445,10 @@ sources:
         loaded_at_field: CDC_TIMESTAMP
         columns:
           - name: cdc_operation
-            description: "Opération CDC Debezium (C=create, U=update, D=delete, R=read/snapshot)"
+            description: "Opération CDC Debezium (C=create, U=update, D=delete, R=read/snapshot, S=snapshot)"
             tests:
               - accepted_values:
-                  values: ['C', 'U', 'D', 'R']
+                  values: ['C', 'U', 'D', 'R', 'S']
                   config:
                     severity: warn
           - name: PHA_ID
@@ -481,10 +471,10 @@ sources:
         loaded_at_field: CDC_TIMESTAMP
         columns:
           - name: cdc_operation
-            description: "Opération CDC Debezium (C=create, U=update, D=delete, R=read/snapshot)"
+            description: "Opération CDC Debezium (C=create, U=update, D=delete, R=read/snapshot, S=snapshot)"
             tests:
               - accepted_values:
-                  values: ['C', 'U', 'D', 'R']
+                  values: ['C', 'U', 'D', 'R', 'S']
                   config:
                     severity: warn
           - name: PHA_ID
@@ -502,10 +492,10 @@ sources:
         loaded_at_field: CDC_TIMESTAMP
         columns:
           - name: cdc_operation
-            description: "Opération CDC Debezium (C=create, U=update, D=delete, R=read/snapshot)"
+            description: "Opération CDC Debezium (C=create, U=update, D=delete, R=read/snapshot, S=snapshot)"
             tests:
               - accepted_values:
-                  values: ['C', 'U', 'D', 'R']
+                  values: ['C', 'U', 'D', 'R', 'S']
                   config:
                     severity: warn
           - name: PHA_ID

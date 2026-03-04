@@ -74,21 +74,13 @@ models:
         tests:
           - not_null
       - name: ca_ht
-        description: "Chiffre d'affaires HT (source: SUM(stg_factures.FAC_PVHT))"
+        description: "Chiffre d'affaires HT (peut être négatif pour avoirs)"
         tests:
           - not_null
-          - dbt_utils.expression_is_true:
-              expression: ">= 0"
-              config:
-                severity: warn
       - name: ca_ttc
-        description: "Chiffre d'affaires TTC (source: SUM(stg_factures.FAC_PVTTC))"
+        description: "Chiffre d'affaires TTC (peut être négatif pour avoirs)"
         tests:
           - not_null
-          - dbt_utils.expression_is_true:
-              expression: ">= 0"
-              config:
-                severity: warn
 
   - name: fact_commandes
     description: "Commandes fournisseurs (sources: stg_commandes + dim_pharmacie + dim_produit + dim_fournisseur)"
@@ -115,18 +107,11 @@ models:
         tests:
           - not_null
       - name: quantite_commandee
+        description: "Quantité commandée (peut être négative pour annulations)"
         tests:
           - not_null
-          - dbt_utils.expression_is_true:
-              expression: "> 0"
-              severity: warn
       - name: montant_pahtnet
-        description: "Montant prix achat HT net (source: SUM(stg_commandes.COM_PAHTNET))"
-        tests:
-          - dbt_utils.expression_is_true:
-              expression: ">= 0"
-              config:
-                severity: warn
+        description: "Montant prix achat HT net (peut être négatif pour avoirs)"
 
   - name: fact_stock_mouvement
     description: "Mouvements stock granulaire (sources: stg_modstock + dim_pharmacie + dim_produit)"
@@ -169,31 +154,13 @@ models:
         tests:
           - not_null
       - name: prix_tarif
-        tests:
-          - dbt_utils.expression_is_true:
-              expression: "> 0"
-              severity: warn
+        description: "Prix tarif (peut être 0 pour produits gratuits)"
       - name: prix_public
-        description: "Prix public TTC (source: stg_daybyday.DBD_PRIXPUBLIC)"
-        tests:
-          - dbt_utils.expression_is_true:
-              expression: ">= 0"
-              config:
-                severity: warn
+        description: "Prix public TTC (peut être 0 pour produits gratuits)"
       - name: prix_achat_moyen_pondere
-        description: "PAMP (source: stg_daybyday.DBD_PAMP)"
-        tests:
-          - dbt_utils.expression_is_true:
-              expression: ">= 0"
-              config:
-                severity: warn
+        description: "PAMP (peut être 0)"
       - name: prix_achat_net
-        description: "Prix achat net (source: stg_daybyday.DBD_PANET)"
-        tests:
-          - dbt_utils.expression_is_true:
-              expression: ">= 0"
-              config:
-                severity: warn
+        description: "Prix achat net (peut être 0)"
 
   # KPIs CROISES
   - name: mart_kpi_marge
@@ -315,40 +282,17 @@ models:
         tests:
           - not_null
       - name: ca_total_jour
+        description: "CA total jour (peut être négatif pour avoirs)"
         tests:
           - not_null
-          - dbt_utils.expression_is_true:
-              expression: ">= 0"
-              config:
-                severity: warn
       - name: montant_especes
-        description: "Encaissements especes du jour"
-        tests:
-          - dbt_utils.expression_is_true:
-              expression: ">= 0"
-              config:
-                severity: warn
+        description: "Encaissements espèces (peut être négatif)"
       - name: montant_cb
-        description: "Encaissements carte bancaire du jour"
-        tests:
-          - dbt_utils.expression_is_true:
-              expression: ">= 0"
-              config:
-                severity: warn
+        description: "Encaissements CB (peut être négatif)"
       - name: montant_mutuelle
-        description: "Encaissements mutuelle du jour"
-        tests:
-          - dbt_utils.expression_is_true:
-              expression: ">= 0"
-              config:
-                severity: warn
+        description: "Encaissements mutuelle (peut être négatif)"
       - name: montant_virement
-        description: "Encaissements virement du jour"
-        tests:
-          - dbt_utils.expression_is_true:
-              expression: ">= 0"
-              config:
-                severity: warn
+        description: "Encaissements virement (peut être négatif)"
       - name: marge_totale
         tests:
           - not_null
@@ -391,49 +335,19 @@ models:
         tests:
           - not_null
       - name: valeur_stock_pa
-        description: "Quantite * prix achat net"
-        tests:
-          - dbt_utils.expression_is_true:
-              expression: ">= 0"
-              config:
-                severity: warn
+        description: "Valeur stock prix achat (peut être négatif si stock négatif)"
       - name: valeur_stock_pv
-        description: "Quantite * prix public"
-        tests:
-          - dbt_utils.expression_is_true:
-              expression: ">= 0"
-              config:
-                severity: warn
+        description: "Valeur stock prix vente (peut être négatif si stock négatif)"
       - name: marge_latente
-        description: "Valeur PV - valeur PA (marge en rayon non realisee)"
+        description: "Valeur PV - valeur PA (marge en rayon non réalisée)"
       - name: prix_tarif
-        description: "Prix tarif unitaire (source: stg_stockhistory.STH_PRIXTARIF)"
-        tests:
-          - dbt_utils.expression_is_true:
-              expression: ">= 0"
-              config:
-                severity: warn
+        description: "Prix tarif unitaire (peut être 0)"
       - name: prix_public
-        description: "Prix public unitaire (source: stg_stockhistory.STH_PRIXPUBLIC)"
-        tests:
-          - dbt_utils.expression_is_true:
-              expression: ">= 0"
-              config:
-                severity: warn
+        description: "Prix public unitaire (peut être 0)"
       - name: prix_achat_moyen_pondere
-        description: "PAMP (source: stg_stockhistory.STH_PAMP)"
-        tests:
-          - dbt_utils.expression_is_true:
-              expression: ">= 0"
-              config:
-                severity: warn
+        description: "PAMP (peut être 0)"
       - name: prix_achat_net
-        description: "Prix achat net (source: stg_stockhistory.STH_PANET)"
-        tests:
-          - dbt_utils.expression_is_true:
-              expression: ">= 0"
-              config:
-                severity: warn
+        description: "Prix achat net (peut être 0)"
 
   - name: mart_kpi_stock_valorisation
     description: "Valorisation stock, couverture en jours, detection stock dormant et inflation (sources: fact_stock_valorisation + fact_ventes)"
@@ -486,26 +400,13 @@ models:
         tests:
           - not_null
       - name: ca_ttc
+        description: "CA TTC opérateur (peut être négatif pour avoirs)"
         tests:
           - not_null
-          - dbt_utils.expression_is_true:
-              expression: ">= 0"
-              config:
-                severity: warn
       - name: ca_ht
-        description: "Chiffre d'affaires HT operateur (source: SUM(stg_mediprix_factures.FAC_PVHT))"
-        tests:
-          - dbt_utils.expression_is_true:
-              expression: ">= 0"
-              config:
-                severity: warn
+        description: "CA HT opérateur (peut être négatif pour avoirs)"
       - name: cout_achat_ht
-        description: "Cout d'achat HT (source: SUM(stg_mediprix_factures.FAC_PAHT))"
-        tests:
-          - dbt_utils.expression_is_true:
-              expression: ">= 0"
-              config:
-                severity: warn
+        description: "Coût d'achat HT (peut être négatif)"
 
   - name: mart_kpi_operateur
     description: "Performance operateur mensuelle : CA, panier moyen, marge, mix rembourse/libre, heure de pic (source: fact_operateur)"

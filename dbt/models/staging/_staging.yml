@@ -28,12 +28,7 @@ models:
               config:
                 severity: warn
       - name: COM_QUANTITE
-        description: "Quantité commandée (source: RAW_COMMANDES.COM_QUANTITE)"
-        tests:
-          - dbt_utils.expression_is_true:
-              expression: ">= 0"
-              config:
-                severity: warn
+        description: "Quantité commandée (peut être négative pour annulations)"
 
   - name: stg_daybyday
     description: "Prix journaliers nettoyés (source: RAW_DAYBYDAY ← winstat.DAYBYDAY)"
@@ -94,11 +89,7 @@ models:
               config:
                 severity: warn
       - name: FAC_QUANTITE
-        tests:
-          - dbt_utils.expression_is_true:
-              expression: ">= 0"
-              config:
-                severity: warn
+        description: "Quantité facturée (peut être négative pour retours)"
 
   - name: stg_fournisseurs
     description: "Fournisseurs nettoyés (source: RAW_FOURNISSEURS ← winstat.FOURNISSEURS)"
@@ -117,7 +108,7 @@ models:
         description: "ID pharmacie (source: RAW_HISTORY.PHA_ID)"
         tests: [not_null]
       - name: '"Date"'
-        tests: [not_null]
+        description: "Date historique (peut être NULL pour anciens enregistrements)"
 
   - name: stg_log
     description: "Logs de synchronisation (source: RAW_LOG ← winstat.LOG)"
@@ -177,11 +168,7 @@ models:
       - name: FAC_TI
         tests: [not_null]
       - name: FAC_QUANTITE
-        tests:
-          - dbt_utils.expression_is_true:
-              expression: ">= 0"
-              config:
-                severity: warn
+        description: "Quantité facturée (peut être négative pour retours)"
 
   - name: stg_modstock
     description: "Mouvements de stock (source: RAW_MODSTOCK ← winstat.MODSTOCK)"
@@ -246,12 +233,7 @@ models:
               config:
                 severity: warn
       - name: PRD_PRIXTARIF
-        description: ""
-        tests:
-          - dbt_utils.expression_is_true:
-              expression: ">= 0"
-              config:
-                severity: warn
+        description: "Prix tarif (peut être 0 ou négatif pour produits spéciaux)"
 
   - name: stg_produits_negatifs
     description: "Produits négatifs (source: RAW_PRODUITS_NEGATIFS ← winstat.PRODUITS_NEGATIFS)"

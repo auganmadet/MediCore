@@ -472,13 +472,14 @@ class TestFlushBatch:
             3. Écrire les invalides en DLQ
         """
         from pipelines.daily_cdc_batch import MediCoreCDC
+        import snowflake.connector.errors
         
         cdc = MediCoreCDC.__new__(MediCoreCDC)
         cdc.sf_cursor = mock_snowflake_conn.cursor()
         cdc._write_dlq = Mock()  # Mock la DLQ
         
-        # executemany échoue
-        mock_snowflake_conn.cursor().executemany.side_effect = Exception("Batch failed")
+        # executemany échoue avec une erreur Snowflake
+        mock_snowflake_conn.cursor().executemany.side_effect = snowflake.connector.errors.Error("Batch failed")
         # execute (row-by-row) réussit
         mock_snowflake_conn.cursor().execute.return_value = None
         
@@ -497,15 +498,16 @@ class TestFlushBatch:
         La 2ème row doit être écrite en DLQ.
         """
         from pipelines.daily_cdc_batch import MediCoreCDC
+        import snowflake.connector.errors
         
         cdc = MediCoreCDC.__new__(MediCoreCDC)
         cdc.sf_cursor = mock_snowflake_conn.cursor()
         cdc._write_dlq = Mock()
         
-        # executemany échoue
-        mock_snowflake_conn.cursor().executemany.side_effect = Exception("Batch failed")
+        # executemany échoue avec une erreur Snowflake
+        mock_snowflake_conn.cursor().executemany.side_effect = snowflake.connector.errors.Error("Batch failed")
         # execute : 1ère row OK, 2ème row KO
-        mock_snowflake_conn.cursor().execute.side_effect = [None, Exception("Row 2 invalid")]
+        mock_snowflake_conn.cursor().execute.side_effect = [None, snowflake.connector.errors.Error("Row 2 invalid")]
         
         events = [{"PHA_ID": 1}, {"PHA_ID": "invalid"}]
         
