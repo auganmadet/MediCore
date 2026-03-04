@@ -31,6 +31,9 @@ CREATE OR REPLACE AUTHENTICATION POLICY MEDICORE_TEMP.AUTH_POLICIES.MEDICORE_NO_
 -- 1.3 Attacher la policy au compte (tous les users en beneficient)
 ALTER ACCOUNT SET AUTHENTICATION POLICY = MEDICORE_TEMP.AUTH_POLICIES.MEDICORE_NO_MFA_REQUIRED;
 
+-- 1.4 Desactiver explicitement MFA pour l'utilisateur principal
+ALTER USER AUGUSTIN SET DISABLE_MFA = TRUE;
+
 -- ============================================================================
 -- SECTION 2 : WAREHOUSE
 -- ============================================================================
