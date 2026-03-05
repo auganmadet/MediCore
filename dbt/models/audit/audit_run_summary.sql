@@ -14,7 +14,6 @@ WITH runs AS (
         RUN_END,
         STATUS,
         ENV,
-        TRIGGERED_BY,
         TIMESTAMPDIFF('second', RUN_START, COALESCE(RUN_END, CURRENT_TIMESTAMP())) AS duration_seconds
     FROM MEDICORE.AUDIT.PIPELINE_RUNS
 ),
@@ -25,7 +24,7 @@ steps_agg AS (
         COUNT(*) AS total_steps,
         SUM(CASE WHEN STATUS = 'SUCCESS' THEN 1 ELSE 0 END) AS steps_ok,
         SUM(CASE WHEN STATUS = 'FAILED' THEN 1 ELSE 0 END) AS steps_failed,
-        SUM(COALESCE(ROWS_AFFECTED, 0)) AS total_rows
+        SUM(COALESCE(ROWS_PROCESSED, 0)) AS total_rows
     FROM MEDICORE.AUDIT.PIPELINE_STEP_RUNS
     GROUP BY RUN_ID
 )
@@ -36,7 +35,6 @@ SELECT
     r.RUN_END,
     r.STATUS,
     r.ENV,
-    r.TRIGGERED_BY,
     r.duration_seconds,
     COALESCE(s.total_steps, 0) AS total_steps,
     COALESCE(s.steps_ok, 0) AS steps_ok,

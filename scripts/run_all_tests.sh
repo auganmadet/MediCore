@@ -535,15 +535,24 @@ log_info "Exécution de dbt build"
 export DBT_TARGET_PATH="/tmp/dbt_target_$$"
 mkdir -p "$DBT_TARGET_PATH"
 
-if "$PROJECT_ROOT/.venv/bin/dbt" build --profiles-dir "$PROJECT_ROOT/dbt" --target-path "$DBT_TARGET_PATH" 2>&1 | grep -v "Deprecat"; then
-    log_pass "dbt build terminé avec succès"
+# Capturer la sortie dbt pour analyser les erreurs
+DBT_OUTPUT=$("$PROJECT_ROOT/.venv/bin/dbt" build --profiles-dir "$PROJECT_ROOT/dbt" --target-path "$DBT_TARGET_PATH" 2>&1)
+DBT_EXIT_CODE=$?
+
+# Afficher la sortie (filtrer les warnings de dépréciation)
+echo "$DBT_OUTPUT" | grep -v "Deprecat"
+
+# Extraire le résumé (ligne "Done. PASS=X WARN=Y ERROR=Z")
+DBT_SUMMARY=$(echo "$DBT_OUTPUT" | grep -oE "Done\. PASS=[0-9]+ WARN=[0-9]+ ERROR=[0-9]+" | tail -1)
+DBT_ERROR_COUNT=$(echo "$DBT_SUMMARY" | grep -oE "ERROR=[0-9]+" | grep -oE "[0-9]+")
+
+# Vérifier les erreurs
+if [ -n "$DBT_ERROR_COUNT" ] && [ "$DBT_ERROR_COUNT" -gt 0 ]; then
+    log_fail "dbt build a terminé avec $DBT_ERROR_COUNT erreur(s) - $DBT_SUMMARY"
+elif [ $DBT_EXIT_CODE -ne 0 ]; then
+    log_fail "dbt build a échoué (exit code: $DBT_EXIT_CODE)"
 else
-    # Vérifier le code de retour réel (dbt peut avoir réussi malgré les warnings)
-    if [ ${PIPESTATUS[0]} -eq 0 ]; then
-        log_pass "dbt build terminé avec succès"
-    else
-        log_fail "Échec de dbt build"
-    fi
+    log_pass "dbt build terminé avec succès - $DBT_SUMMARY"
 fi
 
 # Nettoyage du répertoire temporaire

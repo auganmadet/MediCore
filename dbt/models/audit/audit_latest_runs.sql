@@ -23,7 +23,7 @@ SELECT
     s.STEP_START,
     s.STEP_END,
     s.STATUS AS step_status,
-    s.ROWS_AFFECTED,
+    s.ROWS_PROCESSED AS ROWS_AFFECTED,
     s.ERROR_MESSAGE,
     TIMESTAMPDIFF('second', s.STEP_START, COALESCE(s.STEP_END, CURRENT_TIMESTAMP())) AS step_duration_seconds
 FROM recent_runs r

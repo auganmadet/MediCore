@@ -1,0 +1,33 @@
+# Force LF pour tous les fichiers texte
+* text=auto eol=lf
+
+# Scripts shell - toujours LF
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Python
+*.py text eol=lf
+
+# SQL et dbt
+*.sql text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Config
+*.json text eol=lf
+*.toml text eol=lf
+*.cfg text eol=lf
+*.ini text eol=lf
+*.env text eol=lf
+
+# Markdown et docs
+*.md text eol=lf
+*.txt text eol=lf
+
+# Fichiers binaires - ne pas toucher
+*.parquet binary
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.pdf binary

@@ -32,6 +32,13 @@ with stock_enriched as (
     {% if is_incremental() %}
     where s.loaded_at >= (select coalesce(max(loaded_at), '1900-01-01') from {{ this }})
     {% endif %}
+    -- Déduplication : garder la dernière version par clé unique
+    qualify row_number() over (
+        partition by coalesce(ph.pharmacie_sk, md5('-1')), 
+                     coalesce(prod.produit_sk, md5('-1' || '-' || '-1')), 
+                     s.STH_DATE::date
+        order by s.loaded_at desc
+    ) = 1
 )
 
 select
