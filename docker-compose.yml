@@ -9,7 +9,7 @@ services:
       - .env
     environment:
       - ENV=dev
-      # - KAFKA_BOOTSTRAP_SERVERS: kafka:9092   # pour kafka-python lib, déclaré dans .env
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092  # listener INTERNAL (pas EXTERNAL/localhost)
       - SNOWFLAKE_ACCOUNT=${SNOWFLAKE_ACCOUNT}
       - SNOWFLAKE_USER=${SNOWFLAKE_USER}
       - SNOWFLAKE_PASSWORD=${SNOWFLAKE_PASSWORD}
@@ -155,7 +155,7 @@ services:
       kafka:
         condition: service_healthy
     environment:
-      KAFKA_BROKERCONNECT: kafka:9092
+      KAFKA_BROKERCONNECT: kafka:29092
     ports:
       - "127.0.0.1:9000:9000"
     networks:
