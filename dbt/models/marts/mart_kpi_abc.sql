@@ -1,6 +1,8 @@
 {{
     config(
-        materialized='table',
+        materialized='incremental',
+        unique_key=['pharmacie_sk', 'produit_sk', 'mois'],
+        incremental_strategy='merge',
         schema='MARTS',
         tags=['marts', 'kpi', 'abc']
     )
@@ -15,6 +17,9 @@ with ventes_mensuelles as (
         sum(quantite_vendue)                                as quantite_vendue,
         sum(nb_lignes)                                      as nb_lignes
     from {{ ref('fact_ventes') }}
+    {% if is_incremental() %}
+    where date_vente >= dateadd('month', -2, current_date())
+    {% endif %}
     group by pharmacie_sk, produit_sk, date_trunc('month', date_vente)
 ),
 

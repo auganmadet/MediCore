@@ -1,6 +1,8 @@
 {{
     config(
-        materialized='table',
+        materialized='incremental',
+        unique_key=['pharmacie_sk', 'operateur', 'mois'],
+        incremental_strategy='merge',
         schema='MARTS',
         tags=['marts', 'kpi', 'operateur']
     )
@@ -17,8 +19,12 @@ with operateur_mensuel as (
         sum(cout_achat_ht)                                  as cout_achat_ht,
         sum(nb_lignes)                                      as nb_lignes,
         sum(nb_lignes_remboursables)                        as nb_lignes_remboursables,
+        sum(nb_clients_distincts)                           as nb_clients_total,
         count(distinct date_vente)                          as nb_jours_activite
     from {{ ref('fact_operateur') }}
+    {% if is_incremental() %}
+    where date_vente >= dateadd('month', -2, current_date())
+    {% endif %}
     group by pharmacie_sk, operateur, date_trunc('month', date_vente)
 ),
 
@@ -52,6 +58,14 @@ select
     o.quantite_vendue,
     o.nb_lignes,
     o.nb_jours_activite,
+    o.nb_clients_total,
+
+    -- Nombre de clients par jour (KPI demandé)
+    case
+        when o.nb_jours_activite > 0
+        then o.nb_clients_total::float / o.nb_jours_activite
+        else null
+    end                                                     as nb_clients_par_jour,
 
     -- Panier moyen
     case

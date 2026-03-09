@@ -1,6 +1,8 @@
 {{
     config(
-        materialized='table',
+        materialized='incremental',
+        unique_key=['pharmacie_sk', 'produit_sk', 'mois'],
+        incremental_strategy='merge',
         schema='MARTS',
         tags=['marts', 'kpi', 'stock_valorisation']
     )
@@ -21,6 +23,9 @@ with stock_mensuel as (
         max_by(prix_achat_net, date_stock)                  as prix_achat_net_fin,
         min_by(prix_achat_net, date_stock)                  as prix_achat_net_debut
     from {{ ref('fact_stock_valorisation') }}
+    {% if is_incremental() %}
+    where date_stock >= dateadd('month', -2, current_date())
+    {% endif %}
     group by pharmacie_sk, produit_sk, date_trunc('month', date_stock)
 ),
 
@@ -31,6 +36,9 @@ ventes_mensuelles as (
         date_trunc('month', date_vente)                     as mois,
         sum(quantite_vendue)                                as quantite_vendue
     from {{ ref('fact_ventes') }}
+    {% if is_incremental() %}
+    where date_vente >= dateadd('month', -2, current_date())
+    {% endif %}
     group by pharmacie_sk, produit_sk, date_trunc('month', date_vente)
 )
 

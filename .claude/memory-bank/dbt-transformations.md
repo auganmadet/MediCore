@@ -71,7 +71,34 @@ Jointures LEFT JOIN vers les 3 dimensions. Pattern orphelin : `COALESCE(dim.sk, 
 les FK sans correspondance (pharmacie, produit, fournisseur). Chaque dimension contient une ligne
 orpheline (`-1`, `'INCONNU'`) via `UNION ALL`.
 
-### KPIs métier
+### KPIs métier (15)
+
+**Matérialisation mixte** : incremental (11) + table (4)
+
+#### Marts incremental (merge 2 derniers mois)
+
+| Mart | Clé unique | Grain |
+|------|------------|-------|
+| `mart_kpi_abc` | pharmacie_sk, produit_sk, mois | Produit/mois |
+| `mart_kpi_ecoulement` | pharmacie_sk, produit_sk, mois | Produit/mois |
+| `mart_kpi_generique` | pharmacie_sk, mois, FOU_ID, is_generique, univers | Labo/mois |
+| `mart_kpi_marge` | pharmacie_sk, produit_sk, date_jour | Produit/jour |
+| `mart_kpi_operateur` | pharmacie_sk, operateur, mois | Opérateur/mois |
+| `mart_kpi_remise_labo` | pharmacie_sk, fournisseur_sk, mois | Labo/mois |
+| `mart_kpi_ruptures` | pharmacie_sk, produit_sk, mois | Produit/mois |
+| `mart_kpi_stock` | pharmacie_sk, produit_sk, mois | Produit/mois |
+| `mart_kpi_stock_valorisation` | pharmacie_sk, produit_sk, mois | Produit/mois |
+| `mart_kpi_tresorerie` | pharmacie_sk, mois | Pharmacie/mois |
+| `mart_kpi_univers` | pharmacie_sk, mois, univers | Univers/mois |
+
+#### Marts table (full refresh obligatoire)
+
+| Mart | Raison |
+|------|--------|
+| `mart_kpi_dormant` | Utilise `current_date()` — état changeant quotidiennement |
+| `mart_kpi_qualite_donnees` | Utilise `current_timestamp()` — fraîcheur temps réel |
+| `mart_kpi_ca_evolution` | Calculs YTD et 12DM rolling — historique complet requis |
+| `mart_kpi_synthese_pharmacie` | Agrège depuis marts non-incrémentaux |
 
 Calculs agrégés sur les faits, documentés dans `docs/KPIs.md`.
 
@@ -124,13 +151,24 @@ Utilisé dans : `fact_commandes`, `fact_operateur`, `fact_prix_journalier`,
 ## Commandes dbt courantes
 
 ```bash
+# === RUNS QUOTIDIENS ===
 dbt run --select tag:staging          # Tous les modèles staging
 dbt run --select tag:marts            # Tous les modèles marts
+dbt run --select tag:kpi              # Tous les marts KPI (incremental)
+
+# === INITIALISATION / REFRESH MENSUEL ===
+dbt run --select tag:kpi --full-refresh   # Full refresh marts KPI (à faire 1x/mois)
+
+# === MODÈLES SPÉCIFIQUES ===
 dbt run --select stg_commandes        # Un modèle spécifique
 dbt run --select +fact_ventes         # Modèle + ses dépendances
+
+# === TESTS ===
 dbt test --select stg_*               # Tests staging
 dbt test --select _marts              # Tests marts
-dbt source freshness                  # Fraîcheur des sources
+
+# === MAINTENANCE ===
+dbt source freshness                  # Vérifier fraîcheur des sources
 dbt debug                             # Diagnostic connexion
 dbt deps                              # Installer packages
 ```

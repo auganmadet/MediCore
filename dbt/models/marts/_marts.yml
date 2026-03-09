@@ -20,7 +20,7 @@ models:
           - not_null
 
   - name: dim_produit
-    description: "Produits enrichis EAN13 + LPPR (sources: stg_produits + stg_ean13 + stg_lppr)"
+    description: "Produits enrichis EAN13 + LPPR + classification (sources: stg_produits + stg_ean13 + stg_lppr)"
     columns:
       - name: produit_sk
         tests:
@@ -35,6 +35,12 @@ models:
       - name: PRD_EAN13
       - name: LPP_CODE
       - name: FOU_ID
+      - name: is_generique
+        description: "true si produit generique (PRD_REFGEN in 71, 82)"
+      - name: univers
+        description: "Classification: RX (ordonnance), OTC (conseil), PARA, HORS_REMB, AUTRE"
+      - name: derniere_vente
+        description: "Date de derniere vente du produit"
 
   - name: dim_fournisseur
     description: "Fournisseurs hiérarchiques (source: stg_fournisseurs ← RAW_FOURNISSEURS)"
@@ -385,7 +391,7 @@ models:
         description: "Part des pharmacies avec statut OK"
 
   - name: fact_operateur
-    description: "Ventes horaires par operateur et pharmacie (sources: stg_mediprix_factures + dim_pharmacie)"
+    description: "Ventes horaires par operateur et pharmacie (sources: stg_mediprix_factures + stg_orders + dim_pharmacie)"
     columns:
       - name: pharmacie_sk
         tests:
@@ -407,9 +413,11 @@ models:
         description: "CA HT opérateur (peut être négatif pour avoirs)"
       - name: cout_achat_ht
         description: "Coût d'achat HT (peut être négatif)"
+      - name: nb_clients_distincts
+        description: "Nombre de clients distincts servis (via ORD_CLI_TI)"
 
   - name: mart_kpi_operateur
-    description: "Performance operateur mensuelle : CA, panier moyen, marge, mix rembourse/libre, heure de pic (source: fact_operateur)"
+    description: "Performance operateur mensuelle : CA, panier moyen, marge, clients par jour, mix rembourse/libre, heure de pic (source: fact_operateur)"
     columns:
       - name: pharmacie_sk
         tests:
@@ -420,6 +428,10 @@ models:
       - name: mois
         tests:
           - not_null
+      - name: nb_clients_total
+        description: "Nombre total de clients distincts servis dans le mois"
+      - name: nb_clients_par_jour
+        description: "Nombre moyen de clients servis par jour (nb_clients_total / nb_jours_activite)"
       - name: panier_moyen
         description: "CA TTC / nb lignes (null si aucune ligne)"
       - name: taux_marge
@@ -447,3 +459,161 @@ models:
         description: "Pourcentage cumule du CA (pour tracer la courbe de Pareto)"
       - name: classe_abc
         description: "A (top 80% CA), B (80-95%), C (> 95%)"
+
+  - name: mart_kpi_ca_evolution
+    description: "Evolution du CA : année N vs N-1, cumul YTD, 12 derniers mois glissants (source: fact_ventes)"
+    columns:
+      - name: pharmacie_sk
+        tests:
+          - not_null
+      - name: mois
+        tests:
+          - not_null
+      - name: ca_ht
+        description: "CA HT du mois"
+      - name: evolution_ca_ht_vs_a1
+        description: "Variation CA HT vs meme mois A-1 (ratio)"
+      - name: ca_ht_ytd
+        description: "CA HT cumule depuis debut d'annee (Year-To-Date)"
+      - name: evolution_ytd_vs_a1
+        description: "Variation YTD vs YTD A-1"
+      - name: ca_ht_12dm
+        description: "CA HT sur les 12 derniers mois glissants"
+      - name: evolution_12dm_vs_a1
+        description: "Variation 12DM vs 12DM A-1"
+
+  - name: mart_kpi_generique
+    description: "KPIs generiques et parts de marche laboratoires par pharmacie (sources: fact_ventes + dim_produit + dim_fournisseur)"
+    columns:
+      - name: pharmacie_sk
+        tests:
+          - not_null
+      - name: mois
+        tests:
+          - not_null
+      - name: FOU_ID
+        description: "Identifiant fournisseur/laboratoire"
+      - name: FOU_NOM
+        description: "Nom du laboratoire"
+      - name: is_generique
+        description: "true si produit generique"
+      - name: univers
+        description: "Classification: RX (ordonnance), OTC (conseil), PARA, HORS_REMB"
+      - name: pdm_labo
+        description: "Part de marche du labo dans la pharmacie (CA labo / CA total)"
+      - name: taux_generique_pharmacie
+        description: "Taux de generique global de la pharmacie"
+      - name: evolution_vs_a1
+        description: "Variation CA vs meme mois A-1"
+
+  - name: mart_kpi_dormant
+    description: "Produits dormants (sans vente 6/12 mois) avec valorisation stock immobilise (sources: dim_produit + fact_ventes + fact_stock_valorisation)"
+    columns:
+      - name: produit_sk
+        tests:
+          - not_null
+      - name: pharmacie_sk
+        tests:
+          - not_null
+      - name: statut_dormant
+        description: "ACTIF, DORMANT_3M, DORMANT_6M, DORMANT_12M, JAMAIS_VENDU"
+      - name: jours_sans_vente
+        description: "Nombre de jours depuis la derniere vente"
+      - name: is_dormant_6m
+        description: "true si aucune vente depuis 6 mois"
+      - name: is_dormant_12m
+        description: "true si aucune vente depuis 12 mois"
+      - name: valeur_stock_pa
+        description: "Valeur du stock au prix d'achat (capital immobilise)"
+      - name: marge_latente_bloquee
+        description: "Marge potentielle bloquee dans le stock dormant"
+
+  - name: mart_kpi_remise_labo
+    description: "Remise ponderee par laboratoire et pharmacie (source: fact_commandes + dim_fournisseur)"
+    columns:
+      - name: pharmacie_sk
+        tests:
+          - not_null
+      - name: FOU_ID
+        description: "Identifiant du laboratoire/fournisseur"
+        tests:
+          - not_null
+      - name: laboratoire
+        description: "Nom du laboratoire"
+      - name: mois
+        tests:
+          - not_null
+      - name: nb_commandes
+        description: "Nombre de commandes passees au labo"
+      - name: quantite_commandee
+        description: "Quantite totale commandee"
+      - name: montant_pahtnet
+        description: "Montant total HT net des commandes"
+      - name: remise_moyenne_simple
+        description: "Moyenne arithmetique des taux de remise"
+      - name: remise_ponderee_qte
+        description: "Remise moyenne ponderee par quantite"
+      - name: remise_ponderee_montant
+        description: "Remise moyenne ponderee par montant (KPI principal)"
+
+  - name: mart_kpi_univers
+    description: "KPIs par univers (RX, OTC, PARA, HORS_REMB) - pret pour dashboard (source: mart_kpi_generique)"
+    columns:
+      - name: pharmacie_sk
+        tests:
+          - not_null
+      - name: mois
+        tests:
+          - not_null
+      - name: univers
+        description: "Univers produit: RX, OTC, PARA, HORS_REMB, AUTRE"
+        tests:
+          - not_null
+      - name: ca_ht
+        description: "CA HT de l'univers"
+      - name: marge_brute
+        description: "Marge brute de l'univers"
+      - name: taux_marge
+        description: "Taux de marge de l'univers"
+      - name: pct_ca_univers
+        description: "Part du CA de l'univers dans le CA total pharmacie"
+      - name: pct_marge_univers
+        description: "Part de la marge de l'univers dans la marge totale"
+      - name: evolution_ca_vs_a1
+        description: "Evolution CA vs annee precedente"
+
+  - name: mart_kpi_synthese_pharmacie
+    description: "Synthese KPIs par pharmacie/mois - PRET POUR DASHBOARD, aucun calcul supplementaire requis"
+    columns:
+      - name: pharmacie_sk
+        tests:
+          - not_null
+      - name: mois
+        tests:
+          - not_null
+      - name: ca_ht
+        description: "CA HT mensuel"
+      - name: evolution_ca_vs_a1
+        description: "Evolution CA vs A-1"
+      - name: ca_ht_ytd
+        description: "CA HT cumule annee en cours"
+      - name: evolution_ytd_vs_a1
+        description: "Evolution YTD vs A-1"
+      - name: marge_brute
+        description: "Marge brute totale"
+      - name: taux_marge
+        description: "Taux de marge global"
+      - name: valeur_stock_pa
+        description: "Valeur stock au prix d'achat"
+      - name: ratio_stock_ca_annuel_pct
+        description: "Ratio valeur stock / CA annuel en % (KPI cle)"
+      - name: ca_ht_generique
+        description: "CA HT des generiques"
+      - name: taux_generique
+        description: "Part des generiques dans le CA"
+      - name: taux_marge_generique
+        description: "Taux de marge sur les generiques"
+      - name: pct_dormants_6m
+        description: "% produits sans vente > 6 mois"
+      - name: pct_dormants_12m
+        description: "% produits sans vente > 12 mois"

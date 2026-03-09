@@ -1,6 +1,8 @@
 {{
     config(
-        materialized='table',
+        materialized='incremental',
+        unique_key=['pharmacie_sk', 'produit_sk', 'mois'],
+        incremental_strategy='merge',
         schema='MARTS',
         tags=['marts', 'kpi', 'stock']
     )
@@ -14,6 +16,9 @@ with stock_journalier as (
         stock_apres,
         date_trunc('month', date_mouvement) as mois
     from {{ ref('fact_stock_mouvement') }}
+    {% if is_incremental() %}
+    where date_mouvement >= dateadd('month', -2, current_date())
+    {% endif %}
 ),
 
 stock_mensuel as (
@@ -64,4 +69,4 @@ from stock_mensuel s
 left join ventes_mensuelles v
     on s.pharmacie_sk = v.pharmacie_sk
     and s.produit_sk = v.produit_sk
-    and s.mois = v.mois
+    and s.mois = v.m

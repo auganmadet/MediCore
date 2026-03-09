@@ -1,6 +1,8 @@
 {{
     config(
-        materialized='table',
+        materialized='incremental',
+        unique_key=['pharmacie_sk', 'produit_sk', 'mois'],
+        incremental_strategy='merge',
         schema='MARTS',
         tags=['marts', 'kpi', 'ruptures']
     )
@@ -17,6 +19,9 @@ with ruptures_mensuelles as (
         sum(nb_factures_impactees)          as nb_factures_impactees,
         count(distinct date_rupture)        as nb_jours_rupture
     from {{ ref('fact_ruptures') }}
+    {% if is_incremental() %}
+    where date_rupture >= dateadd('month', -2, current_date())
+    {% endif %}
     group by pharmacie_sk, produit_sk, date_trunc('month', date_rupture)
 ),
 

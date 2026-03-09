@@ -17,6 +17,8 @@ with enriched_products as (
         p.PRD_TVA,
         p.FOU_ID,
         p.PRD_STOCK,
+        p.PRD_REFGEN,
+        p.PRD_DERN_VENTE,
         e.EAN_13 as primary_ean13,
         l.LPP_CODE,
         l.LPP_ACTE_NOM,
@@ -47,7 +49,21 @@ select
     FOU_ID,
     PRD_STOCK,
     LPP_CODE,
-    LPP_ACTE_NOM
+    LPP_ACTE_NOM,
+    -- Classification générique (PRD_REFGEN: 71, 82 = génériques)
+    case
+        when PRD_REFGEN in (71, 82) then true
+        else false
+    end as is_generique,
+    -- Classification univers basée sur code remboursement
+    case
+        when PRD_CODEREMBT in (1, 2, 3) then 'RX'          -- Remboursable (ordonnance)
+        when PRD_CODEREMBT in (4, 5) then 'OTC'            -- Conseil / OTC
+        when PRD_CODEREMBT in (6, 7) then 'PARA'           -- Parapharmacie
+        when PRD_CODEREMBT = 0 then 'HORS_REMB'            -- Non remboursable
+        else 'AUTRE'
+    end as univers,
+    PRD_DERN_VENTE as derniere_vente
 from enriched_products
 where rn = 1
 
@@ -59,4 +75,7 @@ select
     'INCONNU' as PRD_NOM, null as EAN13,
     null as PRD_CODEREMBT, null as PRD_CODEACTE,
     null as PRD_TVA, null as FOU_ID, null as PRD_STOCK,
-    null as LPP_CODE, null as LPP_ACTE_NOM
+    null as LPP_CODE, null as LPP_ACTE_NOM,
+    false as is_generique,
+    'AUTRE' as univers,
+    null as derniere_vente

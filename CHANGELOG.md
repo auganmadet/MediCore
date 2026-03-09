@@ -5,6 +5,66 @@ Chaque entrée décrit **ce qui a changé** du point de vue métier et son impac
 
 ---
 
+## [2026-03-09] — Optimisation coûts : Marts KPI en incremental
+
+### Modifications
+- **9 marts KPI convertis en incremental** : passage de `materialized='table'` (full refresh) à `materialized='incremental'` avec stratégie `merge` sur les 2 derniers mois.
+  - `mart_kpi_abc` — Classification ABC produits
+  - `mart_kpi_marge` — Marge par produit/jour
+  - `mart_kpi_generique` — Génériques et PDM laboratoires
+  - `mart_kpi_stock` — Stock mensuel et rotation
+  - `mart_kpi_ruptures` — Ruptures et CA perdu
+  - `mart_kpi_remise_labo` — Remise pondérée par labo
+  - `mart_kpi_operateur` — Performance vendeurs
+  - `mart_kpi_tresorerie` — Trésorerie mensuelle
+  - `mart_kpi_univers` — KPIs par univers (RX, OTC, PARA)
+
+### Marts restés en table (full refresh obligatoire)
+- `mart_kpi_dormant` — utilise `current_date()` (état changeant quotidiennement)
+- `mart_kpi_qualite_donnees` — utilise `current_timestamp()` (fraîcheur temps réel)
+- `mart_kpi_ca_evolution` — calculs YTD et 12DM rolling (historique complet requis)
+- `mart_kpi_synthese_pharmacie` — agrège depuis marts non-incrémentaux
+
+### Impact
+- **Économie estimée** : ~35 EUR/mois (~420 EUR/an)
+- **Réduction temps d'exécution** : 80-90% sur les runs quotidiens
+- **Marts incremental** : 11/15 (73%)
+- **Marts table** : 4/15 (27%)
+
+### Recommandation
+- Planifier un `--full-refresh` mensuel pour rattraper les données tardives
+
+---
+
+## [2026-03-06] — KPIs Dashboard-Ready et Documentation
+
+### Ajouts
+- **mart_kpi_univers** : KPIs pré-agrégés par univers (RX, OTC, PARA, HORS_REMB) pour affichage direct sur dashboard sans filtre. Inclut CA, marge, taux de marge, % CA univers, % marge univers, evolution vs A-1.
+- **mart_kpi_synthese_pharmacie** : vue consolidée de tous les KPIs principaux au niveau pharmacie/mois. Inclut CA + evolution, marge + taux, valeur stock, ratio stock/CA annuel, CA générique + taux, % dormants 6m/12m. Aucun calcul requis côté application.
+
+### Documentation
+- **docs/KPIs.md** : ajout de 6 nouvelles sections (2.10-2.15) documentant les marts KPI avec formules, grain et utilités métier :
+  - mart_kpi_ca_evolution — Evolution CA vs A-1
+  - mart_kpi_generique — Génériques et Parts de Marché Labo
+  - mart_kpi_remise_labo — Remise Pondérée par Laboratoire
+  - mart_kpi_univers — KPIs par Univers (Dashboard)
+  - mart_kpi_dormant — Produits Sans Vente
+  - mart_kpi_synthese_pharmacie — Vue Dashboard Consolidée
+- **docs/KPIs.md section 4.4** : documentation des 3 KPIs NON DISPO avec structures de données requises :
+  - Cartes de fidélité (source: API Mediplace, table `mediplace.client`)
+  - Montant de challenges Medila (source: API Mediplace, table `mediplace.challenge_vente`)
+  - CA par catégorie de marché (source: référentiel catégories à créer)
+- **KPI-recherche_Simon.csv** : mise à jour avec colonnes exactes des modèles dbt, suppression des calculs pour KPIs OK, ajout des données requises pour KPIs NON DISPO.
+- **dbt/models/marts/_marts.yml** : documentation des 2 nouveaux marts avec descriptions et tags.
+
+### Contexte métier documenté
+- **PDM** (Part De Marché) : ratio CA labo / CA total, permet négociation fournisseurs et analyse concurrentielle
+- **CPAM** : objectif 80% de substitution générique imposé par l'Assurance Maladie
+- **Univers** : classification RX (prescription), OTC (automédication), PARA (parapharmacie), HORS_REMB
+- **Remise pondérée** : moyenne pondérée par quantité ou montant (plus représentative que moyenne simple)
+
+---
+
 ## [2026-03-03] — Présentation PowerPoint MediCore
 
 ### Ajouts

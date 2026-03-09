@@ -1,6 +1,8 @@
 {{
     config(
-        materialized='table',
+        materialized='incremental',
+        unique_key=['pharmacie_sk', 'produit_sk', 'date_jour'],
+        incremental_strategy='merge',
         schema='MARTS',
         tags=['marts', 'kpi', 'marge']
     )
@@ -27,6 +29,9 @@ prix as (
         prix_achat_moyen_pondere,
         prix_achat_net
     from {{ ref('fact_prix_journalier') }}
+    {% if is_incremental() %}
+    where date_prix >= dateadd('month', -2, current_date())
+    {% endif %}
 )
 
 select

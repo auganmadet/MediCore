@@ -26,7 +26,19 @@ Ce document recense l'ensemble des indicateurs clés de performance (KPIs) calcu
    - [mart_kpi_operateur](#28-mart_kpi_operateur--performance-opérateur)
    - [mart_kpi_abc](#29-mart_kpi_abc--classification-pareto)
 3. [Axes d'analyse (dimensions)](#3-axes-danalyse-dimensions)
-4. [KPIs manquants et plan d'action](#4-kpis-manquants-et-plan-daction)
+4. [Classification des KPIs par catégorie commerciale](#4-classification-des-kpis-par-catégorie-commerciale)
+   - [Sell-in](#41-sell-in-achats-fournisseurs--pharmacie)
+   - [Sell-out](#42-sell-out-pharmacie--consommateur-final)
+   - [Sell-through](#43-sell-through-taux-découlement--rotation)
+   - [Upsell](#44-upsell--upselling-montée-en-gamme)
+   - [Cross-sell](#45-cross-sell--cross-selling-ventes-additionnelles)
+   - [Downsell](#46-downsell--down-selling-substitution-vers-moins-cher)
+   - [Repeat / Réachat](#47-repeat--réachat)
+   - [Churn](#48-churn-attrition-client)
+   - [CLV / LTV](#49-clv--ltv-customer-lifetime-value)
+   - [Attach rate](#410-attach-rate-taux-dassociation-produits)
+   - [Synthèse de couverture](#411-synthèse-de-couverture)
+5. [KPIs manquants et plan d'action](#5-kpis-manquants-et-plan-daction)
 
 ---
 
@@ -646,6 +658,192 @@ Les deux indicateurs sont complémentaires : un produit peut avoir le stock à z
 - Un produit classe A en rupture = urgence absolue (fort impact CA)
 - Un produit classe C avec stock dormant = candidat au déstockage
 
+
+### 2.10 mart_kpi_ca_evolution — Évolution CA vs A-1
+
+**Source** : `fact_ventes`, agrégée au mois avec comparaison année précédente.
+
+**Logique** : on calcule le CA mensuel, le CA cumulé année (YTD) et le CA sur 12 mois glissants, puis on compare à la même période de l'année précédente.
+
+**Grain** : pharmacie, mois.
+
+  ┌──────────────────────┬──────────────────────────────────────┬──────────────────────────────────────────────┐
+  │ KPI                  │ Formule                              │ Description                                  │
+  ├──────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ CA HT                │ sum(ca_ht)                           │ CA HT du mois                                │
+  ├──────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ CA HT A-1            │ CA HT du même mois année précédente  │ Base de comparaison                          │
+  ├──────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ Evolution vs A-1     │ (CA - CA_A1) / CA_A1                 │ Taux de croissance mensuel                   │
+  ├──────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ CA HT YTD            │ Cumul depuis janvier                 │ CA cumulé année en cours                     │
+  ├──────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ Evolution YTD vs A-1 │ (YTD - YTD_A1) / YTD_A1              │ Croissance année en cours                    │
+  ├──────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ CA HT 12DM           │ Somme des 12 derniers mois           │ CA glissant (lisse saisonnalité)             │
+  ├──────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ Evolution 12DM       │ (12DM - 12DM_A1) / 12DM_A1           │ Tendance de fond                             │
+  └──────────────────────┴──────────────────────────────────────┴──────────────────────────────────────────────┘
+
+**Utilités :**
+- Mesurer la **croissance annuelle** de l'activité
+- Détecter une **baisse de fréquentation** ou de panier
+- Comparer aux **objectifs budgétaires**
+- Identifier les **tendances saisonnières** (via 12DM)
+
+
+### 2.11 mart_kpi_generique — Génériques et Parts de Marché Labo
+
+**Croisement** : `fact_ventes` x `dim_produit` x `dim_fournisseur` x `fact_prix_journalier`.
+
+**Logique** : on enrichit les ventes avec la classification générique/univers du produit, le laboratoire, et on calcule la marge et les parts de marché.
+
+**Grain** : pharmacie, laboratoire, univers, is_generique, mois.
+
+  ┌───────────────────────────┬──────────────────────────────────────┬──────────────────────────────────────────────┐
+  │ KPI                       │ Formule                              │ Description                                  │
+  ├───────────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ CA HT                     │ sum(ca_ht)                           │ CA par labo/univers/générique                │
+  ├───────────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ Marge brute               │ CA HT - coût achat                   │ Marge en euros                               │
+  ├───────────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ Taux de marge             │ marge_brute / ca_ht                  │ Rentabilité du segment                       │
+  ├───────────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ PDM labo                  │ CA labo / CA total pharmacie         │ Part de marché du laboratoire                │
+  ├───────────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ Taux générique            │ CA générique / CA total              │ Part des génériques dans le CA               │
+  ├───────────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ Evolution vs A-1          │ (CA - CA_A1) / CA_A1                 │ Croissance par labo/générique                │
+  └───────────────────────────┴──────────────────────────────────────┴──────────────────────────────────────────────┘
+
+**Utilités :**
+- Suivre la **politique de substitution générique** (objectif CPAM > 80%)
+- Identifier les **laboratoires stratégiques** (gros CA)
+- Négocier les **conditions commerciales** avec les labos
+- Comparer **marge générique vs princeps**
+
+
+### 2.12 mart_kpi_remise_labo — Remise Pondérée par Laboratoire
+
+**Croisement** : `fact_commandes` x `dim_fournisseur`.
+
+**Logique** : on agrège les commandes par laboratoire et on calcule la remise moyenne pondérée (par quantité ou par montant) pour évaluer les conditions fournisseurs.
+
+**Grain** : pharmacie, laboratoire, mois.
+
+  ┌───────────────────────────┬────────────────────────────────────────────┬────────────────────────────────────────────┐
+  │ KPI                       │ Formule                                    │ Description                                │
+  ├───────────────────────────┼────────────────────────────────────────────┼────────────────────────────────────────────┤
+  │ Remise moyenne simple     │ avg(remise)                                │ Moyenne arithmétique                       │
+  ├───────────────────────────┼────────────────────────────────────────────┼────────────────────────────────────────────┤
+  │ Remise pondérée quantité  │ sum(remise × qte) / sum(qte)               │ Pondérée par volumes commandés             │
+  ├───────────────────────────┼────────────────────────────────────────────┼────────────────────────────────────────────┤
+  │ Remise pondérée montant   │ sum(remise × montant) / sum(montant)       │ Pondérée par valeur (KPI principal)        │
+  ├───────────────────────────┼────────────────────────────────────────────┼────────────────────────────────────────────┤
+  │ PDM achats labo           │ montant labo / montant total               │ Part du labo dans les achats               │
+  ├───────────────────────────┼────────────────────────────────────────────┼────────────────────────────────────────────┤
+  │ Evolution remise vs A-1   │ (remise - remise_A1) / remise_A1           │ Évolution des conditions                   │
+  └───────────────────────────┴────────────────────────────────────────────┴────────────────────────────────────────────┘
+
+**Utilités :**
+- Évaluer la **qualité des accords fournisseurs**
+- Comparer les **conditions** entre laboratoires
+- Négocier de **meilleures remises**
+- Identifier les labos à **fort potentiel** de négociation
+
+
+### 2.13 mart_kpi_univers — KPIs par Univers (Dashboard)
+
+**Source** : `mart_kpi_generique`, agrégé par univers.
+
+**Logique** : on pré-agrège les KPIs par univers (RX, OTC, PARA, HORS_REMB) pour un affichage direct sur dashboard sans filtre.
+
+**Grain** : pharmacie, univers, mois.
+
+  ┌───────────────────────┬──────────────────────────────────────┬──────────────────────────────────────────────┐
+  │ KPI                   │ Formule                              │ Description                                  │
+  ├───────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ CA HT                 │ sum(ca_ht) par univers               │ CA de l'univers                              │
+  ├───────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ Marge brute           │ sum(marge_brute) par univers         │ Marge de l'univers                           │
+  ├───────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ Taux de marge         │ marge / ca_ht                        │ Rentabilité de l'univers                     │
+  ├───────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ % CA univers          │ CA univers / CA total pharmacie      │ Part de l'univers dans le CA                 │
+  ├───────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ % Marge univers       │ marge univers / marge totale         │ Contribution à la rentabilité                │
+  ├───────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ Evolution vs A-1      │ (CA - CA_A1) / CA_A1                 │ Croissance de l'univers                      │
+  └───────────────────────┴──────────────────────────────────────┴──────────────────────────────────────────────┘
+
+**Utilités :**
+- Identifier les **univers les plus rentables**
+- Orienter le **mix produit** vers les segments à forte marge
+- Adapter la **stratégie commerciale** par segment
+- Justifier les **investissements** merchandising
+
+
+### 2.14 mart_kpi_dormant — Produits Sans Vente
+
+**Croisement** : `dim_produit` x `fact_ventes` (cross join avec filtre date dernière vente).
+
+**Logique** : on identifie les produits en stock sans vente depuis 3, 6 ou 12 mois, et on valorise le capital immobilisé.
+
+**Grain** : pharmacie, produit.
+
+  ┌───────────────────────┬──────────────────────────────────────┬──────────────────────────────────────────────┐
+  │ KPI                   │ Formule                              │ Description                                  │
+  ├───────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ Statut dormant        │ ACTIF, DORMANT_3M, 6M, 12M           │ Classification par ancienneté                │
+  ├───────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ Jours sans vente      │ current_date - dernière_vente        │ Ancienneté de la dernière vente              │
+  ├───────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ is_dormant_6m         │ true si > 180 jours sans vente       │ Flag dormant 6 mois                          │
+  ├───────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ is_dormant_12m        │ true si > 365 jours sans vente       │ Flag dormant 12 mois                         │
+  ├───────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ Valeur stock PA       │ stock × prix_achat                   │ Capital immobilisé                           │
+  ├───────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ Marge latente bloquée │ stock × (prix_vente - prix_achat)    │ Marge potentielle bloquée                    │
+  └───────────────────────┴──────────────────────────────────────┴──────────────────────────────────────────────┘
+
+**Utilités :**
+- Identifier le **stock dormant** à risque péremption
+- Prioriser les **retours fournisseurs**
+- Calculer la **dépréciation comptable**
+- Améliorer les **processus d'achat** (objectif < 5%)
+
+
+### 2.15 mart_kpi_synthese_pharmacie — Vue Dashboard Consolidée
+
+**Croisement** : `mart_kpi_ca_evolution` x `mart_kpi_stock_valorisation` x `mart_kpi_generique` x `mart_kpi_dormant`.
+
+**Logique** : on agrège tous les KPIs clés au niveau pharmacie/mois pour un affichage direct sur dashboard, sans aucun calcul supplémentaire côté application.
+
+**Grain** : pharmacie, mois.
+
+  ┌────────────────────────────┬──────────────────────────────────────┬──────────────────────────────────────────────┐
+  │ KPI                        │ Formule                              │ Description                                  │
+  ├────────────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ CA HT + evolution          │ Directement depuis ca_evolution      │ CA et croissance vs A-1                      │
+  ├────────────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ Marge brute + taux         │ Agrégé depuis generique              │ Rentabilité globale                          │
+  ├────────────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ Valeur stock               │ sum(valeur_stock_pa)                 │ Capital immobilisé                           │
+  ├────────────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ **Ratio stock/CA annuel**  │ valeur_stock / ca_ht_ytd × 100       │ KPI clé (cible 8-15%)                        │
+  ├────────────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ CA générique + taux        │ Agrégé WHERE is_generique            │ Performance substitution                     │
+  ├────────────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┤
+  │ % dormants 6m / 12m        │ nb_dormants / nb_produits            │ Santé du stock (cible < 5%)                  │
+  └────────────────────────────┴──────────────────────────────────────┴──────────────────────────────────────────────┘
+
+**Utilités :**
+- **Vue exécutive** : tous les KPIs principaux en une seule requête
+- **Dashboard temps réel** : aucun calcul côté application
+- **Benchmark** : comparaison entre pharmacies du groupement
+- **Alertes** : détection automatique des écarts aux cibles
+
 ---
 
 ## 3. Axes d'analyse (dimensions)
@@ -673,11 +871,219 @@ Tous les KPIs ci-dessus peuvent être filtrés et ventilés selon les axes suiva
 
 ---
 
-## 4. KPIs manquants et plan d'action
+## 4. Classification des KPIs par catégorie commerciale
+
+Cette section classe les KPIs selon les catégories standard du commerce et de la distribution.
+
+### 4.1 Sell-in (achats fournisseurs → pharmacie)
+
+KPIs mesurant les flux d'approvisionnement auprès des grossistes et laboratoires.
+
+  ┌─────────────────────────────────┬─────────────────────────┬─────────────────────────────────────────────┐
+  │ KPI                             │ Source                  │ Description                                 │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ Montant commandé (PAHT net)     │ fact_commandes          │ Valeur des achats fournisseurs              │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ Quantités commandées            │ fact_commandes          │ Volume des achats                           │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ Remise fournisseur moyenne      │ fact_commandes          │ Conditions obtenues                         │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ Nb commandes                    │ fact_commandes          │ Fréquence des réapprovisionnements          │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ Remise pondérée quantité/montant│ mart_kpi_remise_labo    │ Remise réelle tenant compte des volumes     │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ PDM achats labo                 │ mart_kpi_remise_labo    │ Répartition des achats par laboratoire      │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ Evolution remise vs A-1         │ mart_kpi_remise_labo    │ Tendance des conditions fournisseurs        │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ Délai d'approvisionnement       │ NON DISPO               │ Requiert table RECEPTIONS                   │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ Taux de service fournisseur     │ NON DISPO               │ Requiert table RECEPTIONS                   │
+  └─────────────────────────────────┴─────────────────────────┴─────────────────────────────────────────────┘
+
+
+### 4.2 Sell-out (pharmacie → consommateur final)
+
+KPIs mesurant les ventes au comptoir, l'activité commerciale B2C.
+
+  ┌─────────────────────────────────┬─────────────────────────┬─────────────────────────────────────────────┐
+  │ KPI                             │ Source                  │ Description                                 │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ CA HT / CA TTC                  │ fact_ventes             │ Chiffre d'affaires                          │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ Quantités vendues               │ fact_ventes             │ Volume de ventes                            │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ Nb lignes de vente              │ fact_ventes             │ Nombre de transactions                      │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ Panier moyen                    │ fact_ventes             │ Montant moyen par passage en caisse         │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ Marge brute / Taux de marge     │ mart_kpi_marge          │ Rentabilité des ventes                      │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ CA + Evolution vs A-1/YTD/12DM  │ mart_kpi_ca_evolution   │ Croissance de l'activité                    │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ CA par labo / PDM labo          │ mart_kpi_generique      │ Répartition par laboratoire                 │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ CA par univers (RX/OTC/PARA)    │ mart_kpi_univers        │ Répartition par segment                     │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ CA opérateur / Panier opérateur │ mart_kpi_operateur      │ Performance par vendeur                     │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ CA par catégorie                │ NON DISPO               │ Requiert référentiel catégories             │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ Unités vendues par catégorie    │ NON DISPO               │ Requiert référentiel catégories             │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ Marge par catégorie             │ NON DISPO               │ Requiert référentiel catégories             │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ Evolution par catégorie         │ NON DISPO               │ Requiert référentiel catégories             │
+  └─────────────────────────────────┴─────────────────────────┴─────────────────────────────────────────────┘
+
+
+### 4.3 Sell-through (taux d'écoulement / rotation)
+
+KPIs mesurant la vitesse à laquelle les produits achetés sont revendus.
+
+  ┌─────────────────────────────────┬─────────────────────────┬─────────────────────────────────────────────┐
+  │ KPI                             │ Source                  │ Description                                 │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ Taux d'écoulement               │ mart_kpi_ecoulement     │ % des achats revendus dans le mois          │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ Rotation de stock               │ mart_kpi_stock          │ Nb de fois que le stock tourne/mois         │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ Couverture stock (jours)        │ mart_kpi_stock_valor.   │ Nb jours de vente couverts                  │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ Stock dormant                   │ mart_kpi_dormant        │ Produits sans vente depuis 3/6/12 mois      │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ Ratio stock/CA annuel           │ mart_kpi_synthese_pha.  │ Poids du stock vs activité (cible 8-15%)    │
+  └─────────────────────────────────┴─────────────────────────┴─────────────────────────────────────────────┘
+
+
+### 4.4 Upsell / Upselling (montée en gamme)
+
+KPIs mesurant la capacité à vendre des produits de gamme supérieure.
+
+  ┌─────────────────────────────────┬─────────────────────────┬─────────────────────────────────────────────┐
+  │ KPI                             │ Source                  │ Description                                 │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ (aucun KPI explicite)           │ —                       │ Nécessite analyse comparative des gammes    │
+  └─────────────────────────────────┴─────────────────────────┴─────────────────────────────────────────────┘
+
+*Exemple d'upsell en pharmacie : proposer Nurofen 400mg au lieu de Nurofen 200mg, ou une crème premium au lieu d'une crème standard.*
+
+
+### 4.5 Cross-sell / Cross-selling (ventes additionnelles)
+
+KPIs mesurant la capacité à vendre des produits complémentaires.
+
+  ┌─────────────────────────────────┬─────────────────────────┬─────────────────────────────────────────────┐
+  │ KPI                             │ Source                  │ Description                                 │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ Panier moyen (indirect)         │ fact_ventes             │ Un panier élevé suggère du cross-sell       │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ Nb lignes par facture (indirect)│ fact_ventes             │ Plus de lignes = plus de produits associés  │
+  └─────────────────────────────────┴─────────────────────────┴─────────────────────────────────────────────┘
+
+*Exemple de cross-sell en pharmacie : proposer un spray nasal avec un sirop contre la toux, ou une brosse à dents avec un dentifrice.*
+
+
+### 4.6 Downsell / Down-selling (substitution vers moins cher)
+
+KPIs mesurant la substitution vers des produits moins chers (notamment génériques).
+
+  ┌─────────────────────────────────┬─────────────────────────┬─────────────────────────────────────────────┐
+  │ KPI                             │ Source                  │ Description                                 │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ Taux générique                  │ mart_kpi_generique      │ % CA générique vs princeps                  │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ CA générique vs princeps        │ mart_kpi_generique      │ Comparaison des ventes par type             │
+  └─────────────────────────────────┴─────────────────────────┴─────────────────────────────────────────────┘
+
+*En pharmacie, le downsell est souvent encouragé (substitution générique) car il améliore la marge tout en réduisant le coût pour le patient et l'assurance maladie (objectif CPAM > 80%).*
+
+
+### 4.7 Repeat / Réachat
+
+KPIs mesurant la fidélité et la récurrence des achats clients.
+
+  ┌─────────────────────────────────┬─────────────────────────┬─────────────────────────────────────────────┐
+  │ KPI                             │ Source                  │ Description                                 │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ (aucun KPI)                     │ NON DISPO               │ Requiert suivi client individuel Mediplace  │
+  └─────────────────────────────────┴─────────────────────────┴─────────────────────────────────────────────┘
+
+*KPIs cibles si données Mediplace disponibles : fréquence de visite, délai moyen entre achats, taux de réachat à 30/60/90 jours.*
+
+
+### 4.8 Churn (attrition client)
+
+KPIs mesurant la perte de clients.
+
+  ┌─────────────────────────────────┬─────────────────────────┬─────────────────────────────────────────────┐
+  │ KPI                             │ Source                  │ Description                                 │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ (aucun KPI)                     │ NON DISPO               │ Requiert suivi client individuel Mediplace  │
+  └─────────────────────────────────┴─────────────────────────┴─────────────────────────────────────────────┘
+
+*KPIs cibles si données Mediplace disponibles : taux de churn mensuel, nb clients perdus, CA perdu par churn.*
+
+
+### 4.9 CLV / LTV (Customer Lifetime Value)
+
+KPIs mesurant la valeur totale d'un client sur sa durée de vie.
+
+  ┌─────────────────────────────────┬─────────────────────────┬─────────────────────────────────────────────┐
+  │ KPI                             │ Source                  │ Description                                 │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ (aucun KPI)                     │ NON DISPO               │ Requiert historique client Mediplace        │
+  └─────────────────────────────────┴─────────────────────────┴─────────────────────────────────────────────┘
+
+*KPI cible : CLV = panier moyen × fréquence annuelle × durée relation (années). Nécessite identification client.*
+
+
+### 4.10 Attach rate (taux d'association produits)
+
+KPIs mesurant la fréquence d'achat conjoint de produits.
+
+  ┌─────────────────────────────────┬─────────────────────────┬─────────────────────────────────────────────┐
+  │ KPI                             │ Source                  │ Description                                 │
+  ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
+  │ (aucun KPI)                     │ NON DISPO               │ Requiert analyse de panier (market basket)  │
+  └─────────────────────────────────┴─────────────────────────┴─────────────────────────────────────────────┘
+
+*KPI cible : % de paniers contenant le produit A qui contiennent aussi le produit B. Exemple : 65% des clients achetant un sirop achètent aussi des pastilles.*
+
+
+### 4.11 Synthèse de couverture
+
+  ┌─────────────────────────┬────────────┬─────────────────────────────────────────────────────────────┐
+  │ Catégorie               │ Statut     │ Commentaire                                                 │
+  ├─────────────────────────┼────────────┼─────────────────────────────────────────────────────────────┤
+  │ Sell-in                 │ COUVERT    │ 7 KPIs disponibles, 2 NON DISPO (réceptions)                │
+  ├─────────────────────────┼────────────┼─────────────────────────────────────────────────────────────┤
+  │ Sell-out                │ COUVERT    │ 9 KPIs disponibles, 4 NON DISPO (catégories)                │
+  ├─────────────────────────┼────────────┼─────────────────────────────────────────────────────────────┤
+  │ Sell-through            │ COUVERT    │ 5 KPIs disponibles                                          │
+  ├─────────────────────────┼────────────┼─────────────────────────────────────────────────────────────┤
+  │ Upsell                  │ NON COUVERT│ Nécessite analyse comparative des gammes produits           │
+  ├─────────────────────────┼────────────┼─────────────────────────────────────────────────────────────┤
+  │ Cross-sell              │ PARTIEL    │ 2 indicateurs indirects (panier moyen, nb lignes)           │
+  ├─────────────────────────┼────────────┼─────────────────────────────────────────────────────────────┤
+  │ Downsell                │ COUVERT    │ Via substitution générique                                  │
+  ├─────────────────────────┼────────────┼─────────────────────────────────────────────────────────────┤
+  │ Repeat / Réachat        │ NON COUVERT│ Requiert données Mediplace (suivi client)                   │
+  ├─────────────────────────┼────────────┼─────────────────────────────────────────────────────────────┤
+  │ Churn                   │ NON COUVERT│ Requiert données Mediplace (suivi client)                   │
+  ├─────────────────────────┼────────────┼─────────────────────────────────────────────────────────────┤
+  │ CLV / LTV               │ NON COUVERT│ Requiert données Mediplace (historique client)              │
+  ├─────────────────────────┼────────────┼─────────────────────────────────────────────────────────────┤
+  │ Attach rate             │ NON COUVERT│ Requiert analyse de panier (market basket analysis)         │
+  └─────────────────────────┴────────────┴─────────────────────────────────────────────────────────────┘
+
+---
+
+## 5. KPIs manquants et plan d'action
 
 Deux KPIs ne sont pas calculables aujourd'hui car les données sources nécessaires n'existent pas dans le pipeline.
 
-### 4.1 Délai d'approvisionnement
+### 5.1 Délai d'approvisionnement
 
 **Définition** : temps écoulé entre la date de commande au fournisseur et la date de réception effective de la marchandise à la pharmacie.
 
@@ -687,7 +1093,7 @@ Deux KPIs ne sont pas calculables aujourd'hui car les données sources nécessai
 
 **Pourquoi ce n'est pas possible aujourd'hui** : on connaît la date de commande (`COM_DATE` dans la table `COMMANDES`), mais aucune table source ne contient la date de réception.
 
-### 4.2 Taux de service fournisseur
+### 5.2 Taux de service fournisseur
 
 **Définition** : rapport entre la quantité effectivement livrée par le fournisseur et la quantité commandée.
 
@@ -697,7 +1103,7 @@ Deux KPIs ne sont pas calculables aujourd'hui car les données sources nécessai
 
 **Pourquoi ce n'est pas possible aujourd'hui** : on connaît la quantité commandée (`COM_QUANTITE` dans la table `COMMANDES`), mais aucune table source ne contient la quantité effectivement reçue.
 
-### 4.3 Solution : table source à intégrer
+### 5.3 Solution : table source à intégrer
 
 Les deux KPIs manquants nécessitent la même donnée : **les réceptions de marchandise**. Il faudrait intégrer une table `RECEPTIONS` (ou `LIVRAISONS`) depuis le logiciel de gestion d'officine (LGO) dans le pipeline CDC.
 
@@ -763,3 +1169,123 @@ inner join stg_receptions r
 - OCP livre en moyenne en 1.5 jours
 - OCP livre 97% des quantités commandées
 - 92% des commandes OCP arrivent complètes
+
+
+### 5.4 KPIs nécessitant des données externes
+
+Les KPIs suivants ne sont pas disponibles car ils dépendent de sources de données non encore intégrées au pipeline.
+
+#### 5.4.1 Cartes de fidélité créées
+
+**Définition** : nombre de nouvelles cartes de fidélité créées par la pharmacie sur une période donnée.
+
+**Source requise** : API Mediplace ou table MySQL `mediplace.client`
+
+**Structure minimale :**
+```
+mediplace.client
+├── client_id        INT          -- Identifiant client unique
+├── pharmacie_id     INT          -- Pharmacie ayant créé la carte
+├── date_creation    DATETIME     -- Date de création de la carte
+├── type_carte       VARCHAR      -- Type (fidélité, premium, etc.)
+└── statut           VARCHAR      -- Actif, inactif, suspendu
+```
+
+**KPI cible** : `nb_cartes_creees = count(client_id) WHERE date_creation BETWEEN debut AND fin`
+
+**Utilités :**
+- Mesurer l'**acquisition client** de la pharmacie
+- Suivre l'efficacité des **campagnes de fidélisation**
+- Comparer les **performances commerciales** entre équipes
+
+
+#### 5.4.2 Montant de challenges Medila
+
+**Définition** : montant total des ventes réalisées dans le cadre de challenges commerciaux Mediplace.
+
+**Source requise** : API Mediplace ou table MySQL `mediplace.challenge_vente`
+
+**Structure minimale :**
+```
+mediplace.challenge_vente
+├── challenge_id     INT          -- Identifiant du challenge
+├── pharmacie_id     INT          -- Pharmacie participante
+├── operateur_id     INT          -- Opérateur ayant réalisé la vente
+├── montant          DECIMAL      -- Montant de la vente challenge
+├── date_vente       DATETIME     -- Date de la vente
+└── statut           VARCHAR      -- Validé, en attente, annulé
+```
+
+**KPI cible** : `montant_challenges = sum(montant) WHERE statut = 'Validé'`
+
+**Utilités :**
+- Évaluer la **participation aux opérations commerciales**
+- Calculer les **primes et incentives** des équipes
+- Mesurer le **ROI des challenges** par rapport à l'investissement marketing
+
+
+#### 5.4.3 KPIs par catégorie de marché
+
+**Définition** : analyse des ventes par catégorie marketing (Dermo-cosmétique, Hygiène bucco-dentaire, Compléments alimentaires, etc.)
+
+**Source requise** : Référentiel catégories produit (à créer)
+
+**Structure minimale :**
+```
+ref_categories_produit
+├── PRD_ID              INT          -- Identifiant produit (jointure dim_produit)
+├── EAN13               VARCHAR(13)  -- Code EAN13 alternatif
+├── categorie_niveau1   VARCHAR      -- Macro-catégorie (ex: Médication familiale)
+├── categorie_niveau2   VARCHAR      -- Sous-catégorie (ex: Douleur, Fièvre)
+└── categorie_marche    VARCHAR      -- Segment marché (ex: OTC Rhume)
+```
+
+**KPIs cibles :**
+
+  ┌─────────────────────────────┬─────────────────────────────────────────────────┬───────────────────────────────────────────────┐
+  │ KPI                         │ Formule                                         │ Description                                   │
+  ├─────────────────────────────┼─────────────────────────────────────────────────┼───────────────────────────────────────────────┤
+  │ CA par catégorie            │ sum(ca_ht) GROUP BY categorie                   │ Répartition du CA par segment                 │
+  ├─────────────────────────────┼─────────────────────────────────────────────────┼───────────────────────────────────────────────┤
+  │ Unités vendues par catég.   │ sum(quantite) GROUP BY categorie                │ Volume de ventes par segment                  │
+  ├─────────────────────────────┼─────────────────────────────────────────────────┼───────────────────────────────────────────────┤
+  │ Marge par catégorie         │ sum(marge_brute) GROUP BY categorie             │ Rentabilité par segment                       │
+  ├─────────────────────────────┼─────────────────────────────────────────────────┼───────────────────────────────────────────────┤
+  │ Taux de marge par catég.    │ sum(marge) / sum(ca_ht) GROUP BY categorie      │ Rentabilité relative par segment              │
+  ├─────────────────────────────┼─────────────────────────────────────────────────┼───────────────────────────────────────────────┤
+  │ Evolution par catégorie     │ (CA_N - CA_N1) / CA_N1 GROUP BY categorie       │ Croissance vs année précédente                │
+  └─────────────────────────────┴─────────────────────────────────────────────────┴───────────────────────────────────────────────┘
+
+**Exemples concrets :**
+
+*Exemple 1 — Unités vendues par catégorie :*
+Une pharmacie vend en janvier :
+- Dermo-cosmétique : 1 200 unités (crèmes, soins visage)
+- Hygiène bucco-dentaire : 800 unités (dentifrices, brosses)
+- Compléments alimentaires : 450 unités (vitamines, magnésium)
+
+→ La catégorie "Dermo-cosmétique" représente 49% des unités vendues. Si le panier moyen est faible (15€), on peut envisager des actions pour augmenter le cross-selling.
+
+*Exemple 2 — Marge par catégorie :*
+Sur le même mois :
+- Dermo-cosmétique : CA 18 000€, marge 5 400€ (taux 30%)
+- Hygiène bucco-dentaire : CA 4 000€, marge 1 200€ (taux 30%)
+- Compléments alimentaires : CA 9 000€, marge 3 600€ (taux 40%)
+
+→ Les compléments alimentaires ont le meilleur taux de marge (40%). Développer ce segment permettrait d'améliorer la rentabilité globale.
+
+*Exemple 3 — Evolution par catégorie :*
+Comparaison janvier N vs janvier N-1 :
+- Dermo-cosmétique : 18 000€ vs 15 000€ → +20%
+- Hygiène bucco-dentaire : 4 000€ vs 4 500€ → -11%
+- Compléments alimentaires : 9 000€ vs 6 000€ → +50%
+
+→ L'hygiène bucco-dentaire régresse (-11%) alors que les compléments explosent (+50%). Peut-être un changement de fournisseur ou de gamme sur le bucco-dentaire ?
+
+**Utilités :**
+- Analyser le **positionnement commercial** de la pharmacie par segment
+- Identifier les **catégories sous-exploitées** à développer
+- Repérer les **catégories à forte marge** pour orienter le conseil
+- Comparer aux **parts de marché nationales** (benchmarks GERS/IMS)
+- Piloter le **merchandising** et l'allocation des linéaires
+- Mesurer l'impact des **animations commerciales** par catégorie

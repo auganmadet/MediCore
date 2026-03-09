@@ -133,21 +133,49 @@ FROM dedup_cdc WHERE rn = 1
 
 #### KPIs métier
 
-  ┌───────────────────────┬─────────────────────────────┐
-  │        Modèle         │         Description         │
-  ├───────────────────────┼─────────────────────────────┤
-  │ `mart_kpi_ecoulement` │ Délai écoulement stock      │
-  ├───────────────────────┼─────────────────────────────┤
-  │ `mart_kpi_marge`      │ Marge par produit/pharmacie │
-  ├───────────────────────┼─────────────────────────────┤
-  │ `mart_kpi_abc`        │ Classification ABC (Pareto) │
-  ├───────────────────────┼─────────────────────────────┤
-  │ `mart_kpi_ruptures`   │ Taux de rupture             │
-  ├───────────────────────┼─────────────────────────────┤
-  │ `mart_kpi_stock`      │ Niveaux de stock            │
-  ├───────────────────────┼─────────────────────────────┤
-  │ `mart_kpi_tresorerie` │ Indicateurs trésorerie      │
-  └───────────────────────┴─────────────────────────────┘
+  ┌─────────────────────────────────┬───────────────────────────────────────────────────┐
+  │            Modèle               │                    Description                    │
+  ├─────────────────────────────────┼───────────────────────────────────────────────────┤
+  │ `mart_kpi_ecoulement`           │ Délai écoulement stock                            │
+  ├─────────────────────────────────┼───────────────────────────────────────────────────┤
+  │ `mart_kpi_marge`                │ Marge par produit/pharmacie                       │
+  ├─────────────────────────────────┼───────────────────────────────────────────────────┤
+  │ `mart_kpi_abc`                  │ Classification ABC (Pareto)                       │
+  ├─────────────────────────────────┼───────────────────────────────────────────────────┤
+  │ `mart_kpi_ruptures`             │ Taux de rupture                                   │
+  ├─────────────────────────────────┼───────────────────────────────────────────────────┤
+  │ `mart_kpi_stock`                │ Niveaux de stock                                  │
+  ├─────────────────────────────────┼───────────────────────────────────────────────────┤
+  │ `mart_kpi_tresorerie`           │ Indicateurs trésorerie                            │
+  ├─────────────────────────────────┼───────────────────────────────────────────────────┤
+  │ `mart_kpi_ca_evolution`         │ CA mensuel, YTD, 12DM + evolution vs A-1          │
+  ├─────────────────────────────────┼───────────────────────────────────────────────────┤
+  │ `mart_kpi_generique`            │ Génériques + PDM labo + taux marge                │
+  ├─────────────────────────────────┼───────────────────────────────────────────────────┤
+  │ `mart_kpi_remise_labo`          │ Remise pondérée par laboratoire                   │
+  ├─────────────────────────────────┼───────────────────────────────────────────────────┤
+  │ `mart_kpi_dormant`              │ Produits sans vente 3/6/12 mois                   │
+  ├─────────────────────────────────┼───────────────────────────────────────────────────┤
+  │ `mart_kpi_univers`              │ KPIs par univers (RX/OTC/PARA) - dashboard-ready  │
+  ├─────────────────────────────────┼───────────────────────────────────────────────────┤
+  │ `mart_kpi_synthese_pharmacie`   │ Consolidation KPIs pharmacie/mois - dashboard     │
+  └─────────────────────────────────┴───────────────────────────────────────────────────┘
+
+#### Marts Dashboard-Ready (nouveaux)
+
+Ces marts sont conçus pour un affichage direct sur dashboard sans calcul côté application :
+
+**`mart_kpi_univers`** — Grain : pharmacie, univers, mois
+- CA HT, marge brute, taux marge par univers (RX, OTC, PARA, HORS_REMB)
+- % CA univers, % marge univers (contribution)
+- Evolution vs A-1
+
+**`mart_kpi_synthese_pharmacie`** — Grain : pharmacie, mois
+- CA + evolution (mensuel, YTD, vs A-1)
+- Marge brute + taux de marge
+- Valeur stock + ratio stock/CA annuel (cible 8-15%)
+- CA générique + taux générique (objectif CPAM > 80%)
+- % dormants 6m / 12m (cible < 5%)
 
 ## Clés métier principales
 

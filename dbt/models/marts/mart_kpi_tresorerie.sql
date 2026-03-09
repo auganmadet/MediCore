@@ -1,6 +1,8 @@
 {{
     config(
-        materialized='table',
+        materialized='incremental',
+        unique_key=['pharmacie_sk', 'mois'],
+        incremental_strategy='merge',
         schema='MARTS',
         tags=['marts', 'kpi', 'tresorerie']
     )
@@ -33,6 +35,9 @@ with tresorerie_mensuelle as (
         sum(points_fidelite)                as points_fidelite,
         count(distinct date_jour)           as nb_jours_activite
     from {{ ref('fact_tresorerie') }}
+    {% if is_incremental() %}
+    where date_jour >= dateadd('month', -2, current_date())
+    {% endif %}
     group by pharmacie_sk, date_trunc('month', date_jour)
 )
 

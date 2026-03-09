@@ -1,6 +1,8 @@
 {{
     config(
-        materialized='table',
+        materialized='incremental',
+        unique_key=['pharmacie_sk', 'produit_sk', 'mois'],
+        incremental_strategy='merge',
         schema='MARTS',
         tags=['marts', 'kpi', 'ecoulement']
     )
@@ -15,6 +17,9 @@ with commandes_mensuelles as (
         sum(montant_pahtnet)                as montant_commande,
         count(distinct commande_id)         as nb_commandes
     from {{ ref('fact_commandes') }}
+    {% if is_incremental() %}
+    where date_commande >= dateadd('month', -2, current_date())
+    {% endif %}
     group by pharmacie_sk, produit_sk, date_trunc('month', date_commande)
 ),
 
@@ -26,6 +31,9 @@ ventes_mensuelles as (
         sum(quantite_vendue)            as quantite_vendue,
         sum(ca_ht)                      as ca_ht
     from {{ ref('fact_ventes') }}
+    {% if is_incremental() %}
+    where date_vente >= dateadd('month', -2, current_date())
+    {% endif %}
     group by pharmacie_sk, produit_sk, date_trunc('month', date_vente)
 )
 
