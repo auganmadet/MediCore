@@ -20,7 +20,8 @@ REF_RELOAD_HOUR=${REF_RELOAD_HOUR:-03}
 
 # Alerting Teams (optionnel : si TEAMS_WEBHOOK_URL est vide, les erreurs sont loguees sans alerte)
 ALERT_THRESHOLD=${ALERT_THRESHOLD:-3}
-REF_FAIL=0; CDC_FAIL=0; STG_FAIL=0; SNAP_FAIL=0; MARTS_FAIL=0; TEST_FAIL=0; MARTS_TEST_FAIL=0; FRESH_FAIL=0; ZERO_VOL=0
+KAFKA_LAG_THRESHOLD=${KAFKA_LAG_THRESHOLD:-10000}
+REF_FAIL=0; CDC_FAIL=0; STG_FAIL=0; SNAP_FAIL=0; MARTS_FAIL=0; TEST_FAIL=0; MARTS_TEST_FAIL=0; FRESH_FAIL=0; ZERO_VOL=0; LAG_HIGH=0
 
 send_teams_alert() {
   local component="$1" fail_count="$2" status="${3:-failure}"
@@ -185,6 +186,7 @@ cur = conn.cursor()
 cur.execute(\"DELETE FROM PIPELINE_RUNS WHERE RUN_START < DATEADD('day', -90, CURRENT_TIMESTAMP())\")
 cur.execute(\"DELETE FROM PIPELINE_STEP_RUNS WHERE STEP_START < DATEADD('day', -90, CURRENT_TIMESTAMP())\")
 cur.execute(\"DELETE FROM DBT_MODEL_RUNS WHERE CREATED_AT < DATEADD('day', -90, CURRENT_TIMESTAMP())\")
+cur.execute(\"DELETE FROM CDC_LAG_METRICS WHERE CREATED_AT < DATEADD('day', -90, CURRENT_TIMESTAMP())\")
 cur.close()
 conn.close()
 print('Audit purge terminee')
@@ -211,6 +213,17 @@ print('Audit purge terminee')
       [ $ZERO_VOL -ge $ALERT_THRESHOLD ] && send_teams_alert "CDC volume" "$ZERO_VOL" "recovery"
       ZERO_VOL=0
       echo "CDC volume: $CDC_COUNT events"
+    fi
+
+    # Lag check : alerte si lag > seuil N fois consecutives
+    LAG_TOTAL=$(grep '^total=' /tmp/cdc_lag_metrics 2>/dev/null | cut -d= -f2 || echo "0")
+    if [ "$LAG_TOTAL" -gt "$KAFKA_LAG_THRESHOLD" ] 2>/dev/null; then
+      LAG_HIGH=$((LAG_HIGH + 1))
+      echo "CDC lag: $LAG_TOTAL records ($LAG_HIGH consecutive)"
+      [ $LAG_HIGH -eq $ALERT_THRESHOLD ] && send_teams_alert "CDC lag ($LAG_TOTAL records)" "$LAG_HIGH"
+    else
+      [ $LAG_HIGH -ge $ALERT_THRESHOLD ] && send_teams_alert "CDC lag" "$LAG_HIGH" "recovery"
+      LAG_HIGH=0
     fi
   else
     python3 -c "from pipelines.utils.audit import log_step_end; log_step_end('$RUN_ID', 'cdc_batch', 'FAILED', error='CDC batch failed')" 2>/dev/null || true

@@ -50,25 +50,36 @@ SELECT * FROM MEDICORE.AUDIT.DBT_MODEL_RUNS WHERE RUN_ID = '<uuid>';
 
 -- Vue resume
 SELECT * FROM MEDICORE.AUDIT.AUDIT_RUN_SUMMARY ORDER BY RUN_START DESC LIMIT 10;
+
+-- Lag Kafka par topic (derniers runs)
+SELECT * FROM MEDICORE.AUDIT.CDC_LAG_METRICS ORDER BY CREATED_AT DESC LIMIT 20;
+
+-- Statistiques lag pour calibrer le seuil
+SELECT AVG(LAG), MAX(LAG), PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY LAG)
+FROM MEDICORE.AUDIT.CDC_LAG_METRICS;
 ```
 
 Retention automatique : 90 jours (purge quotidienne a 01h).
 
 ## Monitoring et alertes
 
-  ┌───────────────────────────┬─────────────────────────────────────┐
-  │ Mecanisme                 │ Configuration                       │
-  ├───────────────────────────┼─────────────────────────────────────┤
-  │ Teams webhook             │ `TEAMS_WEBHOOK_URL` (.env)          │
-  ├───────────────────────────┼─────────────────────────────────────┤
-  │ Seuil alerte              │ `ALERT_THRESHOLD` (defaut: 3)       │
-  ├───────────────────────────┼─────────────────────────────────────┤
-  │ Freshness CDC             │ warn 12h / error 24h                │
-  ├───────────────────────────┼─────────────────────────────────────┤
-  │ Freshness reference       │ warn 36h / error 48h                │
-  ├───────────────────────────┼─────────────────────────────────────┤
-  │ Volume CDC                │ Alerte apres N batches a 0 events   │
-  └───────────────────────────┴─────────────────────────────────────┘
+  ┌───────────────────────────┬──────────────────────────────────────────────────────────┐
+  │ Mecanisme                 │ Configuration                                            │
+  ├───────────────────────────┼──────────────────────────────────────────────────────────┤
+  │ Teams webhook             │ `TEAMS_WEBHOOK_URL` (.env)                               │
+  ├───────────────────────────┼──────────────────────────────────────────────────────────┤
+  │ Seuil alerte              │ `ALERT_THRESHOLD` (defaut: 3)                            │
+  ├───────────────────────────┼──────────────────────────────────────────────────────────┤
+  │ Freshness CDC             │ warn 12h / error 24h                                     │
+  ├───────────────────────────┼──────────────────────────────────────────────────────────┤
+  │ Freshness reference       │ warn 36h / error 48h                                     │
+  ├───────────────────────────┼──────────────────────────────────────────────────────────┤
+  │ Volume CDC                │ Alerte apres N batches a 0 events                        │
+  ├───────────────────────────┼──────────────────────────────────────────────────────────┤
+  │ Lag Kafka                 │ Alerte si lag > `KAFKA_LAG_THRESHOLD` N fois consecutives │
+  └───────────────────────────┴──────────────────────────────────────────────────────────┘
+
+Le **lag Kafka** mesure le retard du consumer CDC (end_offset - committed_offset). Un lag croissant signifie que le consumer ne suit pas le rythme de Debezium. Les metriques sont ecrites dans `/tmp/cdc_lag_metrics` et historisees dans `AUDIT.CDC_LAG_METRICS`.
 
 ## Diagnostic et recovery
 
@@ -108,6 +119,8 @@ Detecte : processus zombies, tables vides, doublons, timestamps invalides.
   │ `TEAMS_WEBHOOK_URL`          │ Webhook Teams (optionnel)               │
   ├──────────────────────────────┼─────────────────────────────────────────┤
   │ `ALERT_THRESHOLD`            │ Echecs avant alerte (defaut: 3)         │
+  ├──────────────────────────────┼─────────────────────────────────────────┤
+  │ `KAFKA_LAG_THRESHOLD`        │ Seuil lag Kafka en records (defaut: 10000) │
   └──────────────────────────────┴─────────────────────────────────────────┘
 
 ## Commandes utiles

@@ -5,6 +5,20 @@ Chaque entrée décrit **ce qui a changé** du point de vue métier et son impac
 
 ---
 
+## [2026-03-09] — Monitoring Kafka offset lag
+
+### Ajouts
+- **Détection du lag consumer Kafka** : mesure le retard (end_offset − committed_offset) par topic CDC après chaque batch. Un lag croissant signifie que le consumer ne suit pas le rythme de Debezium — problème invisible tant qu'il y a des events traités.
+- **Alerting Teams sur lag élevé** : compteur `LAG_HIGH` incrémenté quand le lag dépasse `KAFKA_LAG_THRESHOLD` (défaut 10 000 records). Alerte après N échecs consécutifs + notification recovery — même pattern que le volume check `ZERO_VOL`.
+- **Métriques audit Snowflake** : table `AUDIT.CDC_LAG_METRICS` (1 ligne par topic par run) pour historiser le lag et détecter les tendances.
+- **Fichier métriques bash** : `/tmp/cdc_lag_metrics` au format `topic=lag` pour lecture simple dans `batch_loop.sh`.
+
+### Impact
+- Overhead ~1-2s par cycle (consumer temporaire, lecture metadata seulement, pas de rebalance)
+- Tout en try/except — ne casse jamais le pipeline existant
+
+---
+
 ## [2026-03-09] — Optimisation coûts : Marts KPI en incremental
 
 ### Modifications

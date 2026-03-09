@@ -423,6 +423,15 @@ CREATE TABLE IF NOT EXISTS MEDICORE.AUDIT.DBT_MODEL_RUNS (
     PRIMARY KEY (RUN_ID, MODEL_NAME)
 );
 
+-- 1 ligne par topic Kafka par run : lag consumer (end_offset - committed)
+CREATE TABLE IF NOT EXISTS MEDICORE.AUDIT.CDC_LAG_METRICS (
+    RUN_ID     VARCHAR(36) NOT NULL,
+    TOPIC      VARCHAR(100) NOT NULL,
+    LAG        NUMBER NOT NULL,
+    CREATED_AT TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+    PRIMARY KEY (RUN_ID, TOPIC)
+);
+
 -- ============================================================
 -- OWNERSHIP TRANSFER : Tables RAW → MEDICORE_RAW_WRITER
 -- ============================================================

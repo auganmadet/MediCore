@@ -288,5 +288,14 @@ if __name__ == "__main__":
         processed = cdc.consume_cdc_batch()
         with open('/tmp/cdc_last_count', 'w') as f:
             f.write(str(processed))
+
+        # Mesure du lag Kafka (end_offset - committed) par topic
+        from pipelines.utils.kafka_lag import get_consumer_lag, write_lag_metrics, log_lag_to_audit
+        topics = [f"{CDC_KAFKA_TOPIC_PREFIX}.{t}" for t in CDC_TABLES_KAFKA]
+        lag = get_consumer_lag(cdc.kafka_servers, CDC_KAFKA_GROUP_ID, topics)
+        if lag:
+            write_lag_metrics(lag)
+            if args.run_id:
+                log_lag_to_audit(args.run_id, lag)
     finally:
         cdc.close()
