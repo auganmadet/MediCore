@@ -53,7 +53,7 @@ Répertoire : `.claude/dev-memories/`
   ├───────────────────────────────────┼───────────────────────────────────────────────────────┤
   │ `dbt/models/marts/fact_*.sql`     │ 8 faits (ventes, commandes, stock, ruptures...)       │
   ├───────────────────────────────────┼───────────────────────────────────────────────────────┤
-  │ `dbt/models/marts/mart_kpi_*.sql` │ 9 KPIs métier (marge, écoulement, ABC, stock...)      │
+  │ `dbt/models/marts/mart_kpi_*.sql` │ 15 KPIs métier (marge, écoulement, ABC, stock...)     │
   ├───────────────────────────────────┼───────────────────────────────────────────────────────┤
   │ `dbt/macros/pii_masking.sql`      │ Macros masquage PII (MD5)                             │
   ├───────────────────────────────────┼───────────────────────────────────────────────────────┤
