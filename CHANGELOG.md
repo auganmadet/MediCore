@@ -5,6 +5,23 @@ Chaque entrée décrit **ce qui a changé** du point de vue métier et son impac
 
 ---
 
+## [2026-03-09] — Exposition BI avec Metabase
+
+### Ajouts
+- **Metabase** : ajout de l'outil BI open-source au stack Docker pour visualiser les 15 KPIs, 8 faits et 3 dimensions du schéma MARTS sur des dashboards interactifs (`http://localhost:3000`).
+- **PostgreSQL 16** : base metadata dédiée à Metabase (dashboards, questions sauvegardées, comptes utilisateurs). Persistée via volume Docker.
+- **Documentation opérationnelle** : guide de configuration Snowflake dans Metabase, dashboards suggérés couvrant les 26/26 tables MARTS.
+
+### Corrections
+- **Rôle `MEDICORE_ANALYST`** : ajout des grants `SELECT` sur toutes les tables/vues MARTS (actuelles et futures) dans `DDL_TABLES.sql`. Le rôle existait avec `USAGE` uniquement — Metabase ne pouvait lire aucune donnée.
+
+### Impact
+- Overhead infra : +2.5 GB RAM (Metabase 2 GB + PostgreSQL 512 MB), +1.5 cores
+- Coût Snowflake : marginal (SELECT read-only sur tables MARTS déjà matérialisées)
+- Sécurité : rôle `MEDICORE_ANALYST` (lecture seule MARTS), port bindé `127.0.0.1`
+
+---
+
 ## [2026-03-09] — Monitoring Kafka offset lag
 
 ### Ajouts
@@ -12,6 +29,9 @@ Chaque entrée décrit **ce qui a changé** du point de vue métier et son impac
 - **Alerting Teams sur lag élevé** : compteur `LAG_HIGH` incrémenté quand le lag dépasse `KAFKA_LAG_THRESHOLD` (défaut 10 000 records). Alerte après N échecs consécutifs + notification recovery — même pattern que le volume check `ZERO_VOL`.
 - **Métriques audit Snowflake** : table `AUDIT.CDC_LAG_METRICS` (1 ligne par topic par run) pour historiser le lag et détecter les tendances.
 - **Fichier métriques bash** : `/tmp/cdc_lag_metrics` au format `topic=lag` pour lecture simple dans `batch_loop.sh`.
+
+### Corrections
+- **Listener Kafka INTERNAL** : le consumer CDC et Kafdrop utilisaient le listener EXTERNAL (`kafka:9092`, annonce `localhost:9092`) au lieu du listener INTERNAL (`kafka:29092`). Corrigé dans `docker-compose.yml`, `.env` et le défaut Python.
 
 ### Impact
 - Overhead ~1-2s par cycle (consumer temporaire, lecture metadata seulement, pas de rebalance)

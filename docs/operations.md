@@ -161,3 +161,135 @@ docker compose down
 ```
 
 Le conteneur intercepte SIGTERM et termine proprement apres la phase en cours.
+
+## Metabase (BI dashboards)
+
+Metabase est une application BI open-source qui se connecte en lecture seule a Snowflake MARTS pour visualiser les 15 KPIs, 8 faits et 3 dimensions sur des dashboards interactifs.
+
+### Architecture
+
+```
+┌─────────────────┐     ┌──────────────────────┐     ┌─────────────────────┐
+│  Navigateur web │────>│  Metabase (Java)      │────>│  Snowflake MARTS    │
+│  localhost:3000  │     │  conteneur Docker     │     │  lecture seule      │
+└─────────────────┘     │                      │     │  15 KPIs + 8 facts  │
+                        │  Metadata stockee    │     │  + 3 dimensions     │
+                        │  dans PostgreSQL     │     └─────────────────────┘
+                        └──────────────────────┘
+```
+
+Metabase ne stocke aucune donnee metier — il fait des `SELECT` sur Snowflake a chaque requete. PostgreSQL stocke uniquement la config Metabase (dashboards, questions, comptes utilisateurs).
+
+### Acces
+
+```
+http://localhost:3000
+```
+
+### Configuration Snowflake (premier lancement)
+
+Au premier lancement, Metabase affiche un wizard de configuration :
+
+1. Creer un compte admin Metabase
+2. Ajouter la base de donnees Snowflake :
+
+  ┌──────────────────┬────────────────────────────────────┐
+  │ Parametre        │ Valeur                             │
+  ├──────────────────┼────────────────────────────────────┤
+  │ Type             │ Snowflake                          │
+  ├──────────────────┼────────────────────────────────────┤
+  │ Account          │ `SNOWFLAKE_ACCOUNT` (.env)         │
+  ├──────────────────┼────────────────────────────────────┤
+  │ User             │ Utilisateur avec role ANALYST      │
+  ├──────────────────┼────────────────────────────────────┤
+  │ Password         │ Mot de passe de l'utilisateur      │
+  ├──────────────────┼────────────────────────────────────┤
+  │ Database         │ MEDIcore                           │
+  ├──────────────────┼────────────────────────────────────┤
+  │ Schema           │ MARTS                              │
+  ├──────────────────┼────────────────────────────────────┤
+  │ Warehouse        │ MEDIcore_WH                        │
+  ├──────────────────┼────────────────────────────────────┤
+  │ Role             │ MEDICORE_ANALYST                   │
+  └──────────────────┴────────────────────────────────────┘
+
+3. Metabase scanne automatiquement les 26 tables MARTS
+
+**Note** : le rôle `MEDICORE_ANALYST` et ses grants sont créés par `scripts/DDL_TABLES.sql`. L'assignation du rôle à un utilisateur reste manuelle :
+
+```sql
+GRANT ROLE MEDICORE_ANALYST TO USER <nom_utilisateur>;
+```
+
+### Ressources ajoutees
+
+  ┌──────────────────┬────────┬────────┬──────────────────────────┐
+  │ Service          │ RAM    │ CPU    │ Role                     │
+  ├──────────────────┼────────┼────────┼──────────────────────────┤
+  │ Metabase (Java)  │ 2 GB   │ 1 core │ Application BI           │
+  ├──────────────────┼────────┼────────┼──────────────────────────┤
+  │ PostgreSQL 16    │ 512 MB │ 0.5    │ Metadata Metabase        │
+  ├──────────────────┼────────┼────────┼──────────────────────────┤
+  │ Total ajoute     │ 2.5 GB │ 1.5    │                          │
+  └──────────────────┴────────┴────────┴──────────────────────────┘
+
+### Variables d'environnement
+
+  ┌──────────────────────────┬──────────────────────────────────────┐
+  │ Variable                 │ Description                          │
+  ├──────────────────────────┼──────────────────────────────────────┤
+  │ `METABASE_DB_PASSWORD`   │ Mot de passe PostgreSQL Metabase     │
+  │                          │ (defaut: metabase_dev)               │
+  └──────────────────────────┴──────────────────────────────────────┘
+
+### Verification
+
+```bash
+# Verifier que les conteneurs tournent
+docker ps | grep metabase
+
+# Verifier la connexion Snowflake dans Metabase
+# Admin > Databases > MEDIcore > Sync status = "done"
+```
+
+### Dashboards suggeres
+
+Les 26 tables MARTS couvrent 16 dashboards thematiques :
+
+  ┌─────┬──────────────────────────────────┬──────────────────────────────────────────────────────┐
+  │  #  │ Dashboard                        │ Sources principales                                  │
+  ├─────┼──────────────────────────────────┼──────────────────────────────────────────────────────┤
+  │  1  │ Vue d'ensemble pharmacie         │ mart_kpi_synthese_pharmacie                          │
+  ├─────┼──────────────────────────────────┼──────────────────────────────────────────────────────┤
+  │  2  │ Marge detaillee                  │ mart_kpi_marge, dim_produit                          │
+  ├─────┼──────────────────────────────────┼──────────────────────────────────────────────────────┤
+  │  3  │ Classification ABC (Pareto)      │ mart_kpi_abc, dim_produit                            │
+  ├─────┼──────────────────────────────────┼──────────────────────────────────────────────────────┤
+  │  4  │ Stock et rotation                │ mart_kpi_stock, mart_kpi_stock_valorisation           │
+  ├─────┼──────────────────────────────────┼──────────────────────────────────────────────────────┤
+  │  5  │ Ruptures et CA perdu             │ mart_kpi_ruptures, dim_produit                       │
+  ├─────┼──────────────────────────────────┼──────────────────────────────────────────────────────┤
+  │  6  │ Ecoulement (sell-through)        │ mart_kpi_ecoulement, dim_fournisseur                 │
+  ├─────┼──────────────────────────────────┼──────────────────────────────────────────────────────┤
+  │  7  │ Performance vendeurs             │ mart_kpi_operateur                                   │
+  ├─────┼──────────────────────────────────┼──────────────────────────────────────────────────────┤
+  │  8  │ Tresorerie                       │ mart_kpi_tresorerie, fact_tresorerie                  │
+  ├─────┼──────────────────────────────────┼──────────────────────────────────────────────────────┤
+  │  9  │ Generiques et labos              │ mart_kpi_generique, dim_fournisseur                  │
+  ├─────┼──────────────────────────────────┼──────────────────────────────────────────────────────┤
+  │ 10  │ Univers (RX, OTC, PARA)          │ mart_kpi_univers                                     │
+  ├─────┼──────────────────────────────────┼──────────────────────────────────────────────────────┤
+  │ 11  │ Remises fournisseurs             │ mart_kpi_remise_labo, dim_fournisseur                │
+  ├─────┼──────────────────────────────────┼──────────────────────────────────────────────────────┤
+  │ 12  │ Produits dormants                │ mart_kpi_dormant, dim_fournisseur                    │
+  ├─────┼──────────────────────────────────┼──────────────────────────────────────────────────────┤
+  │ 13  │ Evolution CA                     │ mart_kpi_ca_evolution                                │
+  ├─────┼──────────────────────────────────┼──────────────────────────────────────────────────────┤
+  │ 14  │ Qualite des donnees              │ mart_kpi_qualite_donnees                             │
+  ├─────┼──────────────────────────────────┼──────────────────────────────────────────────────────┤
+  │ 15  │ Detail transactions (drill-down) │ fact_ventes, fact_commandes, dim_produit              │
+  ├─────┼──────────────────────────────────┼──────────────────────────────────────────────────────┤
+  │ 16  │ Prix et mouvements stock         │ fact_prix_journalier, fact_stock_mouvement            │
+  └─────┴──────────────────────────────────┴──────────────────────────────────────────────────────┘
+
+Les dashboards sont a creer manuellement dans l'interface Metabase. Les 26/26 tables MARTS sont couvertes.
