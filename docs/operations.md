@@ -95,33 +95,33 @@ Detecte : processus zombies, tables vides, doublons, timestamps invalides.
 
 ## Variables d'environnement
 
-  ┌──────────────────────────────┬─────────────────────────────────────────┐
-  │ Variable                     │ Description                             │
-  ├──────────────────────────────┼─────────────────────────────────────────┤
-  │ `ENV`                        │ Environnement (dev/prod)                │
-  ├──────────────────────────────┼─────────────────────────────────────────┤
-  │ `SNOWFLAKE_ACCOUNT`          │ Compte Snowflake                        │
-  ├──────────────────────────────┼─────────────────────────────────────────┤
-  │ `SNOWFLAKE_USER`             │ Utilisateur Snowflake                   │
-  ├──────────────────────────────┼─────────────────────────────────────────┤
-  │ `SNOWFLAKE_PASSWORD`         │ Mot de passe Snowflake                  │
-  ├──────────────────────────────┼─────────────────────────────────────────┤
-  │ `SNOWFLAKE_DATABASE`         │ Base de donnees (defaut: MEDIcore)      │
-  ├──────────────────────────────┼─────────────────────────────────────────┤
-  │ `SNOWFLAKE_WAREHOUSE_NAME`   │ Warehouse (defaut: MEDIcore_WH)        │
-  ├──────────────────────────────┼─────────────────────────────────────────┤
-  │ `BATCH_INTERVAL_MIN`         │ Intervalle batch en minutes             │
-  ├──────────────────────────────┼─────────────────────────────────────────┤
-  │ `PHASE_TIMEOUT_SEC`          │ Timeout par phase (defaut: 1800)        │
-  ├──────────────────────────────┼─────────────────────────────────────────┤
-  │ `CDC_BATCH_TIMEOUT_SEC`      │ Timeout consumer Kafka (defaut: 30)     │
-  ├──────────────────────────────┼─────────────────────────────────────────┤
-  │ `TEAMS_WEBHOOK_URL`          │ Webhook Teams (optionnel)               │
-  ├──────────────────────────────┼─────────────────────────────────────────┤
-  │ `ALERT_THRESHOLD`            │ Echecs avant alerte (defaut: 3)         │
-  ├──────────────────────────────┼─────────────────────────────────────────┤
+  ┌──────────────────────────────┬────────────────────────────────────────────┐
+  │ Variable                     │ Description                                │
+  ├──────────────────────────────┼────────────────────────────────────────────┤
+  │ `ENV`                        │ Environnement (dev/prod)                   │
+  ├──────────────────────────────┼────────────────────────────────────────────┤
+  │ `SNOWFLAKE_ACCOUNT`          │ Compte Snowflake                           │
+  ├──────────────────────────────┼────────────────────────────────────────────┤
+  │ `SNOWFLAKE_USER`             │ Utilisateur Snowflake                      │
+  ├──────────────────────────────┼────────────────────────────────────────────┤
+  │ `SNOWFLAKE_PASSWORD`         │ Mot de passe Snowflake                     │
+  ├──────────────────────────────┼────────────────────────────────────────────┤
+  │ `SNOWFLAKE_DATABASE`         │ Base de donnees (defaut: MEDIcore)         │
+  ├──────────────────────────────┼────────────────────────────────────────────┤
+  │ `SNOWFLAKE_WAREHOUSE_NAME`   │ Warehouse (defaut: MEDIcore_WH)            │
+  ├──────────────────────────────┼────────────────────────────────────────────┤
+  │ `BATCH_INTERVAL_MIN`         │ Intervalle batch en minutes                │
+  ├──────────────────────────────┼────────────────────────────────────────────┤
+  │ `PHASE_TIMEOUT_SEC`          │ Timeout par phase (defaut: 1800)           │
+  ├──────────────────────────────┼────────────────────────────────────────────┤
+  │ `CDC_BATCH_TIMEOUT_SEC`      │ Timeout consumer Kafka (defaut: 30)        │
+  ├──────────────────────────────┼────────────────────────────────────────────┤
+  │ `TEAMS_WEBHOOK_URL`          │ Webhook Teams (optionnel)                  │
+  ├──────────────────────────────┼────────────────────────────────────────────┤
+  │ `ALERT_THRESHOLD`            │ Echecs avant alerte (defaut: 3)            │
+  ├──────────────────────────────┼────────────────────────────────────────────┤
   │ `KAFKA_LAG_THRESHOLD`        │ Seuil lag Kafka en records (defaut: 10000) │
-  └──────────────────────────────┴─────────────────────────────────────────┘
+  └──────────────────────────────┴────────────────────────────────────────────┘
 
 ## Commandes utiles
 
@@ -170,8 +170,8 @@ Metabase est une application BI open-source qui se connecte en lecture seule a S
 
 ```
 ┌─────────────────┐     ┌──────────────────────┐     ┌─────────────────────┐
-│  Navigateur web │────>│  Metabase (Java)      │────>│  Snowflake MARTS    │
-│  localhost:3000  │     │  conteneur Docker     │     │  lecture seule      │
+│  Navigateur web │────>│  Metabase (Java)     │────>│  Snowflake MARTS    │
+│  localhost:3000 │     │  conteneur Docker    │     │  lecture seule      │
 └─────────────────┘     │                      │     │  15 KPIs + 8 facts  │
                         │  Metadata stockee    │     │  + 3 dimensions     │
                         │  dans PostgreSQL     │     └─────────────────────┘
@@ -265,7 +265,7 @@ Les 26 tables MARTS couvrent 16 dashboards thematiques :
   ├─────┼──────────────────────────────────┼──────────────────────────────────────────────────────┤
   │  3  │ Classification ABC (Pareto)      │ mart_kpi_abc, dim_produit                            │
   ├─────┼──────────────────────────────────┼──────────────────────────────────────────────────────┤
-  │  4  │ Stock et rotation                │ mart_kpi_stock, mart_kpi_stock_valorisation           │
+  │  4  │ Stock et rotation                │ mart_kpi_stock, mart_kpi_stock_valorisation          │
   ├─────┼──────────────────────────────────┼──────────────────────────────────────────────────────┤
   │  5  │ Ruptures et CA perdu             │ mart_kpi_ruptures, dim_produit                       │
   ├─────┼──────────────────────────────────┼──────────────────────────────────────────────────────┤
@@ -273,7 +273,7 @@ Les 26 tables MARTS couvrent 16 dashboards thematiques :
   ├─────┼──────────────────────────────────┼──────────────────────────────────────────────────────┤
   │  7  │ Performance vendeurs             │ mart_kpi_operateur                                   │
   ├─────┼──────────────────────────────────┼──────────────────────────────────────────────────────┤
-  │  8  │ Tresorerie                       │ mart_kpi_tresorerie, fact_tresorerie                  │
+  │  8  │ Tresorerie                       │ mart_kpi_tresorerie, fact_tresorerie                 │
   ├─────┼──────────────────────────────────┼──────────────────────────────────────────────────────┤
   │  9  │ Generiques et labos              │ mart_kpi_generique, dim_fournisseur                  │
   ├─────┼──────────────────────────────────┼──────────────────────────────────────────────────────┤
@@ -287,9 +287,9 @@ Les 26 tables MARTS couvrent 16 dashboards thematiques :
   ├─────┼──────────────────────────────────┼──────────────────────────────────────────────────────┤
   │ 14  │ Qualite des donnees              │ mart_kpi_qualite_donnees                             │
   ├─────┼──────────────────────────────────┼──────────────────────────────────────────────────────┤
-  │ 15  │ Detail transactions (drill-down) │ fact_ventes, fact_commandes, dim_produit              │
+  │ 15  │ Detail transactions (drill-down) │ fact_ventes, fact_commandes, dim_produit             │
   ├─────┼──────────────────────────────────┼──────────────────────────────────────────────────────┤
-  │ 16  │ Prix et mouvements stock         │ fact_prix_journalier, fact_stock_mouvement            │
+  │ 16  │ Prix et mouvements stock         │ fact_prix_journalier, fact_stock_mouvement           │
   └─────┴──────────────────────────────────┴──────────────────────────────────────────────────────┘
 
 Les dashboards sont a creer manuellement dans l'interface Metabase. Les 26/26 tables MARTS sont couvertes.

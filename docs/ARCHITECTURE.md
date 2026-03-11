@@ -1,5 +1,36 @@
 # Architecture MediCore
 
+## Vue d'ensemble : Architecture data (slide 7 - docs\MediCore_Presentation.pptx)
+
+```
+┌──────────────┐    ┌────────────────────────┐    ┌──────────────────────────────────────────────────────┐    ┌──────────────────────┐
+│   SOURCES    │    │       INGESTION        │    │                  SNOWFLAKE DWH                       │    │     EXPOSITION       │
+│              │    │                        │    │                                                      │    │                      │
+│ ┌──────────┐ │    │ ┌──────────────────┐   │    │ ┌───────┐  ┌────────────────────────────────────┐    │    │ ┌──────────────────┐ │
+│ │ MySQL RDS│ │    │ │ Debezium 2.7     │   │    │ │       │  │     Transformation dbt             │    │    │ │ Power BI         │ │
+│ │ winstat  │─┼───>│ │ CDC binlog       │   │    │ │       │  │                                    │    │    │ │ dashboards       │ │
+│ └──────────┘ │    │ └───────┬──────────┘   │    │ │       │  │ ┌─────────┐    ┌───────────────┐   │    │    │ └──────────────────┘ │
+│              │    │ ┌───────▼──────────┐   │    │ │  RAW  │  │ │ STAGING │    │    MARTS      │   │    │    │ ┌──────────────────┐ │
+│ ┌──────────┐ │    │ │ Kafka            │───┼───>│ │       ┼─>│ │ 18 mod. ┼───>│  3 DIM        │   ┼────┼───>│ │ Tableau          │ │
+│ │ 4 tables │ │    │ │ 4 topics         │   │    │ │ 18    │  │ │ dedup   │    │  8 FAITS      │   │    │    │ │ visualisation    │ │
+│ │   CDC    │─┼───>│ └───────┬──────────┘   │    │ │tables │  │ │ + PII   │    │  15 KPIs      │   │    │    │ └──────────────────┘ │
+│ └──────────┘ │    │ ┌───────▼──────────┐   │    │ │brutes │  │ └─────────┘    └───────────────┘   │    │    │ ┌──────────────────┐ │
+│              │    │ │ Python CDC       │   │    │ │       │  │                                    │    │    │ │ Metabase         │ │
+│ ┌──────────┐ │    │ │ micro-batch 500  │───┼───>│ │       │  └────────────────────────────────────┘    │    │ │ self-service BI  │ │
+│ │14 tables │ │    │ └──────────────────┘   │    │ │       │                                            │    │ └──────────────────┘ │
+│ │   REF    │─┼───>│ ┌──────────────────┐   │    │ │       │  ┌────────────────────────────────────┐    │    │ ┌──────────────────┐ │
+│ └──────────┘ │    │ │ Python Bulk      │───┼───>│ │       │  │            dbt                     │    │    │ │ API / Exports    │ │
+│              │    │ │ Parquet+COPY INTO│   │    │ └───────┘  │ ┌───────────┐ ┌──────────────────┐ │    │    │ │ integrations     │ │
+│              │    │ └──────────────────┘   │    │            │ │ AUDIT     │ │ SNAPSHOTS        │ │    │    │ └──────────────────┘ │
+│              │    │                        │    │            │ │ lineage + │ │ SCD2 dimensions  │ │    │    │                      │
+│              │    │                        │    │            │ │ runs      │ │                  │ │    │    │                      │
+│              │    │                        │    │            │ └───────────┘ └──────────────────┘ │    │    │                      │
+│              │    │                        │    │            └────────────────────────────────────┘    │    │                      │
+└──────────────┘    └────────────────────────┘    └──────────────────────────────────────────────────────┘    └──────────────────────┘
+
+
+```
+
 ## Flux de données global
 
 ```
@@ -32,6 +63,7 @@
               ┌───────────────┐
               │Snowflake MARTS│  3 dims + 8 facts
               └───────────────┘
+
 ```
 
 ## Layers Snowflake
@@ -54,49 +86,87 @@
 - LEFT JOIN facts → dims avec COALESCE pour orphan rows
 - Matérialisées en tables
 
+
+### Pourquoi Kafka plutot qu'une connexion directe ?
+
+1. **Decouplage** : si Snowflake est indisponible, Kafka conserve les messages
+2. **Rejouabilite** : possibilite de rejouer un offset en cas d'erreur
+3. **Scalabilite** : possibilite de mettre plusieurs consumers en parallele
+
+### Composants Snowflake DWH
+
+- **RAW** (BRONZE) : donnees brutes sans transformation — c'est le principe ELT
+- **STAGING** (SILVER) : deduplication CDC + masquage PII (MD5)
+- **MARTS** (GOLD) : star schema — 3 DIM, 8 FAITS, 15 KPIs
+- **AUDIT** : tables PIPELINE_RUNS, STEP_RUNS et DBT_MODEL_RUNS — tracabilite a chaque execution. Quand un KPI semble faux, on remonte au RUN_ID pour identifier si c'est un probleme d'ingestion ou de transformation
+- **SNAPSHOTS** : SCD2 (Slowly Changing Dimension Type 2). Quand une dimension change (pharmacie qui change de nom, produit qui change de fournisseur), l'ancienne valeur est conservee avec une date de fin. Les ventes de fevrier s'affichent avec l'ancien nom, celles de mars avec le nouveau
+
+### Couche Exposition
+
+  ┌──────────────────┬──────────────────────────────────────────────────────────────┐
+  │ Outil            │ Description                                                  │
+  ├──────────────────┼──────────────────────────────────────────────────────────────┤
+  │ Power BI         │ Integration Microsoft native, DAX puissant.                  │
+  │                  │ Inconvenient : verrouille dans l'ecosysteme Microsoft.       │
+  ├──────────────────┼──────────────────────────────────────────────────────────────┤
+  │ Tableau          │ Reference en data visualisation, connexion native Snowflake. │
+  │                  │ Inconvenient : cout eleve (~70$/utilisateur/mois).           │
+  ├──────────────────┼──────────────────────────────────────────────────────────────┤
+  │ Metabase         │ Open-source, self-hosted, SQL natif, gratuit.                │
+  │                  │ Deploye dans le stack Docker (`localhost:3000`).             │
+  ├──────────────────┼──────────────────────────────────────────────────────────────┤
+  │ API / Exports    │ Integration KPIs dans ERP, CRM, applications metier.         │
+  │                  │ Exports CSV/Excel pour partenaires (labos, groupements).     │
+  └──────────────────┴──────────────────────────────────────────────────────────────┘
+
 ## Services Docker
 
 ```
-┌────────────────────┬───────────────────────────────────┬───────────────────────────────────┬──────────────────────────────┐
-│ Service            │ Image                             │ Rôle                              │ Healthcheck                  │
-├────────────────────┼───────────────────────────────────┼───────────────────────────────────┼──────────────────────────────┤
-│ medicore_elt_batch │ Build local (Dockerfile)          │ Pipeline principal (batch_loop.sh)│ healthcheck.py (Snowflake)   │
-├────────────────────┼───────────────────────────────────┼───────────────────────────────────┼──────────────────────────────┤
-│ mysql_cdc          │ debezium/example-mysql:2.7.3      │ MySQL démo (Winstat local)        │ mysqladmin ping              │
-├────────────────────┼───────────────────────────────────┼───────────────────────────────────┼──────────────────────────────┤
-│ zookeeper          │ confluentinc/cp-zookeeper:7.7.0   │ Coordination Kafka                │ echo ruok                    │
-├────────────────────┼───────────────────────────────────┼───────────────────────────────────┼──────────────────────────────┤
-│ kafka              │ confluentinc/cp-kafka:7.5.0       │ Broker Kafka (4 topics CDC)       │ kafka-broker-api-versions    │
-├────────────────────┼───────────────────────────────────┼───────────────────────────────────┼──────────────────────────────┤
-│ kafka_connect      │ debezium/connect:2.7.3            │ Connecteur Debezium MySQL         │ curl REST API                │
-├────────────────────┼───────────────────────────────────┼───────────────────────────────────┼──────────────────────────────┤
-│ kafdrop            │ obsidiandynamics/kafdrop          │ UI monitoring topics              │ -                            │
-└────────────────────┴───────────────────────────────────┴───────────────────────────────────┴──────────────────────────────┘
+  ┌────────────────────┬───────────────────────────────────┬───────────────────────────────────┬──────────────────────────────┐
+  │ Service            │ Image                             │ Rôle                              │ Healthcheck                  │
+  ├────────────────────┼───────────────────────────────────┼───────────────────────────────────┼──────────────────────────────┤
+  │ medicore_elt_batch │ Build local (Dockerfile)          │ Pipeline principal (batch_loop.sh)│ healthcheck.py (Snowflake)   │
+  ├────────────────────┼───────────────────────────────────┼───────────────────────────────────┼──────────────────────────────┤
+  │ mysql_cdc          │ debezium/example-mysql:2.7.3      │ MySQL démo (Winstat local)        │ mysqladmin ping              │
+  ├────────────────────┼───────────────────────────────────┼───────────────────────────────────┼──────────────────────────────┤
+  │ zookeeper          │ confluentinc/cp-zookeeper:7.7.0   │ Coordination Kafka                │ echo ruok                    │
+  ├────────────────────┼───────────────────────────────────┼───────────────────────────────────┼──────────────────────────────┤
+  │ kafka              │ confluentinc/cp-kafka:7.5.0       │ Broker Kafka (4 topics CDC)       │ kafka-broker-api-versions    │
+  ├────────────────────┼───────────────────────────────────┼───────────────────────────────────┼──────────────────────────────┤
+  │ kafka_connect      │ debezium/connect:2.7.3            │ Connecteur Debezium MySQL         │ curl REST API                │
+  ├────────────────────┼───────────────────────────────────┼───────────────────────────────────┼──────────────────────────────┤
+  │ kafdrop            │ obsidiandynamics/kafdrop          │ UI monitoring topics              │ -                            │
+  ├────────────────────┼───────────────────────────────────┼───────────────────────────────────┼──────────────────────────────┤
+  │ metabase_db        │ postgres:16-alpine                │ Metadata Metabase (PostgreSQL)    │ pg_isready                   │
+  ├────────────────────┼───────────────────────────────────┼───────────────────────────────────┼──────────────────────────────┤
+  │ metabase           │ metabase/metabase:v0.58.7         │ BI dashboards (Snowflake MARTS)   │ -                            │
+  └────────────────────┴───────────────────────────────────┴───────────────────────────────────┴──────────────────────────────┘
 ```
-
 ## Monitoring
 
 - **Teams webhook** : alertes échec (seuil consécutif) + recovery
 - **Source freshness** : CDC 12h warn / 24h error, référence 36h warn / 48h error
 - **dbt test** : not_null, unique, relationships, expression_is_true (severity warn)
 - **Docker healthcheck** : depends_on condition: service_healthy
+- **Lag Kafka** : alerte si lag > seuil N fois consécutives
 
 ## Fichiers clés
 
-```
-┌──────────────────────────────────┬────────────────────────────────────────────────────────────────┐
-│ Fichier                          │ Rôle                                                           │
-├──────────────────────────────────┼────────────────────────────────────────────────────────────────┤
-│ scripts/setup.sh                 │ Premier lancement (HOST : DDL + Docker + Debezium)             │
-├──────────────────────────────────┼────────────────────────────────────────────────────────────────┤
-│ scripts/entrypoint.sh            │ Démarrage container (wait deps + dbt deps + cleanup lock)      │
-├──────────────────────────────────┼────────────────────────────────────────────────────────────────┤
-│ scripts/batch_loop.sh            │ Boucle principale (CDC + dbt + tests + freshness + alertes)    │
-├──────────────────────────────────┼────────────────────────────────────────────────────────────────┤
-│ pipelines/daily_cdc_batch.py     │ Consumer Kafka Debezium → INSERT RAW (4 tables)                │
-├──────────────────────────────────┼────────────────────────────────────────────────────────────────┤
-│ pipelines/bulk_load.py           │ MySQL SELECT → Parquet → COPY INTO RAW (18 tables)             │
-├──────────────────────────────────┼────────────────────────────────────────────────────────────────┤
-│ dbt/models/sources.yml           │ 18 sources RAW + freshness config                              │
-└──────────────────────────────────┴────────────────────────────────────────────────────────────────┘
+  ┌──────────────────────────────────┬────────────────────────────────────────────────────────────────┐
+  │ Fichier                          │ Rôle                                                           │
+  ├──────────────────────────────────┼────────────────────────────────────────────────────────────────┤
+  │ scripts/setup.sh                 │ Premier lancement (HOST : DDL + Docker + Debezium)             │
+  ├──────────────────────────────────┼────────────────────────────────────────────────────────────────┤
+  │ scripts/entrypoint.sh            │ Démarrage container (wait deps + dbt deps + cleanup lock)      │
+  ├──────────────────────────────────┼────────────────────────────────────────────────────────────────┤
+  │ scripts/batch_loop.sh            │ Boucle principale (CDC + dbt + tests + freshness + alertes)    │
+  ├──────────────────────────────────┼────────────────────────────────────────────────────────────────┤
+  │ pipelines/daily_cdc_batch.py     │ Consumer Kafka Debezium → INSERT RAW (4 tables)                │
+  ├──────────────────────────────────┼────────────────────────────────────────────────────────────────┤
+  │ pipelines/bulk_load.py           │ MySQL SELECT → Parquet → COPY INTO RAW (18 tables)             │
+  ├──────────────────────────────────┼────────────────────────────────────────────────────────────────┤
+  │ dbt/models/sources.yml           │ 18 sources RAW + freshness config                              │
+  ├──────────────────────────────────┼────────────────────────────────────────────────────────────────┤
+  │ scripts/DDL_TABLES.sql           │ 18 tables RAW + AUDIT schema + ANALYST grants                  │
+  └──────────────────────────────────┴────────────────────────────────────────────────────────────────┘
 ```
