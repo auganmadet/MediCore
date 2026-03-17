@@ -5,6 +5,52 @@ Chaque entrée décrit **ce qui a changé** du point de vue métier et son impac
 
 ---
 
+## [2026-03-16] — Modèles dbt agrégés et qualité Metabase
+
+### Ajouts
+- **6 modèles dbt agrégés** : `mart_kpi_marge_par_produit`, `mart_kpi_marge_par_univers`, `mart_kpi_ruptures_par_produit`, `mart_kpi_ecoulement_par_fournisseur`, `mart_kpi_ventes_par_produit`, `mart_kpi_generique_marge` — pré-calculent les KPIs à granularité dashboard pour éliminer les JOIN et recalculs dans Metabase.
+- **Descriptions et infobulles** : 97 cartes, 16 dashboards et 5 collections enrichis avec noms accentués et descriptions en français.
+- **Filtre Univers sur D4** (Marge détaillée) : cascadé depuis Pharmacie.
+
+### Corrections
+- **FOU_NOM démasqué** : les noms de laboratoires (entreprises, pas PII) ne sont plus hashés dans `stg_fournisseurs` / `dim_fournisseur`.
+- **TVA par taux (D3)** : colonne `TRS_DATE` corrigée en `DATE_JOUR`, SQL restructuré.
+- **Répartition modes de paiement (D3)** : converti en SQL natif avec UNPIVOT pour le camembert.
+- **Accents** : collections, dashboards et cartes corrigés (Synthèse, Trésorerie, Écoulement, Génériques, etc.).
+
+### Modifications
+- **Filtres cascadés** : Fournisseur, Opérateur, Univers, Statut dormant cascadent depuis Pharmacie. Mois reste en date-picker indépendant (limitation Metabase).
+- **Ordre des filtres** : D5, D10, D11, D13 réordonnés (Pharmacie → filtres cascadés → Mois/Date en dernier).
+- **D2 et D8** : filtre Produit retiré (pas pertinent pour les agrégats).
+
+---
+
+## [2026-03-13] — Filtres cascadés et documentation Metabase
+
+### Ajouts
+- **Filtres cascadés (linked filters)** : les filtres Fournisseur, Opérateur, Univers, Statut dormant et Mois sont désormais liés au filtre Pharmacie sur 14 dashboards. Sélectionner une pharmacie restreint automatiquement les valeurs proposées dans les autres filtres aux données existantes.
+- **Documentation entités Metabase** (`docs/Dashboards.md`) : clarification des entités (collection, question/card, dashboard), différence MBQL vs SQL natif, types de visualisation, stockage PostgreSQL, export API et tableau des filtres cascadés.
+- **Guide d'ouverture des accès** (`docs/Dashboards.md` §9) : procédure pas à pas pour donner accès aux dashboards par service (groupes, comptes, permissions collections/données, réseau, email SMTP).
+
+---
+
+## [2026-03-12] — Filtres dashboards Metabase
+
+### Ajouts
+- **Filtres D11 Produits dormants** : 4 filtres globaux (Pharmacie, Statut dormant, Univers, Fournisseur) reliés aux 6 questions du dashboard.
+- **Guide utilisateur Metabase** (`docs/Dashboards.md`) : mode d'emploi complet pour créer les dashboards via l'interface web, avec D11 en exemple détaillé pas à pas.
+
+---
+
+## [2026-03-11] — Plan dashboards Metabase complet
+
+### Ajouts
+- **16 dashboards détaillés** : plan exhaustif avec 95 cartes couvrant 26/26 tables MARTS, organisés en 5 collections Metabase (Direction Générale, Ventes & Performance, Achats & Stock, Qualité & Pilotage, Détail opérationnel).
+- **Justification stratégique** : chaque dashboard associé à une décision métier (titulaire, responsable achats, DSI).
+- **Spécifications complètes** : colonnes, type de visualisation, filtres et jointures documentés pour chaque carte.
+
+---
+
 ## [2026-03-09] — Exposition BI avec Metabase
 
 ### Ajouts
