@@ -19,6 +19,6 @@ medicore:
       password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
       role: "{{ env_var('SNOWFLAKE_DBT_ROLE_NAME') }}"
       database: "{{ env_var('SNOWFLAKE_DATABASE') }}"
-      warehouse: MEDIcore_WH_XL
+      warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE_NAME') }}"
       schema: MARTS
       threads: 8

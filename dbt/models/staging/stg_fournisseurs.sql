@@ -24,7 +24,7 @@ dedup_cdc as (
     from source_data
 )
 select PHA_ID, upper(trim(FOU_ID))       as FOU_ID,
-    {{ pii_mask('FOU_NOM', 'FOU') }} as FOU_NOM,
+    trim(FOU_NOM)                 as FOU_NOM,  -- nom de labo (entreprise, pas PII)
     {{ pii_mask('FOU_ADRESSE', 'ADDR') }} as FOU_ADRESSE,
     trim(FOU_CP)              as FOU_CP,
     upper(trim(FOU_VILLE))    as FOU_VILLE,
