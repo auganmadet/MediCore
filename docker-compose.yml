@@ -200,8 +200,17 @@ services:
       MB_DB_USER: metabase
       MB_DB_PASS: ${METABASE_DB_PASSWORD:-metabase_dev}
       MB_JETTY_PORT: 3000
+      # SMTP pour emails d'invitation et alertes
+      MB_EMAIL_SMTP_HOST: ${MB_EMAIL_SMTP_HOST:-smtp.office365.com}
+      MB_EMAIL_SMTP_PORT: ${MB_EMAIL_SMTP_PORT:-587}
+      MB_EMAIL_SMTP_SECURITY: ${MB_EMAIL_SMTP_SECURITY:-tls}
+      MB_EMAIL_SMTP_USERNAME: ${MB_EMAIL_SMTP_USERNAME:-}
+      MB_EMAIL_SMTP_PASSWORD: ${MB_EMAIL_SMTP_PASSWORD:-}
+      MB_EMAIL_FROM_ADDRESS: ${MB_EMAIL_FROM_ADDRESS:-metabase@mediprix.fr}
+      MB_EMAIL_FROM_NAME: ${MB_EMAIL_FROM_NAME:-MediCore BI}
+      MB_SITE_URL: ${MB_SITE_URL:-http://192.168.1.30:3000}
     ports:
-      - "127.0.0.1:3000:3000"
+      - "0.0.0.0:3000:3000"
     networks:
       - medicore_net
     restart: unless-stopped

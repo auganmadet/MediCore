@@ -1,0 +1,9 @@
+email,prenom,nom,service,actif
+# Exemple : décommenter et adapter les lignes ci-dessous
+# jean.dupont@mediprix.fr,Jean,Dupont,IT,oui
+# marie.martin@mediprix.fr,Marie,Martin,Comptabilité,oui
+# pierre.durand@mediprix.fr,Pierre,Durand,Direction,non
+simon.laporte@mediprix.fr,Simon,Laporte,IT,oui
+richard.deguilhem@mediprix.fr,Richard,Deguilhem,IT,oui
+alexandre.hermitant@mediprix.fr,Alexandre,Hermitant,IT,oui
+lucie.ritzenthaler@mediprix.fr,Lucie,Ritzenthaler,Communication,oui
