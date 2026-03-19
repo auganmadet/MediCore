@@ -87,6 +87,15 @@ def api_put(path, data):
     return json.loads(urllib.request.urlopen(req, timeout=60).read())
 
 
+def api_delete(path):
+    """DELETE sur l'API Metabase."""
+    req = urllib.request.Request(
+        f'{BASE}/{path}', method='DELETE',
+        headers={'X-Metabase-Session': TOKEN}
+    )
+    return urllib.request.urlopen(req, timeout=60)
+
+
 # ============================================================
 # Cache helpers (évite les appels API répétés)
 # ============================================================
@@ -157,8 +166,8 @@ def read_users_csv():
 # ============================================================
 
 def get_existing_users():
-    """Récupère tous les utilisateurs Metabase existants."""
-    users = api_get('user')
+    """Récupère tous les utilisateurs Metabase existants (actifs et désactivés)."""
+    users = api_get('user?include_deactivated=true')
     return {u['email']: u for u in users.get('data', users) if isinstance(u, dict)}
 
 
@@ -363,13 +372,13 @@ def main():
             uid = existing['id']
 
             if u['actif'] and not existing.get('is_active', True):
-                # Réactiver
-                api_put(f'user/{uid}', {'is_active': True})
+                # Réactiver via endpoint dédié
+                api_put(f'user/{uid}/reactivate', {})
                 print(f'  RÉACTIVÉ : {u["prenom"]} {u["nom"]} ({email})')
                 updated_count += 1
             elif not u['actif'] and existing.get('is_active', True):
                 # Désactiver
-                api_put(f'user/{uid}', {'is_active': False})
+                api_delete(f'user/{uid}')
                 print(f'  DÉSACTIVÉ : {u["prenom"]} {u["nom"]} ({email})')
                 deactivated_count += 1
             else:
@@ -392,7 +401,7 @@ def main():
             uid = new_user['id']
 
             # Affecter au groupe
-            api_post(f'permissions/group/{group_id}/membership', {'user_id': uid})
+            api_post('permissions/membership', {'group_id': group_id, 'user_id': uid})
 
             # Vérifier si SMTP est configuré
             try:

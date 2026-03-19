@@ -251,28 +251,130 @@ Si le SMTP est configuré dans `docker-compose.yml`, l'utilisateur reçoit **aut
 
 ### Configuration SMTP
 
-Les variables SMTP sont dans `docker-compose.yml` et `.env` :
+Metabase a besoin d'un serveur SMTP pour envoyer les emails d'invitation et de réinitialisation de mot de passe.
+
+#### Étape 1 — Choisir le fournisseur SMTP
+
+  ┌────────────────────┬──────────────────────┬──────┬──────────┬──────────────────────────────────┐
+  │ Fournisseur        │ Serveur SMTP         │ Port │ Sécurité │ Mot de passe                     │
+  ├────────────────────┼──────────────────────┼──────┼──────────┼──────────────────────────────────┤
+  │ Google Workspace   │ smtp.gmail.com       │ 587  │ tls      │ Mot de passe d'application       │
+  ├────────────────────┼──────────────────────┼──────┼──────────┼──────────────────────────────────┤
+  │ Office 365         │ smtp.office365.com   │ 587  │ tls      │ Mot de passe du compte           │
+  ├────────────────────┼──────────────────────┼──────┼──────────┼──────────────────────────────────┤
+  │ Gmail personnel    │ smtp.gmail.com       │ 587  │ tls      │ Mot de passe d'application       │
+  └────────────────────┴──────────────────────┴──────┴──────────┴──────────────────────────────────┘
+
+> **Mediprix utilise Google Workspace** — le serveur SMTP est `smtp.gmail.com`, pas `smtp.office365.com`.
+
+#### Étape 2 — Créer un mot de passe d'application Google
+
+Google bloque les connexions SMTP avec le mot de passe du compte (même complexe). Il faut un **mot de passe d'application** dédié.
+
+**Prérequis** : activer la validation en 2 étapes sur le compte Google.
+
+1. Se connecter à `https://myaccount.google.com` avec le compte SMTP (ex: `metabase@mediprix.fr`)
+2. **Sécurité** → **Validation en deux étapes** → Activer (si pas déjà fait)
+3. Aller sur `https://myaccount.google.com/apppasswords`
+4. Saisir un nom (ex: "Metabase") → **Créer**
+5. Google affiche un mot de passe de 16 caractères (ex: `abcd efgh ijkl mnop`)
+6. Copier ce mot de passe **sans les espaces** (ex: `abcdefghijklmnop`)
+
+> Si "Mots de passe d'application" n'apparaît pas :
+> - Vérifier que la validation en 2 étapes est bien activée
+> - Pour les comptes Google Workspace : demander à l'admin d'activer l'option
+>   dans `admin.google.com` → **Sécurité** → **Paramètres de base**
+
+#### Étape 3 — Configurer dans `.env`
 
 ```bash
-# .env
-MB_EMAIL_SMTP_HOST=smtp.office365.com
+# .env — Section SMTP
+MB_EMAIL_SMTP_HOST=smtp.gmail.com
 MB_EMAIL_SMTP_PORT=587
 MB_EMAIL_SMTP_SECURITY=tls
 MB_EMAIL_SMTP_USERNAME=metabase@mediprix.fr
-MB_EMAIL_SMTP_PASSWORD=votre_mot_de_passe_smtp
+MB_EMAIL_SMTP_PASSWORD=abcdefghijklmnop
 MB_EMAIL_FROM_ADDRESS=metabase@mediprix.fr
 MB_EMAIL_FROM_NAME=MediCore BI
 MB_SITE_URL=http://192.168.1.30:3000
 ```
 
-> `MB_SITE_URL` est utilisé par Metabase pour générer les liens dans les emails.
-> Adapter le serveur SMTP selon votre fournisseur (Office 365, Gmail, SMTP interne).
+> **Important** : `MB_EMAIL_SMTP_PASSWORD` est le mot de passe d'application (16 caractères),
+> **pas** le mot de passe du compte Google.
 
-Après modification, redémarrer Metabase :
+#### Étape 4 — Appliquer la configuration dans Metabase
+
+Les variables `.env` ne sont lues que par Docker au démarrage. Metabase v0.58 stocke
+ses settings SMTP dans sa base PostgreSQL. Il faut donc les configurer **via l'API** :
 
 ```bash
-docker compose restart metabase
+# Obtenir un token admin
+TOKEN=$(python -c "
+import urllib.request, json
+data = json.dumps({'username':'admin@mediprix.fr','password':'xxx'}).encode()
+req = urllib.request.Request('http://localhost:3000/api/session', data=data, headers={'Content-Type':'application/json'})
+print(json.loads(urllib.request.urlopen(req).read())['id'])
+")
+
+# Configurer chaque setting SMTP
+for KEY in email-smtp-host email-smtp-port email-smtp-security email-smtp-username email-smtp-password email-from-address email-from-name site-url; do
+  VALUE=$(python -c "
+import os
+mapping = {
+  'email-smtp-host': os.getenv('MB_EMAIL_SMTP_HOST','smtp.gmail.com'),
+  'email-smtp-port': 587,
+  'email-smtp-security': 'tls',
+  'email-smtp-username': os.getenv('MB_EMAIL_SMTP_USERNAME',''),
+  'email-smtp-password': os.getenv('MB_EMAIL_SMTP_PASSWORD',''),
+  'email-from-address': os.getenv('MB_EMAIL_FROM_ADDRESS',''),
+  'email-from-name': os.getenv('MB_EMAIL_FROM_NAME','MediCore BI'),
+  'site-url': os.getenv('MB_SITE_URL','http://192.168.1.30:3000'),
+}
+import json; print(json.dumps(mapping['$KEY']))
+  ")
+  curl -s -X PUT "http://localhost:3000/api/setting/$KEY" \
+    -H "X-Metabase-Session: $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "{\"value\": $VALUE}"
+done
 ```
+
+Ou plus simplement, utiliser l'interface Metabase :
+**Admin** (⚙️) → **Paramètres** → **Email** → Remplir les champs → **Envoyer un email de test**
+
+#### Étape 5 — Tester
+
+Via l'API :
+
+```bash
+curl -X POST http://localhost:3000/api/email/test \
+  -H "X-Metabase-Session: $TOKEN" \
+  -H "Content-Type: application/json" -d '{}'
+```
+
+Résultat attendu : `{"ok": true}` et un email de test reçu sur le compte admin.
+
+#### Dépannage SMTP
+
+  ┌──────────────────────────────────────┬──────────────────────────────────────────────────────────┐
+  │ Erreur                               │ Solution                                                 │
+  ├──────────────────────────────────────┼──────────────────────────────────────────────────────────┤
+  │ `535 5.7.3 Authentication            │ Mot de passe incorrect ou pas un mot de passe            │
+  │ unsuccessful`                        │ d'application. Regénérer via myaccount.google.com        │
+  ├──────────────────────────────────────┼──────────────────────────────────────────────────────────┤
+  │ `535-5.7.8 Username and Password     │ Même cause — Google exige un mot de passe d'application  │
+  │ not accepted`                        │ (16 caractères), pas le mot de passe du compte           │
+  ├──────────────────────────────────────┼──────────────────────────────────────────────────────────┤
+  │ `Couldn't connect to host, port:     │ Problème IPv6 dans le conteneur Docker. Utiliser l'IP    │
+  │ ...; timeout -1`                     │ directe dans email-smtp-host (ex: 40.99.220.50)          │
+  │                                      │ ou configurer Java pour préférer IPv4                    │
+  ├──────────────────────────────────────┼──────────────────────────────────────────────────────────┤
+  │ `email-configured?: False`           │ Les settings ne sont pas dans la base Metabase.          │
+  │                                      │ Configurer via l'API Settings ou l'interface Admin       │
+  ├──────────────────────────────────────┼──────────────────────────────────────────────────────────┤
+  │ Email envoyé mais pas reçu           │ Vérifier les spams. Vérifier que `email-from-address`    │
+  │                                      │ correspond au compte SMTP (anti-spoofing)                │
+  └──────────────────────────────────────┴──────────────────────────────────────────────────────────┘
 
 ### Première connexion — sans SMTP (fallback)
 
