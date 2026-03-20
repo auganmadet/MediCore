@@ -7,8 +7,7 @@ Encapsulé dans try/except — ne doit jamais casser le pipeline.
 
 import logging
 import os
-from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from kafka import KafkaConsumer, TopicPartition
 
