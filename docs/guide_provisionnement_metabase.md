@@ -403,18 +403,42 @@ de ton service (ex: Cards/IT/, Dashboards/IT/).
 
 ### Accès réseau
 
-  ┌─────────────────────────────┬──────────────────────────────────────────────────────────────┐
-  │ Situation                   │ Action                                                       │
-  ├─────────────────────────────┼──────────────────────────────────────────────────────────────┤
-  │ Même réseau local           │ `http://192.168.0.37:3000` — aucune config supplémentaire    │
-  ├─────────────────────────────┼──────────────────────────────────────────────────────────────┤
-  │ VPN d'entreprise            │ S'assurer que le VPN route vers le réseau 192.168.1.0/24     │
-  ├─────────────────────────────┼──────────────────────────────────────────────────────────────┤
-  │ Accès externe (internet)    │ Non recommandé sans HTTPS. Mettre en place un reverse proxy  │
-  │                             │ (Nginx/Traefik) avec certificat SSL + nom DNS                │
-  ├─────────────────────────────┼──────────────────────────────────────────────────────────────┤
-  │ Pare-feu Windows            │ Ouvrir le port 3000 en entrant (TCP) si bloqué               │
-  └─────────────────────────────┴──────────────────────────────────────────────────────────────┘
+  ┌─────────────────────────────┬─────────────────────────────────────────────────────────────────┐
+  │ Situation                   │ Action                                                          │
+  ├─────────────────────────────┼─────────────────────────────────────────────────────────────────┤
+  │ Même réseau local           │ `http://192.168.0.37:3000` — aucune config supplémentaire       │
+  ├─────────────────────────────┼─────────────────────────────────────────────────────────────────┤
+  │ VPN d'entreprise            │ S'assurer que le VPN route vers le réseau 192.168.1.0/24        │
+  ├─────────────────────────────┼─────────────────────────────────────────────────────────────────┤
+  │ Accès externe (internet)    │ Non recommandé sans HTTPS. Mettre en place un reverse proxy     │
+  │                             │ (Nginx/Traefik) avec certificat SSL + nom DNS                   │
+  ├─────────────────────────────┼─────────────────────────────────────────────────────────────────┤
+  │ Pare-feu Windows            │ Ouvrir le port 3000 en entrant (TCP) — voir commande ci-dessous │
+  └─────────────────────────────┴─────────────────────────────────────────────────────────────────┘
+
+**Ouvrir le port 3000 dans le pare-feu Windows** (à exécuter une seule fois, en administrateur sur la machine hébergeant Docker) :
+
+```cmd
+netsh advfirewall firewall add rule name="Metabase" dir=in action=allow protocol=TCP localport=3000
+```
+
+> Sans cette règle, les autres postes du réseau ne peuvent pas accéder à Metabase
+> même si Docker expose le port sur `0.0.0.0:3000`.
+
+**IP fixe (recommandé)** : l'URL `http://192.168.0.37:3000` dépend d'une IP attribuée par DHCP — elle peut changer. Demander à l'admin réseau de réserver l'IP dans le routeur :
+
+  ┌──────────────────┬──────────────────────────────────────────┐
+  │ Paramètre        │ Valeur                                   │
+  ├──────────────────┼──────────────────────────────────────────┤
+  │ Machine          │ DESKTOP-FKLPKRA                          │
+  ├──────────────────┼──────────────────────────────────────────┤
+  │ Adresse MAC      │ 9C-97-1B-08-19-20 (Wi-Fi)                │
+  ├──────────────────┼──────────────────────────────────────────┤
+  │ IP à réserver    │ 192.168.0.37                             │
+  └──────────────────┴──────────────────────────────────────────┘
+
+> Le hostname (`http://DESKTOP-FKLPKRA:3000`) ne fonctionne pas sur le réseau Mediprix
+> car la résolution de nom NetBIOS/mDNS est désactivée. Utiliser l'IP fixe (demande auprès de l'Admin Sys).
 
 ---
 
