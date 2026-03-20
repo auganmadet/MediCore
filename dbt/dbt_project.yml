@@ -5,6 +5,7 @@ config-version: 2
 profile: 'medicore'
 
 model-paths: ["models"]
+seed-paths: ["seeds"]
 snapshot-paths: ["snapshots"]
 
 target-path: "target"
@@ -27,3 +28,7 @@ models:
     audit:
       +materialized: view
       +schema: AUDIT
+
+seeds:
+  medicore:
+    +schema: RAW

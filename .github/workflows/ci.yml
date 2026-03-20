@@ -49,7 +49,6 @@ jobs:
       SNOWFLAKE_ACCOUNT: ci_dummy
       SNOWFLAKE_USER: ci_dummy
       SNOWFLAKE_PASSWORD: ci_dummy
-      SNOWFLAKE_DATABASE: ci_dummy
       SNOWFLAKE_WAREHOUSE_NAME: ci_dummy
       SNOWFLAKE_DBT_ROLE_NAME: ci_dummy
     steps:
@@ -68,6 +67,39 @@ jobs:
 
       - name: dbt parse (validation syntaxe)
         run: dbt parse --project-dir dbt
+
+  integration-dbt:
+    name: Tests integration dbt (MEDICORE_TEST)
+    runs-on: ubuntu-latest
+    env:
+      DBT_PROFILES_DIR: dbt
+      SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+      SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+      SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+      SNOWFLAKE_WAREHOUSE_NAME: ${{ secrets.SNOWFLAKE_WAREHOUSE_NAME }}
+      SNOWFLAKE_DBT_ROLE_NAME: ${{ secrets.SNOWFLAKE_DBT_ROLE_NAME }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Installer dbt
+        run: pip install dbt-core==1.8.0 dbt-snowflake==1.8.0
+
+      - name: dbt deps
+        run: dbt deps --project-dir dbt
+
+      - name: dbt seed (charger fixtures dans MEDICORE_TEST.RAW)
+        run: dbt seed --target test --project-dir dbt --full-refresh
+
+      - name: dbt run (staging + marts sur MEDICORE_TEST)
+        run: dbt run --target test --project-dir dbt
+
+      - name: dbt test (validation contraintes)
+        run: dbt test --target test --project-dir dbt
 
   build-docker:
     name: Build Docker image
@@ -90,7 +122,7 @@ jobs:
   push-image:
     name: Push Docker image (GHCR)
     runs-on: ubuntu-latest
-    needs: [lint-python, test-python, validate-dbt, build-docker, shellcheck]
+    needs: [lint-python, test-python, validate-dbt, integration-dbt, build-docker, shellcheck]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     permissions:
       packages: write
