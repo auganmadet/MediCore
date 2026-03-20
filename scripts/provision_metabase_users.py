@@ -415,7 +415,7 @@ def main():
                 print(f'         Email d\'invitation envoyé automatiquement par Metabase')
             else:
                 print(f'         SMTP non configuré — communiquer manuellement :')
-                print(f'         URL : http://192.168.1.30:3000')
+                print(f'         URL : http://192.168.0.37:3000')
                 print(f'         Mot de passe temporaire : {DEFAULT_PASSWORD}')
             created_count += 1
 

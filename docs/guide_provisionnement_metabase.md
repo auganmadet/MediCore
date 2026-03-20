@@ -232,7 +232,7 @@ MediCore BI/                              view pour tous
 
 Metabase est accessible sur le réseau local à l'adresse :
 
-**`http://192.168.1.30:3000`**
+**`http://192.168.0.37:3000`**
 
 > Cette URL est valable pour tous les postes connectés au même réseau local.
 > Si l'IP du serveur change, mettre à jour cette documentation.
@@ -296,7 +296,7 @@ MB_EMAIL_SMTP_USERNAME=metabase@mediprix.fr
 MB_EMAIL_SMTP_PASSWORD=abcdefghijklmnop
 MB_EMAIL_FROM_ADDRESS=metabase@mediprix.fr
 MB_EMAIL_FROM_NAME=MediCore BI
-MB_SITE_URL=http://192.168.1.30:3000
+MB_SITE_URL=http://192.168.0.37:3000
 ```
 
 > **Important** : `MB_EMAIL_SMTP_PASSWORD` est le mot de passe d'application (16 caractères),
@@ -328,7 +328,7 @@ mapping = {
   'email-smtp-password': os.getenv('MB_EMAIL_SMTP_PASSWORD',''),
   'email-from-address': os.getenv('MB_EMAIL_FROM_ADDRESS',''),
   'email-from-name': os.getenv('MB_EMAIL_FROM_NAME','MediCore BI'),
-  'site-url': os.getenv('MB_SITE_URL','http://192.168.1.30:3000'),
+  'site-url': os.getenv('MB_SITE_URL','http://192.168.0.37:3000'),
 }
 import json; print(json.dumps(mapping['$KEY']))
   ")
@@ -385,7 +385,7 @@ Bonjour [Prénom],
 
 Ton compte Metabase MediCore est créé. Voici tes accès :
 
-  URL       : http://192.168.1.30:3000
+  URL       : http://192.168.0.37:3000
   Email     : [son email]
   Mot de passe temporaire : Medicore2026!
 
@@ -406,7 +406,7 @@ de ton service (ex: Cards/IT/, Dashboards/IT/).
   ┌─────────────────────────────┬──────────────────────────────────────────────────────────────┐
   │ Situation                   │ Action                                                       │
   ├─────────────────────────────┼──────────────────────────────────────────────────────────────┤
-  │ Même réseau local           │ `http://192.168.1.30:3000` — aucune config supplémentaire    │
+  │ Même réseau local           │ `http://192.168.0.37:3000` — aucune config supplémentaire    │
   ├─────────────────────────────┼──────────────────────────────────────────────────────────────┤
   │ VPN d'entreprise            │ S'assurer que le VPN route vers le réseau 192.168.1.0/24     │
   ├─────────────────────────────┼──────────────────────────────────────────────────────────────┤
@@ -436,7 +436,7 @@ de ton service (ex: Cards/IT/, Dashboards/IT/).
   │ Erreur "Permission denied"           │ Vérifier que le token utilisé est celui d'un admin       │
   ├──────────────────────────────────────┼──────────────────────────────────────────────────────────┤
   │ L'utilisateur ne peut pas accéder    │ Vérifier : 1) même réseau local 2) pare-feu Windows      │
-  │ à http://192.168.1.30:3000           │ port 3000 ouvert 3) Docker en cours d'exécution          │
+  │ à http://192.168.0.37:3000           │ port 3000 ouvert 3) Docker en cours d'exécution          │
   ├──────────────────────────────────────┼──────────────────────────────────────────────────────────┤
   │ "Connection refused" depuis un       │ Vérifier que le bind est `0.0.0.0:3000:3000` dans        │
   │ autre poste                          │ `docker-compose.yml` (pas `127.0.0.1`)                   │
