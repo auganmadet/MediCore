@@ -5,6 +5,27 @@ Chaque entrée décrit **ce qui a changé** du point de vue métier et son impac
 
 ---
 
+## [2026-03-20] — Multi-environnement et provisionnement utilisateurs
+
+### Ajouts
+- **Multi-environnement Snowflake** : 3 databases (MEDICORE_PROD, MEDICORE_DEV, MEDICORE_TEST) avec rôles dédiés (DEV_EXECUTOR, TEST_EXECUTOR). Développement isolé de la production.
+- **Seeds dbt** : 8 fichiers CSV de fixtures (pharmacie, produits, fournisseurs, factures, commandes, orders, ean13, lppr) pour tests d'intégration CI sur MEDICORE_TEST.
+- **CI intégration dbt** : job `integration-dbt` dans GitHub Actions (dbt seed + run + test sur MEDICORE_TEST).
+- **Provisionnement utilisateurs Metabase** : script idempotent `provision_metabase_users.py` + CSV + gouvernance collections Admin/Service + SMTP Google Workspace.
+- **Documentation** : guide provisionnement (config SMTP, mot de passe d'application Google, pare-feu, IP fixe), workflow multi-env (AUDIT, SNAPSHOTS, clone DEV).
+
+### Modifications
+- **Renommage database** : MEDIcore → MEDICORE_PROD (13 fichiers mis à jour : DDL, scripts, pipelines, dbt macros/audit, docs).
+- **Docker** : port Metabase exposé `0.0.0.0:3000` (réseau local), SMTP Gmail configuré.
+- **Profiles.yml** : 3 targets avec database en dur (dev → MEDICORE_DEV, test → MEDICORE_TEST, prod → MEDICORE_PROD).
+- **DDL_WH.sql** : création des 3 databases + rôles multi-env dans le setup initial.
+- **bulk_load.py** : STAGE_NAME dynamique via `SNOWFLAKE_DATABASE` env var.
+
+### Corrections
+- **DDL_TABLES.sql** : références MEDICORE. → MEDICORE_PROD. pour cohérence avec le renommage.
+
+---
+
 ## [2026-03-16] — Modèles dbt agrégés et qualité Metabase
 
 ### Ajouts
