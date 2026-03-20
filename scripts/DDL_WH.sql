@@ -46,28 +46,36 @@ CREATE OR REPLACE WAREHOUSE MEDICORE_WH
     COMMENT = 'Warehouse MEDICORE ELT pipeline';
 
 -- ============================================================================
--- SECTION 3 : DATABASE ET SCHEMAS
+-- SECTION 3 : DATABASES ET SCHEMAS (multi-environnement)
 -- ============================================================================
 
-CREATE OR REPLACE DATABASE MEDICORE
-    COMMENT = 'Database MEDICORE - Pharmacie analytics';
+-- 3a. Database PRODUCTION
+CREATE DATABASE IF NOT EXISTS MEDICORE_PROD
+    COMMENT = 'PRODUCTION - Pipeline ELT pharmacie, lu par Metabase';
 
-USE DATABASE MEDICORE;
+USE DATABASE MEDICORE_PROD;
 
-CREATE OR REPLACE SCHEMA RAW
+CREATE SCHEMA IF NOT EXISTS RAW
     COMMENT = 'RAW layer - Donnees brutes MySQL CDC vers Kafka';
 
-CREATE OR REPLACE SCHEMA STAGING
+CREATE SCHEMA IF NOT EXISTS STAGING
     COMMENT = 'STAGING layer - Donnees nettoyees/dedupliquees';
 
-CREATE OR REPLACE SCHEMA MARTS
+CREATE SCHEMA IF NOT EXISTS MARTS
     COMMENT = 'MARTS layer - Dimensions et faits analytiques';
 
-CREATE OR REPLACE SCHEMA AUDIT
+CREATE SCHEMA IF NOT EXISTS AUDIT
     COMMENT = 'AUDIT layer - Suivi des runs dbt et metriques qualite';
 
-CREATE OR REPLACE SCHEMA SNAPSHOTS
+CREATE SCHEMA IF NOT EXISTS SNAPSHOTS
     COMMENT = 'SNAPSHOTS layer - Tables SCD2 pour historisation';
+
+-- 3b. Database DEVELOPPEMENT (clone de prod, zero-copy)
+CREATE DATABASE IF NOT EXISTS MEDICORE_DEV CLONE MEDICORE_PROD;
+
+-- 3c. Database TEST (CI/CD GitHub Actions, alimentee par seeds dbt)
+CREATE DATABASE IF NOT EXISTS MEDICORE_TEST;
+CREATE SCHEMA IF NOT EXISTS MEDICORE_TEST.RAW;
 
 -- ============================================================================
 -- SECTION 4 : ROLES (RBAC)
