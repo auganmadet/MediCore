@@ -310,6 +310,106 @@ Concerne uniquement MEDICORE_PROD.
 
 ---
 
+## AUDIT — Lineage opérationnel
+
+Le schéma `MEDICORE.AUDIT` trace l'exécution du pipeline. Il est alimenté
+automatiquement par `batch_loop.sh` et les scripts Python via `pipelines/utils/audit.py`.
+
+**Uniquement en PROD** — DEV et TEST n'écrivent pas dans AUDIT.
+
+### Tables
+
+  ┌──────────────────────────┬──────────────────────────────────────────────────────────────────┐
+  │ Table                    │ Contenu                                                          │
+  ├──────────────────────────┼──────────────────────────────────────────────────────────────────┤
+  │ PIPELINE_RUNS            │ Une ligne par exécution de `batch_loop.sh` (RUN_ID, début, fin,  │
+  │                          │ statut, nb erreurs)                                              │
+  ├──────────────────────────┼──────────────────────────────────────────────────────────────────┤
+  │ PIPELINE_STEP_RUNS       │ Détail par phase : CDC, staging, marts, tests, freshness,        │
+  │                          │ snapshot (durée, statut, message d'erreur)                       │
+  ├──────────────────────────┼──────────────────────────────────────────────────────────────────┤
+  │ DBT_MODEL_RUNS           │ Résultat par modèle dbt (nom, durée, rows affected, statut)      │
+  ├──────────────────────────┼──────────────────────────────────────────────────────────────────┤
+  │ CDC_LAG_METRICS          │ Lag Kafka par topic (nb events en retard, timestamp)             │
+  └──────────────────────────┴──────────────────────────────────────────────────────────────────┘
+
+### Rétention
+
+Les données AUDIT sont conservées 90 jours (nettoyage automatique dans `batch_loop.sh`).
+
+### Consultation
+
+```sql
+-- Dernières exécutions
+SELECT * FROM MEDICORE.AUDIT.PIPELINE_RUNS ORDER BY STARTED_AT DESC LIMIT 10;
+
+-- Phases en erreur
+SELECT * FROM MEDICORE.AUDIT.PIPELINE_STEP_RUNS WHERE STATUS = 'FAILED' ORDER BY STARTED_AT DESC;
+
+-- Lag Kafka
+SELECT * FROM MEDICORE.AUDIT.CDC_LAG_METRICS ORDER BY MEASURED_AT DESC LIMIT 10;
+```
+
+---
+
+## SNAPSHOTS — Historisation SCD2 des dimensions
+
+Le schéma `MEDICORE.SNAPSHOTS` capture l'historique des changements sur les
+tables de dimension (SCD Type 2). Exécuté par `dbt snapshot --target prod`
+dans chaque boucle de `batch_loop.sh`.
+
+**Uniquement en PROD** — DEV et TEST n'exécutent pas les snapshots.
+
+### Tables
+
+  ┌──────────────────────────┬──────────────────────────────────────────────────────────────────┐
+  │ Snapshot                 │ Colonnes surveillées                                             │
+  ├──────────────────────────┼──────────────────────────────────────────────────────────────────┤
+  │ snap_pharmacie           │ PHA_NOM, PHA_GERS, PHA_DATE_INSTAL_WP                           │
+  ├──────────────────────────┼──────────────────────────────────────────────────────────────────┤
+  │ snap_produit             │ PRD_NOM, PRD_EAN13, FOU_ID, PRD_STOCK                           │
+  ├──────────────────────────┼──────────────────────────────────────────────────────────────────┤
+  │ snap_fournisseur         │ FOU_NOM, FOU_ADRESSE, FOU_VILLE, FOU_TYPE                       │
+  └──────────────────────────┴──────────────────────────────────────────────────────────────────┘
+
+### Fonctionnement
+
+- **Stratégie** : `check` — dbt compare les colonnes surveillées à chaque exécution
+- **Si un changement est détecté** : l'ancienne ligne reçoit un `dbt_valid_to` (date de fin), une nouvelle ligne est insérée avec `dbt_valid_from` (date de début) et `dbt_valid_to = NULL` (ligne courante)
+- **Source** : les snapshots lisent depuis `{{ ref('stg_xxx') }}` (staging), jamais depuis RAW
+- **Schéma cible** : `SNAPSHOTS` (séparé de STAGING et MARTS)
+
+### Exemple de consultation
+
+```sql
+-- Historique des changements de nom d'une pharmacie
+SELECT PHA_ID, PHA_NOM, dbt_valid_from, dbt_valid_to
+FROM MEDICORE.SNAPSHOTS.SNAP_PHARMACIE
+WHERE PHA_ID = 123
+ORDER BY dbt_valid_from;
+
+-- Toutes les modifications détectées aujourd'hui
+SELECT *
+FROM MEDICORE.SNAPSHOTS.SNAP_PRODUIT
+WHERE dbt_valid_from::date = CURRENT_DATE();
+```
+
+### Flux dans batch_loop.sh
+
+```
+batch_loop.sh (chaque boucle 30 min)
+    │
+    ├── daily_cdc_batch.py → RAW
+    ├── dbt run --select tag:staging → STAGING
+    ├── dbt run --select tag:marts → MARTS
+    ├── dbt test → validation
+    ├── dbt snapshot → SNAPSHOTS (historisation SCD2)
+    ├── dbt source freshness → alertes
+    └── audit.py → AUDIT (lineage)
+```
+
+---
+
 ## Règle d'or
 
 ```
