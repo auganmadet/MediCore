@@ -29,7 +29,7 @@ medicore:
       user: "{{ env_var('SNOWFLAKE_USER') }}"
       password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
       role: "{{ env_var('SNOWFLAKE_DBT_ROLE_NAME') }}"
-      database: MEDICORE
+      database: MEDICORE_PROD
       warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE_NAME') }}"
       schema: STAGING
       threads: 8

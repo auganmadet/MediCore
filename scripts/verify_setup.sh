@@ -62,7 +62,7 @@ if command -v snowsql >/dev/null 2>&1; then
   fi
   
   # Vérifier données dans RAW_COMMANDES (table CDC principale)
-  ROW_COUNT=$(snowsql -c medicore -q "SELECT COUNT(*) FROM MEDICORE.RAW.RAW_COMMANDES;" -o output_format=plain -o header=false 2>/dev/null | tr -d ' \n' || echo "0")
+  ROW_COUNT=$(snowsql -c medicore -q "SELECT COUNT(*) FROM MEDICORE_PROD.RAW.RAW_COMMANDES;" -o output_format=plain -o header=false 2>/dev/null | tr -d ' \n' || echo "0")
   if [ "$ROW_COUNT" -gt 0 ]; then
     echo "   ✅ RAW_COMMANDES: $ROW_COUNT lignes"
   else

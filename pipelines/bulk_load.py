@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 EXPORT_DIR = '/tmp/bulk_export'
 
 # Stage Snowflake interne
-STAGE_NAME = 'MEDICORE.RAW.BULK_STAGE'
+STAGE_NAME = f'{os.getenv("SNOWFLAKE_DATABASE", "MEDICORE_PROD")}.RAW.BULK_STAGE'
 
 # Mapping MySQL table (winstat) → Snowflake RAW table
 TABLE_MAPPING = {
