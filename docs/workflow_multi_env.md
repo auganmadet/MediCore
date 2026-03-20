@@ -410,6 +410,83 @@ batch_loop.sh (chaque boucle 30 min)
 
 ---
 
+## GitHub Secrets (CI)
+
+Le job `integration-dbt` de la CI a besoin de se connecter à Snowflake (MEDICORE_TEST)
+pour exécuter `dbt seed + run + test`. Les credentials sont stockés dans GitHub Secrets
+(chiffrés, invisibles après saisie).
+
+### Configuration
+
+1. Aller sur `https://github.com/auganmadet/MediCore/settings/secrets/actions`
+2. Créer les secrets suivants :
+
+  ┌──────────────────────────┬──────────────────────────────────────────────────────────┐
+  │ Nom du secret            │ Description                                              │
+  ├──────────────────────────┼──────────────────────────────────────────────────────────┤
+  │ SNOWFLAKE_ACCOUNT        │ Identifiant du compte Snowflake (format org-account)     │
+  ├──────────────────────────┼──────────────────────────────────────────────────────────┤
+  │ SNOWFLAKE_USER           │ Utilisateur Snowflake pour la CI                         │
+  ├──────────────────────────┼──────────────────────────────────────────────────────────┤
+  │ SNOWFLAKE_PASSWORD       │ Mot de passe de l'utilisateur CI                         │
+  ├──────────────────────────┼──────────────────────────────────────────────────────────┤
+  │ SNOWFLAKE_WAREHOUSE_NAME │ Warehouse Snowflake (ex: MEDICORE_WH)                    │
+  ├──────────────────────────┼──────────────────────────────────────────────────────────┤
+  │ SNOWFLAKE_DBT_ROLE_NAME  │ Rôle dbt (ex: MEDICORE_TEST_EXECUTOR ou DBT_EXECUTOR)    │
+  └──────────────────────────┴──────────────────────────────────────────────────────────┘
+
+> Ne jamais documenter les **valeurs** des secrets — uniquement les noms et descriptions.
+> Les valeurs sont dans `.env` (non versionné) et GitHub Secrets (chiffrés).
+
+---
+
+## Branch protection (main)
+
+Empêche que du code non testé arrive en production. Sans protection, un `git push`
+direct sur `main` déclenche `batch_loop.sh` → dbt run sur MEDICORE_PROD → dashboards
+Metabase potentiellement cassés.
+
+### Configuration
+
+1. Aller sur `https://github.com/auganmadet/MediCore/settings/branches`
+2. Créer une règle pour la branche `main` :
+
+  ┌──────────────────────────────────────────────┬──────────────┬──────────────────────────────────┐
+  │ Option                                       │ Cocher       │ Effet                            │
+  ├──────────────────────────────────────────────┼──────────────┼──────────────────────────────────┤
+  │ Require a pull request before merging        │ Oui          │ Pas de push direct sur main      │
+  ├──────────────────────────────────────────────┼──────────────┼──────────────────────────────────┤
+  │ Require status checks to pass before merging │ Oui          │ CI verte obligatoire avant merge │
+  ├──────────────────────────────────────────────┼──────────────┼──────────────────────────────────┤
+  │ Status checks requis                         │ lint-python  │ Les 6 jobs CI doivent passer     │
+  │                                              │ test-python  │                                  │
+  │                                              │ validate-dbt │                                  │
+  │                                              │ integration- │                                  │
+  │                                              │ dbt          │                                  │
+  │                                              │ build-docker │                                  │
+  │                                              │ shellcheck   │                                  │
+  ├──────────────────────────────────────────────┼──────────────┼──────────────────────────────────┤
+  │ Do not allow bypassing the above settings    │ Optionnel    │ Même l'admin passe par une PR    │
+  └──────────────────────────────────────────────┴──────────────┴──────────────────────────────────┘
+
+### Flux résultant
+
+```
+Développeur :
+  1. git checkout -b feature/xxx
+  2. Modifier le code
+  3. dbt run --target dev (vérification locale)
+  4. git push origin feature/xxx
+  5. GitHub Actions : 6 jobs CI (lint + test + dbt + build + shell)
+  6. Créer Pull Request
+  7. CI verte → Review → Merge sur main
+  8. batch_loop.sh exécute dbt run --target prod → Metabase mis à jour
+```
+
+> Sans branch protection, l'étape 6-7 est sautée — le code arrive directement en prod.
+
+---
+
 ## Règle d'or
 
 ```
