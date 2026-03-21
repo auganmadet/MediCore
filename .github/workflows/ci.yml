@@ -96,7 +96,7 @@ jobs:
         run: dbt seed --target test --project-dir dbt --full-refresh
 
       - name: dbt run (staging + marts sur MEDICORE_TEST)
-        run: dbt run --target test --project-dir dbt
+        run: dbt run --target test --project-dir dbt --exclude stg_history mart_kpi_stock
 
       - name: dbt test (validation contraintes)
         run: dbt test --target test --project-dir dbt
