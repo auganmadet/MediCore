@@ -96,7 +96,7 @@ jobs:
         run: dbt seed --target test --project-dir dbt --full-refresh
 
       - name: dbt run (staging + marts sur MEDICORE_TEST)
-        run: dbt run --target test --project-dir dbt --full-refresh --exclude stg_history fact_tresorerie mart_kpi_tresorerie mart_kpi_stock
+        run: dbt run --target test --project-dir dbt --full-refresh --vars '{allow_full_refresh: true}' --exclude stg_history fact_tresorerie mart_kpi_tresorerie mart_kpi_stock
 
       - name: dbt test (validation contraintes)
         run: dbt test --target test --project-dir dbt --exclude stg_history fact_tresorerie mart_kpi_tresorerie mart_kpi_stock source:mysql_raw snap_pharmacie snap_produit snap_fournisseur
