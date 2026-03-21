@@ -99,7 +99,7 @@ jobs:
         run: dbt run --target test --project-dir dbt --exclude stg_history fact_tresorerie mart_kpi_tresorerie mart_kpi_stock
 
       - name: dbt test (validation contraintes)
-        run: dbt test --target test --project-dir dbt --exclude stg_history fact_tresorerie mart_kpi_tresorerie mart_kpi_stock source:mysql_raw
+        run: dbt test --target test --project-dir dbt --exclude stg_history fact_tresorerie mart_kpi_tresorerie mart_kpi_stock source:mysql_raw snapshot:*
 
   build-docker:
     name: Build Docker image
