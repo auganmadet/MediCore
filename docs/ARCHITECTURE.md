@@ -33,6 +33,22 @@
 
 ## Flux de données global
 
+**Prérequis MySQL binlog** (vérifiés par `scripts/setup.sh`) :
+
+  ┌────────────────────────────────────┬────────┬──────────────────────────────────────────┐
+  │ Variable MySQL                     │ Requis │ Pourquoi                                 │
+  ├────────────────────────────────────┼────────┼──────────────────────────────────────────┤
+  │ binlog_format                      │ ROW    │ Debezium capture les changements ligne   │
+  │                                    │        │ par ligne (pas les statements SQL)        │
+  ├────────────────────────────────────┼────────┼──────────────────────────────────────────┤
+  │ binlog_row_image                   │ FULL   │ Chaque event contient toutes les colonnes │
+  │                                    │        │ (before + after), pas seulement les       │
+  │                                    │        │ colonnes modifiées                        │
+  ├────────────────────────────────────┼────────┼──────────────────────────────────────────┤
+  │ log_bin_trust_function_creators    │ ON     │ Autorise la réplication des fonctions     │
+  │                                    │        │ stockées via le binlog                    │
+  └────────────────────────────────────┴────────┴──────────────────────────────────────────┘
+
 ```
 ┌───────────┐   binlog    ┌──────────┐         ┌─────────┐
 │ MySQL RDS │───────────▶│ Debezium │────────▶│  Kafka  │

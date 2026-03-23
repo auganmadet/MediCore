@@ -97,6 +97,28 @@ echo "🔌 Phase 2/4 : connect"
 docker compose up -d connect 
 sleep 25
 
+# Phase 2b : Vérifier prérequis MySQL binlog pour Debezium CDC
+echo "🔍 Vérification prérequis MySQL binlog..."
+BINLOG_FORMAT=$(mysql -h "$MYSQL_HOST" -P "${MYSQL_PORT:-3306}" -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" -e "SHOW GLOBAL VARIABLES LIKE 'binlog_format';" -sN 2>/dev/null | awk '{print $2}')
+BINLOG_ROW_IMAGE=$(mysql -h "$MYSQL_HOST" -P "${MYSQL_PORT:-3306}" -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" -e "SHOW GLOBAL VARIABLES LIKE 'binlog_row_image';" -sN 2>/dev/null | awk '{print $2}')
+LOG_BIN_TRUST=$(mysql -h "$MYSQL_HOST" -P "${MYSQL_PORT:-3306}" -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" -e "SHOW GLOBAL VARIABLES LIKE 'log_bin_trust_function_creators';" -sN 2>/dev/null | awk '{print $2}')
+
+echo "  binlog_format=$BINLOG_FORMAT (requis: ROW)"
+echo "  binlog_row_image=$BINLOG_ROW_IMAGE (requis: FULL)"
+echo "  log_bin_trust_function_creators=$LOG_BIN_TRUST (requis: ON)"
+
+if [ "$BINLOG_FORMAT" != "ROW" ]; then
+  echo "⚠️  binlog_format=$BINLOG_FORMAT → doit être ROW pour Debezium CDC"
+  echo "   Exécuter sur MySQL RDS : SET GLOBAL binlog_format = 'ROW';"
+  echo "   Ou dans le parameter group RDS : binlog_format = ROW"
+fi
+if [ "$BINLOG_ROW_IMAGE" != "FULL" ]; then
+  echo "⚠️  binlog_row_image=$BINLOG_ROW_IMAGE → doit être FULL"
+fi
+if [ "$LOG_BIN_TRUST" != "ON" ]; then
+  echo "⚠️  log_bin_trust_function_creators=$LOG_BIN_TRUST → doit être ON"
+fi
+
 # Phase 3 : Debezium connector
 echo "📦 Phase 3/4 : Debezium → RDS Winstat..."
 
