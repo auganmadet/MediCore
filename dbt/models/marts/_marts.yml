@@ -617,3 +617,52 @@ models:
         description: "% produits sans vente > 6 mois"
       - name: pct_dormants_12m
         description: "% produits sans vente > 12 mois"
+
+  # MODELES AGREGES (lecture directe Metabase, sans JOIN ni recalcul)
+  - name: mart_kpi_marge_par_produit
+    description: "Marge agrégée par produit avec nom (source: mart_kpi_marge + dim_produit)"
+    columns:
+      - name: produit_sk
+        tests:
+          - not_null
+      - name: PRD_NOM
+        tests:
+          - not_null
+
+  - name: mart_kpi_marge_par_univers
+    description: "Marge agrégée par univers RX/OTC/PARA (source: mart_kpi_marge + dim_produit)"
+    columns:
+      - name: univers
+        tests:
+          - not_null
+
+  - name: mart_kpi_ruptures_par_produit
+    description: "Ruptures enrichies avec nom produit (source: mart_kpi_ruptures + dim_produit)"
+    columns:
+      - name: PRD_NOM
+        tests:
+          - not_null
+
+  - name: mart_kpi_ecoulement_par_fournisseur
+    description: "Écoulement pondéré par fournisseur (source: mart_kpi_ecoulement + dim_produit + dim_fournisseur)"
+    columns:
+      - name: fou_nom
+        tests:
+          - not_null
+      - name: taux_ecoulement
+        description: "Taux d'écoulement pondéré = SUM(qte_vendue) / SUM(qte_commandée)"
+
+  - name: mart_kpi_ventes_par_produit
+    description: "Ventes agrégées par produit avec nom (source: fact_ventes + dim_produit)"
+    columns:
+      - name: PRD_NOM
+        tests:
+          - not_null
+
+  - name: mart_kpi_generique_marge
+    description: "Marge agrégée générique vs princeps (source: mart_kpi_generique)"
+    columns:
+      - name: type_produit
+        description: "'Générique' ou 'Princeps'"
+        tests:
+          - not_null

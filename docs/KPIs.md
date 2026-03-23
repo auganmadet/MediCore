@@ -2,6 +2,8 @@
 
 Ce document recense l'ensemble des indicateurs clés de performance (KPIs) calculés par les modèles dbt de la couche MARTS, ainsi que les KPIs non réalisables aujourd'hui et les actions à mener pour les rendre disponibles.
 
+> **Séparation des responsabilités** : toute la logique métier (formules, KPIs) est calculée dans dbt (couche MARTS). Les dashboards Metabase ne font que des `SELECT` sur ces tables pré-calculées — voir [`docs/Dashboards.md`](Dashboards.md) pour les requêtes d'affichage et la disposition des cards.
+
 ---
 
 ## Table des matières
@@ -25,6 +27,12 @@ Ce document recense l'ensemble des indicateurs clés de performance (KPIs) calcu
    - [mart_kpi_qualite_donnees](#27-mart_kpi_qualite_donnees--monitoring-pipeline)
    - [mart_kpi_operateur](#28-mart_kpi_operateur--performance-opérateur)
    - [mart_kpi_abc](#29-mart_kpi_abc--classification-pareto)
+   - [mart_kpi_marge_par_produit](#216-mart_kpi_marge_par_produit--marge-agrégée-par-produit)
+   - [mart_kpi_marge_par_univers](#217-mart_kpi_marge_par_univers--marge-agrégée-par-univers)
+   - [mart_kpi_ruptures_par_produit](#218-mart_kpi_ruptures_par_produit--ruptures-enrichies-par-produit)
+   - [mart_kpi_ecoulement_par_fournisseur](#219-mart_kpi_ecoulement_par_fournisseur--écoulement-par-fournisseur)
+   - [mart_kpi_ventes_par_produit](#220-mart_kpi_ventes_par_produit--ventes-agrégées-par-produit)
+   - [mart_kpi_generique_marge](#221-mart_kpi_generique_marge--marge-générique-vs-princeps)
 3. [Axes d'analyse (dimensions)](#3-axes-danalyse-dimensions)
 4. [Classification des KPIs par catégorie commerciale](#4-classification-des-kpis-par-catégorie-commerciale)
    - [Sell-in](#41-sell-in-achats-fournisseurs--pharmacie)
@@ -45,6 +53,8 @@ Ce document recense l'ensemble des indicateurs clés de performance (KPIs) calcu
 ## 1. KPIs des tables de faits
 
 ### 1.1 fact_ventes — Ventes quotidiennes
+
+> **Dashboard** : [D15 — Détail transactions](Dashboards.md#d15--détail-transactions-drill-down) — Ventes par jour, ventes par sexe, CA par tranche d'âge
 
 Table agrégée par pharmacie, produit et jour. Chaque ligne représente le total des ventes d'un produit dans une pharmacie pour une journée donnée.
 
@@ -97,8 +107,12 @@ Table agrégée par pharmacie, produit et jour. Chaque ligne représente le tota
   │               │                            │ par tranche d'âge et sexe.          │
   └───────────────┴────────────────────────────┴─────────────────────────────────────┘
 
+[↑ Retour au sommaire](#table-des-matières)
+
 
 ### 1.2 fact_commandes — Achats fournisseurs
+
+> **Dashboard** : [D15 — Détail transactions](Dashboards.md#d15--détail-transactions-drill-down) — Commandes par fournisseur
 
 Table agrégée par pharmacie, produit, fournisseur, jour et numéro de commande. Chaque ligne représente une commande passée à un fournisseur.
 
@@ -127,8 +141,12 @@ Table agrégée par pharmacie, produit, fournisseur, jour et numéro de commande
   │                │                         │ (environ 2 par semaine).              │
   └────────────────┴─────────────────────────┴───────────────────────────────────────┘
 
+[↑ Retour au sommaire](#table-des-matières)
+
 
 ### 1.3 fact_prix_journalier — Évolution des prix
+
+> **Dashboard** : [D16 — Prix et mouvements stock](Dashboards.md#d16--prix-et-mouvements-stock) — Évolution prix tarif/public/achat, marge brute unitaire
 
 Table au grain journalier par pharmacie et produit. Chaque ligne contient les 4 prix du produit pour un jour donné, ainsi que la marge unitaire calculée.
 
@@ -163,8 +181,12 @@ Table au grain journalier par pharmacie et produit. Chaque ligne contient les 4 
   │                │  prix_public            │ 1.45 / 3.10 = 46.8% de taux de marge. │
   └────────────────┴─────────────────────────┴───────────────────────────────────────┘
 
+[↑ Retour au sommaire](#table-des-matières)
+
 
 ### 1.4 fact_stock_mouvement — Mouvements de stock
+
+> **Dashboard** : [D16 — Prix et mouvements stock](Dashboards.md#d16--prix-et-mouvements-stock) — Mouvements stock par jour, type opération, niveau stock
 
 Table au grain journalier par pharmacie et produit. Chaque ligne représente le résumé des mouvements de stock d'un produit pour un jour donné.
 
@@ -188,8 +210,12 @@ Table au grain journalier par pharmacie et produit. Chaque ligne représente le 
   │                │                         │ ou "S" (sortie) ou "I" (inventaire).  │
   └────────────────┴─────────────────────────┴───────────────────────────────────────┘
 
+[↑ Retour au sommaire](#table-des-matières)
+
 
 ### 1.5 fact_ruptures — Ruptures de stock (demande non servie)
+
+> **Dashboard** : [D8 — Ruptures et CA perdu](Dashboards.md#d8--ruptures-et-ca-perdu) — Données source pour mart_kpi_ruptures
 
 Table au grain journalier par pharmacie et produit. Chaque ligne représente les ruptures constatées pour un produit dans une pharmacie pour un jour donné. Source : table `MANQHISTORY` (historique des manquants).
 
@@ -220,8 +246,12 @@ Table au grain journalier par pharmacie et produit. Chaque ligne représente les
 
 **Différence avec fact_stock_mouvement** : `fact_stock_mouvement` enregistre les niveaux de stock (on sait **quand** le stock est à zéro). `fact_ruptures` enregistre la **demande non servie** (on sait combien de clients et de boîtes ont été impactés par la rupture).
 
+[↑ Retour au sommaire](#table-des-matières)
+
 
 ### 1.6 fact_tresorerie — Trésorerie journalière
+
+> **Dashboard** : [D3 — Trésorerie](Dashboards.md#d3--trésorerie) — TVA par taux, répartition modes de paiement
 
 Table au grain journalier par pharmacie. Chaque ligne contient le résumé financier de la journée : encaissements par mode de paiement, marges par segment et TVA par taux. Source : table `HISTORY`.
 
@@ -247,8 +277,12 @@ Table au grain journalier par pharmacie. Chaque ligne contient le résumé finan
 
 *Exemple : le 15 janvier, la pharmacie Dupont a encaissé 4 500 EUR : 800 EUR en espèces, 1 200 EUR en CB, 2 000 EUR en tiers-payant (mutuelle + centre) et 500 EUR en chèques. La marge du jour est de 1 200 EUR dont 800 EUR sur produits remboursés et 400 EUR sur produits libres.*
 
+[↑ Retour au sommaire](#table-des-matières)
+
 
 ### 1.7 fact_stock_valorisation — Stock valorisé quotidien
+
+> **Dashboard** : [D7 — Stock et rotation](Dashboards.md#d7--stock-et-rotation) — Données source pour mart_kpi_stock_valorisation
 
 Table au grain journalier par pharmacie et produit. Chaque ligne contient la quantité en stock, les 4 prix du jour et la valorisation calculée. Source : table `STOCKHISTORY` (137M rows).
 
@@ -268,8 +302,12 @@ Table au grain journalier par pharmacie et produit. Chaque ligne contient la qua
 
 **Différence avec fact_prix_journalier** : `fact_prix_journalier` contient les prix sans les quantités en stock (source : DAYBYDAY). `fact_stock_valorisation` contient les prix **et** les quantités, permettant de valoriser le stock (source : STOCKHISTORY).
 
+[↑ Retour au sommaire](#table-des-matières)
+
 
 ### 1.8 fact_operateur — Ventes par opérateur
+
+> **Dashboard** : [D5 — Performance vendeurs](Dashboards.md#d5--performance-vendeurs) — Données source pour mart_kpi_operateur
 
 Table au grain horaire par pharmacie et opérateur. Chaque ligne contient les ventes agrégées d'un opérateur pour une heure donnée. Source : table `MEDIPRIX_FACTURES` (249M rows) — seule table contenant l'identité du vendeur et l'heure de vente.
 
@@ -289,6 +327,7 @@ Table au grain horaire par pharmacie et opérateur. Chaque ligne contient les ve
 
 *Exemple : l'opérateur MARTIN a vendu 45 lignes entre 9h et 10h le 15 janvier, pour un CA TTC de 380 EUR. Sur ces 45 lignes, 30 sont des produits remboursables.*
 
+[↑ Retour au sommaire](#table-des-matières)
 
 ---
 
@@ -297,6 +336,8 @@ Table au grain horaire par pharmacie et opérateur. Chaque ligne contient les ve
 Ces modèles croisent plusieurs tables de faits entre elles pour calculer des indicateurs qu'aucune table seule ne peut fournir.
 
 ### 2.1 mart_kpi_marge — Marge journalière
+
+> **Dashboard** : [D4 — Marge détaillée](Dashboards.md#d4--marge-détaillée) — Marge brute par jour, distribution taux de marge
 
 **Croisement** : `fact_ventes` x `fact_prix_journalier` sur la même pharmacie + même produit + même date.
 
@@ -326,8 +367,12 @@ Ces modèles croisent plusieurs tables de faits entre elles pour calculer des in
 
   **Différence avec fact_prix_journalier** : `fact_prix_journalier` donne la marge **par boîte** (unitaire, indépendante des volumes). `mart_kpi_marge` donne la marge **totale** d'une journée en multipliant par les quantités réellement vendues.
 
+[↑ Retour au sommaire](#table-des-matières)
+
 
 ### 2.2 mart_kpi_stock — Rotation et rupture stock mensuelles
+
+> **Dashboard** : [D7 — Stock et rotation](Dashboards.md#d7--stock-et-rotation) — Rotation stock, taux de rupture, stock moyen vs ventes
 
 **Croisement** : `fact_stock_mouvement` x `fact_ventes`, agrégés au mois.
 
@@ -368,9 +413,13 @@ Ces modèles croisent plusieurs tables de faits entre elles pour calculer des in
 - **Rotation de stock** : nombre de fois que le stock "tourne" dans le mois. Plus c'est élevé, plus le produit se vend vite. Une rotation faible indique un sur-stockage.
   *Exemple : 500 boîtes vendues / 116 en stock moyen = 4.3 rotations.*
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ---
 
 ### 2.3 mart_kpi_ecoulement — Taux d'écoulement mensuel
+
+> **Dashboard** : [D9 — Écoulement](Dashboards.md#d9--écoulement-sell-through) — Taux d'écoulement mensuel, commandé vs vendu, produits sur-stockés
 
 **Croisement** : `fact_commandes` x `fact_ventes`, agrégés au mois.
 
@@ -420,7 +469,11 @@ Ces modèles croisent plusieurs tables de faits entre elles pour calculer des in
 - **Égal à 100%** : parfait équilibre entre offre et demande.
 - **Supérieur à 100%** : on vend plus qu'on ne commande ce mois-là, on écoule du stock antérieur. Risque de rupture à terme.
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ### 2.4 mart_kpi_ruptures — Impact des ruptures et CA perdu
+
+> **Dashboard** : [D8 — Ruptures et CA perdu](Dashboards.md#d8--ruptures-et-ca-perdu) — CA estimé perdu, marge perdue, clients impactés, taux de rupture
 
 **Croisement** : `fact_ruptures` x `fact_ventes` x `fact_prix_journalier`, agrégés au mois.
 
@@ -486,9 +539,13 @@ Ces modèles croisent plusieurs tables de faits entre elles pour calculer des in
 
 Les deux indicateurs sont complémentaires : un produit peut avoir le stock à zéro un dimanche sans impact client (`taux_rupture_stock` élevé, `taux_rupture_demande` nul), ou inversement avoir du stock mais des lignes manquantes pour un autre motif (produit bloqué, réservé).
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ---
 
 ### 2.5 mart_kpi_tresorerie — Trésorerie mensuelle
+
+> **Dashboard** : [D3 — Trésorerie](Dashboards.md#d3--trésorerie) — CA total, panier moyen, nb factures, modes de paiement, rétrocessions
 
 **Source** : `fact_tresorerie`, agrégée au mois.
 
@@ -521,8 +578,12 @@ Les deux indicateurs sont complémentaires : un produit peut avoir le stock à z
 - **% marge remboursable** : répartition de la marge entre produits remboursés et produits libres (parapharmacie, OTC). Permet de piloter le mix de rentabilité.
   *Exemple : 8 000 EUR de marge remboursable / 12 000 EUR de marge totale = 67%. La pharmacie réalise un tiers de sa marge sur le libre.*
 
+[↑ Retour au sommaire](#table-des-matières)
+
 
 ### 2.6 mart_kpi_stock_valorisation — Valorisation et couverture stock
+
+> **Dashboard** : [D7 — Stock et rotation](Dashboards.md#d7--stock-et-rotation) — Valorisation PA fin mois, couverture en jours, marge latente
 
 **Croisement** : `fact_stock_valorisation` x `fact_ventes`, agrégés au mois.
 
@@ -557,8 +618,12 @@ Les deux indicateurs sont complémentaires : un produit peut avoir le stock à z
 - **Stock dormant** : produits ayant du stock mais aucune vente dans le mois. Capital immobilisé inutilement.
   *Exemple : 50 boîtes d'un produit à 8 EUR = 400 EUR de stock dormant. Si c'est chronique, envisager un déstockage.*
 
+[↑ Retour au sommaire](#table-des-matières)
+
 
 ### 2.7 mart_kpi_qualite_donnees — Monitoring pipeline
+
+> **Dashboard** : [D14 — Qualité des données](Dashboards.md#d14--qualité-des-données) — Taux pharmacies OK, erreurs, fraîcheur
 
 **Sources** : `stg_log` (dernière synchronisation) + `stg_pharmacies_erreur` (erreurs de sync).
 
@@ -586,8 +651,12 @@ Les deux indicateurs sont complémentaires : un produit peut avoir le stock à z
 - **Taux pharmacies OK** : indicateur global de santé du pipeline.
   *Exemple : 250 / 268 = 93.3%. Objectif > 95%.*
 
+[↑ Retour au sommaire](#table-des-matières)
+
 
 ### 2.8 mart_kpi_operateur — Performance opérateur
+
+> **Dashboard** : [D5 — Performance vendeurs](Dashboards.md#d5--performance-vendeurs) — CA, panier moyen, taux marge, productivité par opérateur
 
 **Source** : `fact_operateur`, agrégée au mois.
 
@@ -622,8 +691,12 @@ Les deux indicateurs sont complémentaires : un produit peut avoir le stock à z
 - **Heure pic CA** : permet de planifier les équipes aux heures de forte affluence.
   *Exemple : MARTIN réalise le plus de CA entre 10h et 11h. DURAND entre 14h et 15h.*
 
+[↑ Retour au sommaire](#table-des-matières)
+
 
 ### 2.9 mart_kpi_abc — Classification Pareto
+
+> **Dashboard** : [D12 — Classification ABC](Dashboards.md#d12--classification-abc-pareto) — Courbe Pareto, répartition A/B/C, top 10 produits A
 
 **Source** : `fact_ventes`, agrégée au mois.
 
@@ -658,8 +731,12 @@ Les deux indicateurs sont complémentaires : un produit peut avoir le stock à z
 - Un produit classe A en rupture = urgence absolue (fort impact CA)
 - Un produit classe C avec stock dormant = candidat au déstockage
 
+[↑ Retour au sommaire](#table-des-matières)
+
 
 ### 2.10 mart_kpi_ca_evolution — Évolution CA vs A-1
+
+> **Dashboard** : [D2 — Évolution CA](Dashboards.md#d2--évolution-ca) — CA mensuel N vs N-1, YTD, 12DM, jours de vente
 
 **Source** : `fact_ventes`, agrégée au mois avec comparaison année précédente.
 
@@ -691,8 +768,12 @@ Les deux indicateurs sont complémentaires : un produit peut avoir le stock à z
 - Comparer aux **objectifs budgétaires**
 - Identifier les **tendances saisonnières** (via 12DM)
 
+[↑ Retour au sommaire](#table-des-matières)
+
 
 ### 2.11 mart_kpi_generique — Génériques et Parts de Marché Labo
+
+> **Dashboard** : [D13 — Génériques et labos](Dashboards.md#d13--génériques-et-labos) — Taux générique, PDM par labo, nb produits par labo
 
 **Croisement** : `fact_ventes` x `dim_produit` x `dim_fournisseur` x `fact_prix_journalier`.
 
@@ -722,8 +803,12 @@ Les deux indicateurs sont complémentaires : un produit peut avoir le stock à z
 - Négocier les **conditions commerciales** avec les labos
 - Comparer **marge générique vs princeps**
 
+[↑ Retour au sommaire](#table-des-matières)
+
 
 ### 2.12 mart_kpi_remise_labo — Remise Pondérée par Laboratoire
+
+> **Dashboard** : [D10 — Remises fournisseurs](Dashboards.md#d10--remises-fournisseurs) — Remise pondérée, PDM achats, évolution vs A-1
 
 **Croisement** : `fact_commandes` x `dim_fournisseur`.
 
@@ -751,8 +836,12 @@ Les deux indicateurs sont complémentaires : un produit peut avoir le stock à z
 - Négocier de **meilleures remises**
 - Identifier les labos à **fort potentiel** de négociation
 
+[↑ Retour au sommaire](#table-des-matières)
+
 
 ### 2.13 mart_kpi_univers — KPIs par Univers (Dashboard)
+
+> **Dashboard** : [D6 — Univers RX OTC PARA](Dashboards.md#d6--univers-rxotcpara) — CA, marge, mix par univers
 
 **Source** : `mart_kpi_generique`, agrégé par univers.
 
@@ -782,8 +871,12 @@ Les deux indicateurs sont complémentaires : un produit peut avoir le stock à z
 - Adapter la **stratégie commerciale** par segment
 - Justifier les **investissements** merchandising
 
+[↑ Retour au sommaire](#table-des-matières)
+
 
 ### 2.14 mart_kpi_dormant — Produits Sans Vente
+
+> **Dashboard** : [D11 — Produits dormants](Dashboards.md#4-d11--produits-dormants-exemple-détaillé) — Capital immobilisé, dormants par univers/fournisseur
 
 **Croisement** : `dim_produit` x `fact_ventes` (cross join avec filtre date dernière vente).
 
@@ -813,8 +906,12 @@ Les deux indicateurs sont complémentaires : un produit peut avoir le stock à z
 - Calculer la **dépréciation comptable**
 - Améliorer les **processus d'achat** (objectif < 5%)
 
+[↑ Retour au sommaire](#table-des-matières)
+
 
 ### 2.15 mart_kpi_synthese_pharmacie — Vue Dashboard Consolidée
+
+> **Dashboard** : [D1 — Synthèse pharmacie](Dashboards.md#d1--vue-densemble-pharmacie) — Vue exécutive : CA, marge, stock, dormants, générique
 
 **Croisement** : `mart_kpi_ca_evolution` x `mart_kpi_stock_valorisation` x `mart_kpi_generique` x `mart_kpi_dormant`.
 
@@ -844,6 +941,287 @@ Les deux indicateurs sont complémentaires : un produit peut avoir le stock à z
 - **Benchmark** : comparaison entre pharmacies du groupement
 - **Alertes** : détection automatique des écarts aux cibles
 
+[↑ Retour au sommaire](#table-des-matières)
+
+---
+
+> **Modèles agrégés (2.16 à 2.21)** — Ces tables pré-calculent des KPIs à
+> une granularité supérieure pour lecture directe dans Metabase. Certaines
+> colonnes portent le même nom que dans les tables sources mais ont une
+> **sémantique différente** (agrégation pondérée, périmètre élargi). Les
+> différences sont documentées ci-dessous pour chaque modèle.
+
+### 2.16 mart_kpi_marge_par_produit — Marge agrégée par produit
+
+> **Dashboard** : [D4 — Marge détaillée](Dashboards.md#d4--marge-détaillée) — Top 20 produits par marge
+
+**Croisement** : `mart_kpi_marge` x `dim_produit`, agrégés par produit.
+
+**Logique** : pré-calcule la marge totale par produit avec le nom lisible (PRD_NOM) et l'univers, pour éviter les JOIN côté Metabase.
+
+**Grain** : pharmacie, produit.
+
+  ┌──────────────────────┬──────────────────────────────────────────────┐
+  │ KPI                  │ Formule                                      │
+  ├──────────────────────┼──────────────────────────────────────────────┤
+  │ Marge brute          │ sum(marge_brute)                             │
+  ├──────────────────────┼──────────────────────────────────────────────┤
+  │ CA HT                │ sum(ca_ht)                                   │
+  ├──────────────────────┼──────────────────────────────────────────────┤
+  │ Quantité vendue      │ sum(quantite_vendue)                         │
+  ├──────────────────────┼──────────────────────────────────────────────┤
+  │ Taux de marge        │ sum(marge_brute) / sum(ca_ht)                │
+  └──────────────────────┴──────────────────────────────────────────────┘
+
+**Explications et exemples :**
+
+- **Marge brute** : marge cumulée toutes dates confondues pour un produit.
+  *Exemple : Doliprane 1000mg a généré 2 340 EUR de marge brute.*
+
+- **Taux de marge** : rentabilité du produit.
+  *Exemple : 2 340 / 8 500 = 27,5% de taux de marge.*
+
+**Différences avec `mart_kpi_marge`** :
+
+  ┌──────────────────┬────────────────────────────────┬─────────────────────────────────────┐
+  │ Colonne          │ mart_kpi_marge (source)         │ mart_kpi_marge_par_produit (agrégé) │
+  ├──────────────────┼────────────────────────────────┼─────────────────────────────────────┤
+  │ marge_brute      │ Par produit × jour             │ SUM toutes dates pour un produit    │
+  ├──────────────────┼────────────────────────────────┼─────────────────────────────────────┤
+  │ taux_marge       │ Marge/CA d'un jour             │ SUM(marge) / SUM(CA) pondéré        │
+  └──────────────────┴────────────────────────────────┴─────────────────────────────────────┘
+
+**Utilités :**
+- **Dashboard D4** : carte "Top 20 produits par marge" — lecture directe sans JOIN
+- **Négociation achats** : identifier les produits les plus rentables
+
+[↑ Retour au sommaire](#table-des-matières)
+
+---
+
+### 2.17 mart_kpi_marge_par_univers — Marge agrégée par univers
+
+> **Dashboard** : [D4 — Marge détaillée](Dashboards.md#d4--marge-détaillée) — Taux de marge par univers
+
+**Croisement** : `mart_kpi_marge` x `dim_produit`, agrégés par univers (RX, OTC, PARA).
+
+**Logique** : taux de marge pondéré par les montants (pas une moyenne simple des taux produit).
+
+**Grain** : pharmacie, univers.
+
+  ┌──────────────────────┬──────────────────────────────────────────────┐
+  │ KPI                  │ Formule                                      │
+  ├──────────────────────┼──────────────────────────────────────────────┤
+  │ Marge brute          │ sum(marge_brute)                             │
+  ├──────────────────────┼──────────────────────────────────────────────┤
+  │ CA HT                │ sum(ca_ht)                                   │
+  ├──────────────────────┼──────────────────────────────────────────────┤
+  │ Taux de marge (%)    │ sum(marge_brute) / sum(ca_ht) * 100          │
+  └──────────────────────┴──────────────────────────────────────────────┘
+
+**Explications et exemples :**
+
+- **Taux de marge RX** : marge sur les médicaments remboursables.
+  *Exemple : RX = 22%, OTC = 35%, PARA = 42%.*
+
+**Différences avec `mart_kpi_marge`** :
+
+  ┌──────────────────┬────────────────────────────────┬──────────────────────────────────────┐
+  │ Colonne          │ mart_kpi_marge (source)         │ mart_kpi_marge_par_univers (agrégé)  │
+  ├──────────────────┼────────────────────────────────┼──────────────────────────────────────┤
+  │ marge_brute      │ Par produit × jour             │ SUM tous produits d'un univers       │
+  ├──────────────────┼────────────────────────────────┼──────────────────────────────────────┤
+  │ taux_marge       │ Ratio d'un produit (0 à 1)     │ N'existe pas (remplacé par ci-dessous) │
+  ├──────────────────┼────────────────────────────────┼──────────────────────────────────────┤
+  │ taux_marge_pct   │ N'existe pas                   │ Pondéré × 100 (ex: 27.5 = 27,5%)    │
+  └──────────────────┴────────────────────────────────┴──────────────────────────────────────┘
+
+> `taux_marge_pct` est en pourcentage (× 100), contrairement à `taux_marge` de la table source qui est un ratio (0 à 1).
+
+**Utilités :**
+- **Dashboard D4** : carte "Taux de marge par univers" — lecture directe
+- **Stratégie commerciale** : piloter le mix produit vers les univers les plus rentables
+
+[↑ Retour au sommaire](#table-des-matières)
+
+---
+
+### 2.18 mart_kpi_ruptures_par_produit — Ruptures enrichies par produit
+
+> **Dashboard** : [D8 — Ruptures et CA perdu](Dashboards.md#d8--ruptures-et-ca-perdu) — Top 10 produits en rupture, jours de rupture par produit
+
+**Croisement** : `mart_kpi_ruptures` x `dim_produit`.
+
+**Logique** : enrichit les données de rupture avec le nom du produit (PRD_NOM) pour affichage direct.
+
+**Grain** : pharmacie, produit, mois.
+
+  ┌──────────────────────────────┬──────────────────────────────────────────────┐
+  │ KPI                          │ Formule                                      │
+  ├──────────────────────────────┼──────────────────────────────────────────────┤
+  │ Boîtes manquantes            │ nb_boites_manquantes (depuis mart_kpi_ruptures) │
+  ├──────────────────────────────┼──────────────────────────────────────────────┤
+  │ Jours de rupture             │ nb_jours_rupture (depuis mart_kpi_ruptures)  │
+  ├──────────────────────────────┼──────────────────────────────────────────────┤
+  │ CA estimé perdu              │ ca_estime_perdu (depuis mart_kpi_ruptures)   │
+  ├──────────────────────────────┼──────────────────────────────────────────────┤
+  │ Taux de rupture demande      │ taux_rupture_demande (depuis mart_kpi_ruptures) │
+  └──────────────────────────────┴──────────────────────────────────────────────┘
+
+**Explications et exemples :**
+
+- **Boîtes manquantes** : unités demandées mais non disponibles.
+  *Exemple : 45 boîtes de Ventoline manquantes en mars.*
+
+- **Jours de rupture** : nombre de jours où le produit était indisponible.
+  *Exemple : Ventoline en rupture 12 jours sur 31.*
+
+**Utilités :**
+- **Dashboard D8** : cartes "Top 10 produits en rupture" et "Jours de rupture par produit"
+- **Réapprovisionnement** : prioriser les commandes urgentes
+
+[↑ Retour au sommaire](#table-des-matières)
+
+---
+
+### 2.19 mart_kpi_ecoulement_par_fournisseur — Écoulement par fournisseur
+
+> **Dashboard** : [D9 — Écoulement](Dashboards.md#d9--écoulement-sell-through) — Écoulement par fournisseur
+
+**Croisement** : `mart_kpi_ecoulement` x `dim_produit` x `dim_fournisseur`.
+
+**Logique** : taux d'écoulement **pondéré** par les quantités commandées (pas une moyenne simple des taux produit). Agrège tous les produits d'un fournisseur.
+
+**Grain** : pharmacie, fournisseur (FOU_NOM), mois.
+
+  ┌──────────────────────┬──────────────────────────────────────────────────────┐
+  │ KPI                  │ Formule                                              │
+  ├──────────────────────┼──────────────────────────────────────────────────────┤
+  │ Quantité commandée   │ sum(quantite_commandee) par fournisseur              │
+  ├──────────────────────┼──────────────────────────────────────────────────────┤
+  │ Quantité vendue      │ sum(quantite_vendue) par fournisseur                 │
+  ├──────────────────────┼──────────────────────────────────────────────────────┤
+  │ Taux d'écoulement    │ sum(quantite_vendue) / sum(quantite_commandee)       │
+  └──────────────────────┴──────────────────────────────────────────────────────┘
+
+**Explications et exemples :**
+
+- **Taux d'écoulement pondéré** : proportion des commandes effectivement vendues.
+  *Exemple : CERP = 92% (bon écoulement), BOIRON = 65% (sur-stockage).*
+
+- **Différence avec la moyenne simple** : un produit commandé 1 unité à 100% d'écoulement ne pèse pas autant qu'un produit commandé 10 000 unités à 50%.
+
+**Différences avec `mart_kpi_ecoulement`** :
+
+  ┌──────────────────────┬──────────────────────────────────┬─────────────────────────────────────────────┐
+  │ Colonne              │ mart_kpi_ecoulement (source)      │ mart_kpi_ecoulement_par_fournisseur (agrégé) │
+  ├──────────────────────┼──────────────────────────────────┼─────────────────────────────────────────────┤
+  │ quantite_commandee   │ Par produit individuel           │ SUM de tous les produits du fournisseur      │
+  ├──────────────────────┼──────────────────────────────────┼─────────────────────────────────────────────┤
+  │ quantite_vendue      │ Par produit individuel           │ SUM de tous les produits du fournisseur      │
+  ├──────────────────────┼──────────────────────────────────┼─────────────────────────────────────────────┤
+  │ taux_ecoulement      │ qte_vendue / qte_commandee       │ SUM(qte_vendue) / SUM(qte_commandee)        │
+  │                      │ d'un seul produit                │ pondéré sur tous les produits du fournisseur │
+  └──────────────────────┴──────────────────────────────────┴─────────────────────────────────────────────┘
+
+> **Attention** : `AVG(taux_ecoulement)` sur les produits d'un fournisseur donnerait un résultat
+> différent de `SUM(qte_vendue) / SUM(qte_commandee)`. La table agrégée utilise la formule
+> pondérée (correcte). Exemple : Doliprane 500/600 = 83%, Aspirine 100/200 = 50%.
+> Moyenne simple = 66,5%. Pondéré = 600/800 = **75%**.
+
+**Utilités :**
+- **Dashboard D9** : carte "Écoulement par fournisseur" — lecture directe
+- **Négociation fournisseur** : identifier les fournisseurs dont les produits s'écoulent mal
+
+[↑ Retour au sommaire](#table-des-matières)
+
+---
+
+### 2.20 mart_kpi_ventes_par_produit — Ventes agrégées par produit
+
+> **Dashboard** : [D15 — Détail transactions](Dashboards.md#d15--détail-transactions-drill-down) — Top produits vendus
+
+**Croisement** : `fact_ventes` x `dim_produit`.
+
+**Logique** : pré-calcule les ventes totales par produit avec le nom lisible (PRD_NOM).
+
+**Grain** : pharmacie, produit.
+
+  ┌──────────────────────┬──────────────────────────────────────────────┐
+  │ KPI                  │ Formule                                      │
+  ├──────────────────────┼──────────────────────────────────────────────┤
+  │ Quantité vendue      │ sum(quantite_vendue)                         │
+  ├──────────────────────┼──────────────────────────────────────────────┤
+  │ CA HT                │ sum(ca_ht)                                   │
+  ├──────────────────────┼──────────────────────────────────────────────┤
+  │ CA TTC               │ sum(ca_ttc)                                  │
+  ├──────────────────────┼──────────────────────────────────────────────┤
+  │ Nb lignes            │ sum(nb_lignes)                               │
+  └──────────────────────┴──────────────────────────────────────────────┘
+
+**Explications et exemples :**
+
+- **Quantité vendue** : total des unités vendues toutes dates confondues.
+  *Exemple : Doliprane 1000mg = 12 500 boîtes vendues.*
+
+**Utilités :**
+- **Dashboard D15** : carte "Top produits vendus" — lecture directe sans JOIN
+- **Référencement** : identifier les best-sellers
+
+[↑ Retour au sommaire](#table-des-matières)
+
+---
+
+### 2.21 mart_kpi_generique_marge — Marge générique vs princeps
+
+> **Dashboard** : [D13 — Génériques et labos](Dashboards.md#d13--génériques-et-labos) — Marge générique vs princeps
+
+**Croisement** : `mart_kpi_generique`, agrégé par type (Générique/Princeps).
+
+**Logique** : compare la rentabilité des génériques vs princeps avec un taux de marge pondéré.
+
+**Grain** : pharmacie, mois, type_produit (Générique/Princeps).
+
+  ┌──────────────────────┬──────────────────────────────────────────────┐
+  │ KPI                  │ Formule                                      │
+  ├──────────────────────┼──────────────────────────────────────────────┤
+  │ CA HT                │ sum(ca_ht) par type                          │
+  ├──────────────────────┼──────────────────────────────────────────────┤
+  │ Marge brute          │ sum(marge_brute) par type                    │
+  ├──────────────────────┼──────────────────────────────────────────────┤
+  │ Taux de marge        │ sum(marge_brute) / sum(ca_ht) par type       │
+  └──────────────────────┴──────────────────────────────────────────────┘
+
+**Explications et exemples :**
+
+- **Taux de marge par type** : rentabilité comparée.
+  *Exemple : Générique = 45% de marge, Princeps = 18% de marge.*
+
+- **Pourquoi pondéré** : un petit générique à 80% de marge ne doit pas masquer un gros princeps à 15% qui génère plus de marge absolue.
+
+**Différences avec `mart_kpi_generique`** :
+
+  ┌──────────────────┬──────────────────────────────────┬──────────────────────────────────────┐
+  │ Colonne          │ mart_kpi_generique (source)       │ mart_kpi_generique_marge (agrégé)    │
+  ├──────────────────┼──────────────────────────────────┼──────────────────────────────────────┤
+  │ grain            │ pharmacie × mois × labo × type   │ pharmacie × mois × type uniquement   │
+  ├──────────────────┼──────────────────────────────────┼──────────────────────────────────────┤
+  │ ca_ht            │ Par labo/type individuel          │ SUM de tous les labos du type         │
+  ├──────────────────┼──────────────────────────────────┼──────────────────────────────────────┤
+  │ taux_marge       │ Par labo (0 à 1)                 │ Pondéré tous labos du type (0 à 1)   │
+  ├──────────────────┼──────────────────────────────────┼──────────────────────────────────────┤
+  │ type_produit     │ is_generique (booléen)           │ 'Générique' ou 'Princeps' (texte)    │
+  └──────────────────┴──────────────────────────────────┴──────────────────────────────────────┘
+
+> `type_produit` remplace `is_generique` avec des libellés lisibles pour Metabase.
+
+**Utilités :**
+- **Dashboard D13** : carte "Marge générique vs princeps" — lecture directe
+- **Substitution** : mesurer le gain réel de la substitution générique
+- **Objectif CPAM** : atteindre 80% de taux de substitution tout en maximisant la marge
+
+[↑ Retour au sommaire](#table-des-matières)
+
 ---
 
 ## 3. Axes d'analyse (dimensions)
@@ -868,6 +1246,8 @@ Tous les KPIs ci-dessus peuvent être filtrés et ventilés selon les axes suiva
 - Marge par famille de produit, analyse par code remboursement
 - Performance par fournisseur, comparaison entre répartiteurs
 - Évolution mensuelle, saisonnalité, tendances
+
+[↑ Retour au sommaire](#table-des-matières)
 
 ---
 
@@ -900,6 +1280,8 @@ KPIs mesurant les flux d'approvisionnement auprès des grossistes et laboratoire
   ├─────────────────────────────────┼─────────────────────────┼─────────────────────────────────────────────┤
   │ Taux de service fournisseur     │ NON DISPO               │ Requiert table RECEPTIONS                   │
   └─────────────────────────────────┴─────────────────────────┴─────────────────────────────────────────────┘
+
+[↑ Retour au sommaire](#table-des-matières)
 
 
 ### 4.2 Sell-out (pharmacie → consommateur final)
@@ -936,6 +1318,8 @@ KPIs mesurant les ventes au comptoir, l'activité commerciale B2C.
   │ Evolution par catégorie         │ NON DISPO               │ Requiert référentiel catégories             │
   └─────────────────────────────────┴─────────────────────────┴─────────────────────────────────────────────┘
 
+[↑ Retour au sommaire](#table-des-matières)
+
 
 ### 4.3 Sell-through (taux d'écoulement / rotation)
 
@@ -955,6 +1339,8 @@ KPIs mesurant la vitesse à laquelle les produits achetés sont revendus.
   │ Ratio stock/CA annuel           │ mart_kpi_synthese_pha.  │ Poids du stock vs activité (cible 8-15%)    │
   └─────────────────────────────────┴─────────────────────────┴─────────────────────────────────────────────┘
 
+[↑ Retour au sommaire](#table-des-matières)
+
 
 ### 4.4 Upsell / Upselling (montée en gamme)
 
@@ -967,6 +1353,8 @@ KPIs mesurant la capacité à vendre des produits de gamme supérieure.
   └─────────────────────────────────┴─────────────────────────┴─────────────────────────────────────────────┘
 
 *Exemple d'upsell en pharmacie : proposer Nurofen 400mg au lieu de Nurofen 200mg, ou une crème premium au lieu d'une crème standard.*
+
+[↑ Retour au sommaire](#table-des-matières)
 
 
 ### 4.5 Cross-sell / Cross-selling (ventes additionnelles)
@@ -983,6 +1371,8 @@ KPIs mesurant la capacité à vendre des produits complémentaires.
 
 *Exemple de cross-sell en pharmacie : proposer un spray nasal avec un sirop contre la toux, ou une brosse à dents avec un dentifrice.*
 
+[↑ Retour au sommaire](#table-des-matières)
+
 
 ### 4.6 Downsell / Down-selling (substitution vers moins cher)
 
@@ -998,6 +1388,8 @@ KPIs mesurant la substitution vers des produits moins chers (notamment génériq
 
 *En pharmacie, le downsell est souvent encouragé (substitution générique) car il améliore la marge tout en réduisant le coût pour le patient et l'assurance maladie (objectif CPAM > 80%).*
 
+[↑ Retour au sommaire](#table-des-matières)
+
 
 ### 4.7 Repeat / Réachat
 
@@ -1010,6 +1402,8 @@ KPIs mesurant la fidélité et la récurrence des achats clients.
   └─────────────────────────────────┴─────────────────────────┴─────────────────────────────────────────────┘
 
 *KPIs cibles si données Mediplace disponibles : fréquence de visite, délai moyen entre achats, taux de réachat à 30/60/90 jours.*
+
+[↑ Retour au sommaire](#table-des-matières)
 
 
 ### 4.8 Churn (attrition client)
@@ -1024,6 +1418,8 @@ KPIs mesurant la perte de clients.
 
 *KPIs cibles si données Mediplace disponibles : taux de churn mensuel, nb clients perdus, CA perdu par churn.*
 
+[↑ Retour au sommaire](#table-des-matières)
+
 
 ### 4.9 CLV / LTV (Customer Lifetime Value)
 
@@ -1037,6 +1433,8 @@ KPIs mesurant la valeur totale d'un client sur sa durée de vie.
 
 *KPI cible : CLV = panier moyen × fréquence annuelle × durée relation (années). Nécessite identification client.*
 
+[↑ Retour au sommaire](#table-des-matières)
+
 
 ### 4.10 Attach rate (taux d'association produits)
 
@@ -1049,6 +1447,8 @@ KPIs mesurant la fréquence d'achat conjoint de produits.
   └─────────────────────────────────┴─────────────────────────┴─────────────────────────────────────────────┘
 
 *KPI cible : % de paniers contenant le produit A qui contiennent aussi le produit B. Exemple : 65% des clients achetant un sirop achètent aussi des pastilles.*
+
+[↑ Retour au sommaire](#table-des-matières)
 
 
 ### 4.11 Synthèse de couverture
@@ -1077,6 +1477,8 @@ KPIs mesurant la fréquence d'achat conjoint de produits.
   │ Attach rate             │ NON COUVERT│ Requiert analyse de panier (market basket analysis)         │
   └─────────────────────────┴────────────┴─────────────────────────────────────────────────────────────┘
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ---
 
 ## 5. KPIs manquants et plan d'action
@@ -1093,6 +1495,8 @@ Deux KPIs ne sont pas calculables aujourd'hui car les données sources nécessai
 
 **Pourquoi ce n'est pas possible aujourd'hui** : on connaît la date de commande (`COM_DATE` dans la table `COMMANDES`), mais aucune table source ne contient la date de réception.
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ### 5.2 Taux de service fournisseur
 
 **Définition** : rapport entre la quantité effectivement livrée par le fournisseur et la quantité commandée.
@@ -1102,6 +1506,8 @@ Deux KPIs ne sont pas calculables aujourd'hui car les données sources nécessai
 **Exemple concret** : on commande 100 boîtes de Doliprane, le fournisseur en livre 95. Le taux de service est de 95%. Un fournisseur en dessous de 90% pose un problème de fiabilité.
 
 **Pourquoi ce n'est pas possible aujourd'hui** : on connaît la quantité commandée (`COM_QUANTITE` dans la table `COMMANDES`), mais aucune table source ne contient la quantité effectivement reçue.
+
+[↑ Retour au sommaire](#table-des-matières)
 
 ### 5.3 Solution : table source à intégrer
 
@@ -1169,6 +1575,8 @@ inner join stg_receptions r
 - OCP livre en moyenne en 1.5 jours
 - OCP livre 97% des quantités commandées
 - 92% des commandes OCP arrivent complètes
+
+[↑ Retour au sommaire](#table-des-matières)
 
 
 ### 5.4 KPIs nécessitant des données externes
@@ -1289,3 +1697,5 @@ Comparaison janvier N vs janvier N-1 :
 - Comparer aux **parts de marché nationales** (benchmarks GERS/IMS)
 - Piloter le **merchandising** et l'allocation des linéaires
 - Mesurer l'impact des **animations commerciales** par catégorie
+
+[↑ Retour au sommaire](#table-des-matières)

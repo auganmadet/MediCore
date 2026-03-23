@@ -1,4 +1,4 @@
-"""Utilitaire audit : log pipeline runs et steps dans MEDICORE.AUDIT.
+"""Utilitaire audit : log pipeline runs et steps dans MEDICORE_PROD.AUDIT.
 
 Chaque fonction ouvre/ferme sa propre connexion (~1s par appel, ~7 appels par batch).
 Encapsulé dans try/except — l'audit ne doit jamais casser le pipeline.

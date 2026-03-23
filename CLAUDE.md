@@ -31,7 +31,8 @@ Répertoire : `.claude/dev-memories/`
 - **Flux** : MySQL RDS -> Kafka CDC -> Snowflake RAW -> dbt STG -> dbt MARTS
 - **Sources** : 18 tables (4 CDC + 14 référence)
 - **Transformations** : dbt 1.8 (SQL/Jinja2)
-- **DWH** : Snowflake (RAW -> STAGING -> MARTS)
+- **DWH** : Snowflake MEDICORE_PROD (RAW -> STAGING -> MARTS -> AUDIT -> SNAPSHOTS)
+- **Multi-env** : MEDICORE_DEV (clone), MEDICORE_TEST (seeds CI)
 - **Streaming** : Debezium 2.7.3 + Kafka 7.5.0
 - **Infra** : Docker Compose (6 services)
 - **Monitoring** : Teams webhook + dbt source freshness
@@ -68,7 +69,7 @@ Répertoire : `.claude/dev-memories/`
 - Requêtes paramétrées exclusivement dans les pipelines Python
 - Pas d'interpolation de chaînes dans les requêtes SQL
 - Credentials via `.env` (non versionné)
-- Rôle Snowflake `MEDIcore_DBT_EXECUTOR` pour isolation
+- Rôle Snowflake `MEDICORE_DBT_EXECUTOR` pour isolation (+ `MEDICORE_DEV_EXECUTOR`, `MEDICORE_TEST_EXECUTOR`)
 
 ### Commandes essentielles
 

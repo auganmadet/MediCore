@@ -5,6 +5,107 @@ Chaque entrée décrit **ce qui a changé** du point de vue métier et son impac
 
 ---
 
+## [2026-03-20] — Multi-environnement et provisionnement utilisateurs
+
+### Ajouts
+- **Multi-environnement Snowflake** : 3 databases (MEDICORE_PROD, MEDICORE_DEV, MEDICORE_TEST) avec rôles dédiés (DEV_EXECUTOR, TEST_EXECUTOR). Développement isolé de la production.
+- **Seeds dbt** : 8 fichiers CSV de fixtures (pharmacie, produits, fournisseurs, factures, commandes, orders, ean13, lppr) pour tests d'intégration CI sur MEDICORE_TEST.
+- **CI intégration dbt** : job `integration-dbt` dans GitHub Actions (dbt seed + run + test sur MEDICORE_TEST).
+- **Provisionnement utilisateurs Metabase** : script idempotent `provision_metabase_users.py` + CSV + gouvernance collections Admin/Service + SMTP Google Workspace.
+- **Documentation** : guide provisionnement (config SMTP, mot de passe d'application Google, pare-feu, IP fixe), workflow multi-env (AUDIT, SNAPSHOTS, clone DEV).
+
+### Modifications
+- **Renommage database** : MEDIcore → MEDICORE_PROD (13 fichiers mis à jour : DDL, scripts, pipelines, dbt macros/audit, docs).
+- **Docker** : port Metabase exposé `0.0.0.0:3000` (réseau local), SMTP Gmail configuré.
+- **Profiles.yml** : 3 targets avec database en dur (dev → MEDICORE_DEV, test → MEDICORE_TEST, prod → MEDICORE_PROD).
+- **DDL_WH.sql** : création des 3 databases + rôles multi-env dans le setup initial.
+- **bulk_load.py** : STAGE_NAME dynamique via `SNOWFLAKE_DATABASE` env var.
+
+### Corrections
+- **DDL_TABLES.sql** : références MEDICORE. → MEDICORE_PROD. pour cohérence avec le renommage.
+
+---
+
+## [2026-03-16] — Modèles dbt agrégés et qualité Metabase
+
+### Ajouts
+- **6 modèles dbt agrégés** : `mart_kpi_marge_par_produit`, `mart_kpi_marge_par_univers`, `mart_kpi_ruptures_par_produit`, `mart_kpi_ecoulement_par_fournisseur`, `mart_kpi_ventes_par_produit`, `mart_kpi_generique_marge` — pré-calculent les KPIs à granularité dashboard pour éliminer les JOIN et recalculs dans Metabase.
+- **Descriptions et infobulles** : 97 cartes, 16 dashboards et 5 collections enrichis avec noms accentués et descriptions en français.
+- **Filtre Univers sur D4** (Marge détaillée) : cascadé depuis Pharmacie.
+
+### Corrections
+- **FOU_NOM démasqué** : les noms de laboratoires (entreprises, pas PII) ne sont plus hashés dans `stg_fournisseurs` / `dim_fournisseur`.
+- **TVA par taux (D3)** : colonne `TRS_DATE` corrigée en `DATE_JOUR`, SQL restructuré.
+- **Répartition modes de paiement (D3)** : converti en SQL natif avec UNPIVOT pour le camembert.
+- **Accents** : collections, dashboards et cartes corrigés (Synthèse, Trésorerie, Écoulement, Génériques, etc.).
+
+### Modifications
+- **Filtres cascadés** : Fournisseur, Opérateur, Univers, Statut dormant cascadent depuis Pharmacie. Mois reste en date-picker indépendant (limitation Metabase).
+- **Ordre des filtres** : D5, D10, D11, D13 réordonnés (Pharmacie → filtres cascadés → Mois/Date en dernier).
+- **D2 et D8** : filtre Produit retiré (pas pertinent pour les agrégats).
+
+---
+
+## [2026-03-13] — Filtres cascadés et documentation Metabase
+
+### Ajouts
+- **Filtres cascadés (linked filters)** : les filtres Fournisseur, Opérateur, Univers, Statut dormant et Mois sont désormais liés au filtre Pharmacie sur 14 dashboards. Sélectionner une pharmacie restreint automatiquement les valeurs proposées dans les autres filtres aux données existantes.
+- **Documentation entités Metabase** (`docs/Dashboards.md`) : clarification des entités (collection, question/card, dashboard), différence MBQL vs SQL natif, types de visualisation, stockage PostgreSQL, export API et tableau des filtres cascadés.
+- **Guide d'ouverture des accès** (`docs/Dashboards.md` §9) : procédure pas à pas pour donner accès aux dashboards par service (groupes, comptes, permissions collections/données, réseau, email SMTP).
+
+---
+
+## [2026-03-12] — Filtres dashboards Metabase
+
+### Ajouts
+- **Filtres D11 Produits dormants** : 4 filtres globaux (Pharmacie, Statut dormant, Univers, Fournisseur) reliés aux 6 questions du dashboard.
+- **Guide utilisateur Metabase** (`docs/Dashboards.md`) : mode d'emploi complet pour créer les dashboards via l'interface web, avec D11 en exemple détaillé pas à pas.
+
+---
+
+## [2026-03-11] — Plan dashboards Metabase complet
+
+### Ajouts
+- **16 dashboards détaillés** : plan exhaustif avec 95 cartes couvrant 26/26 tables MARTS, organisés en 5 collections Metabase (Direction Générale, Ventes & Performance, Achats & Stock, Qualité & Pilotage, Détail opérationnel).
+- **Justification stratégique** : chaque dashboard associé à une décision métier (titulaire, responsable achats, DSI).
+- **Spécifications complètes** : colonnes, type de visualisation, filtres et jointures documentés pour chaque carte.
+
+---
+
+## [2026-03-09] — Exposition BI avec Metabase
+
+### Ajouts
+- **Metabase** : ajout de l'outil BI open-source au stack Docker pour visualiser les 15 KPIs, 8 faits et 3 dimensions du schéma MARTS sur des dashboards interactifs (`http://localhost:3000`).
+- **PostgreSQL 16** : base metadata dédiée à Metabase (dashboards, questions sauvegardées, comptes utilisateurs). Persistée via volume Docker.
+- **Documentation opérationnelle** : guide de configuration Snowflake dans Metabase, dashboards suggérés couvrant les 26/26 tables MARTS.
+
+### Corrections
+- **Rôle `MEDICORE_ANALYST`** : ajout des grants `SELECT` sur toutes les tables/vues MARTS (actuelles et futures) dans `DDL_TABLES.sql`. Le rôle existait avec `USAGE` uniquement — Metabase ne pouvait lire aucune donnée.
+
+### Impact
+- Overhead infra : +2.5 GB RAM (Metabase 2 GB + PostgreSQL 512 MB), +1.5 cores
+- Coût Snowflake : marginal (SELECT read-only sur tables MARTS déjà matérialisées)
+- Sécurité : rôle `MEDICORE_ANALYST` (lecture seule MARTS), port bindé `127.0.0.1`
+
+---
+
+## [2026-03-09] — Monitoring Kafka offset lag
+
+### Ajouts
+- **Détection du lag consumer Kafka** : mesure le retard (end_offset − committed_offset) par topic CDC après chaque batch. Un lag croissant signifie que le consumer ne suit pas le rythme de Debezium — problème invisible tant qu'il y a des events traités.
+- **Alerting Teams sur lag élevé** : compteur `LAG_HIGH` incrémenté quand le lag dépasse `KAFKA_LAG_THRESHOLD` (défaut 10 000 records). Alerte après N échecs consécutifs + notification recovery — même pattern que le volume check `ZERO_VOL`.
+- **Métriques audit Snowflake** : table `AUDIT.CDC_LAG_METRICS` (1 ligne par topic par run) pour historiser le lag et détecter les tendances.
+- **Fichier métriques bash** : `/tmp/cdc_lag_metrics` au format `topic=lag` pour lecture simple dans `batch_loop.sh`.
+
+### Corrections
+- **Listener Kafka INTERNAL** : le consumer CDC et Kafdrop utilisaient le listener EXTERNAL (`kafka:9092`, annonce `localhost:9092`) au lieu du listener INTERNAL (`kafka:29092`). Corrigé dans `docker-compose.yml`, `.env` et le défaut Python.
+
+### Impact
+- Overhead ~1-2s par cycle (consumer temporaire, lecture metadata seulement, pas de rebalance)
+- Tout en try/except — ne casse jamais le pipeline existant
+
+---
+
 ## [2026-03-09] — Optimisation coûts : Marts KPI en incremental
 
 ### Modifications

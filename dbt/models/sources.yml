@@ -3,7 +3,6 @@ version: 2
 sources:
   - name: mysql_raw
     schema: RAW
-    database: MEDICORE
     tables:
       - name: RAW_COMMANDES
         description: "Commandes CDC (alimenté par Kafka → daily_cdc_batch.py)"

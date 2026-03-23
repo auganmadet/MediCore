@@ -7,18 +7,29 @@ medicore:
       user: "{{ env_var('SNOWFLAKE_USER') }}"
       password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
       role: "{{ env_var('SNOWFLAKE_DBT_ROLE_NAME') }}"
-      database: "{{ env_var('SNOWFLAKE_DATABASE') }}"
+      database: MEDICORE_DEV
       warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE_NAME') }}"
       schema: STAGING
       threads: 4
-      
+
+    test:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+      password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
+      role: "{{ env_var('SNOWFLAKE_DBT_ROLE_NAME') }}"
+      database: MEDICORE_TEST
+      warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE_NAME') }}"
+      schema: STAGING
+      threads: 4
+
     prod:
       type: snowflake
       account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
       user: "{{ env_var('SNOWFLAKE_USER') }}"
       password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
       role: "{{ env_var('SNOWFLAKE_DBT_ROLE_NAME') }}"
-      database: "{{ env_var('SNOWFLAKE_DATABASE') }}"
-      warehouse: MEDIcore_WH_XL
-      schema: MARTS
+      database: MEDICORE_PROD
+      warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE_NAME') }}"
+      schema: STAGING
       threads: 8
