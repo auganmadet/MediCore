@@ -1,6 +1,3 @@
 version: 2
 
-seeds:
-  - name: raw_history
-    config:
-      +quote_columns: true
+seeds: []

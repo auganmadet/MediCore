@@ -32,3 +32,6 @@ models:
 seeds:
   medicore:
     +schema: RAW
+    raw_history:
+      +post-hook:
+        - "ALTER TABLE {{ this }} RENAME COLUMN DATE TO \"Date\""
