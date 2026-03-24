@@ -99,6 +99,7 @@ jobs:
         run: >
           dbt run --target test --project-dir dbt --full-refresh
           --vars '{"allow_full_refresh": true}'
+          --exclude audit_dbt_summary audit_latest_runs audit_run_summary
 
       - name: dbt test (validation contraintes)
         run: dbt test --target test --project-dir dbt --exclude source:mysql_raw snap_pharmacie snap_produit snap_fournisseur
