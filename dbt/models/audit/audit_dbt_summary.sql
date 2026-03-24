@@ -18,5 +18,5 @@ SELECT
     SUM(ROWS_AFFECTED) AS total_rows_affected,
     MIN(CREATED_AT) AS first_model_at,
     MAX(CREATED_AT) AS last_model_at
-FROM MEDICORE_PROD.AUDIT.DBT_MODEL_RUNS
+FROM {{ target.database }}.AUDIT.DBT_MODEL_RUNS
 GROUP BY RUN_ID
