@@ -341,14 +341,35 @@ Les données AUDIT sont conservées 90 jours (nettoyage automatique dans `batch_
 
 ```sql
 -- Dernières exécutions
-SELECT * FROM MEDICORE.AUDIT.PIPELINE_RUNS ORDER BY STARTED_AT DESC LIMIT 10;
+SELECT * FROM MEDICORE_PROD.AUDIT.PIPELINE_RUNS ORDER BY RUN_START DESC LIMIT 10;
 
 -- Phases en erreur
-SELECT * FROM MEDICORE.AUDIT.PIPELINE_STEP_RUNS WHERE STATUS = 'FAILED' ORDER BY STARTED_AT DESC;
+SELECT * FROM MEDICORE_PROD.AUDIT.PIPELINE_STEP_RUNS WHERE STATUS = 'FAILED' ORDER BY STEP_START DESC;
 
 -- Lag Kafka
-SELECT * FROM MEDICORE.AUDIT.CDC_LAG_METRICS ORDER BY MEASURED_AT DESC LIMIT 10;
+SELECT * FROM MEDICORE_PROD.AUDIT.CDC_LAG_METRICS ORDER BY CREATED_AT DESC LIMIT 10;
 ```
+
+### Tests par environnement
+
+  ┌─────────────────┬─────────────────────────────────────────────────────────────────────────┐
+  │ Environnement   │ Comment les tables/vues AUDIT sont testées                              │
+  ├─────────────────┼─────────────────────────────────────────────────────────────────────────┤
+  │ MEDICORE_PROD   │ `batch_loop.sh` alimente les tables AUDIT à chaque boucle (30 min).     │
+  │                 │ `dbt run --target prod` crée les vues AUDIT. Les données sont réelles.  │
+  ├─────────────────┼─────────────────────────────────────────────────────────────────────────┤
+  │ MEDICORE_DEV    │ Tables AUDIT présentes (clone de PROD). `dbt run --target dev` crée     │
+  │                 │ les vues. Testable manuellement.                                        │
+  ├─────────────────┼─────────────────────────────────────────────────────────────────────────┤
+  │ MEDICORE_TEST   │ Tables AUDIT **absentes** (créées par DDL, pas par dbt seed).           │
+  │                 │ Les vues AUDIT sont **exclues** du `dbt run` en CI.                     │
+  │                 │ `dbt parse` valide la syntaxe SQL des vues (compilation OK).            │
+  └─────────────────┴─────────────────────────────────────────────────────────────────────────┘
+
+> Les tables AUDIT (PIPELINE_RUNS, PIPELINE_STEP_RUNS, DBT_MODEL_RUNS, CDC_LAG_METRICS)
+> sont créées par `DDL_TABLES.sql` et alimentées par les pipelines Python (`audit.py`,
+> `kafka_lag.py`). Elles n'ont pas de seed dbt car les données sont générées au runtime.
+> Les vues AUDIT sont de simples agrégations — le risque de bug est faible.
 
 ---
 
@@ -365,11 +386,11 @@ dans chaque boucle de `batch_loop.sh`.
   ┌──────────────────────────┬──────────────────────────────────────────────────────────────────┐
   │ Snapshot                 │ Colonnes surveillées                                             │
   ├──────────────────────────┼──────────────────────────────────────────────────────────────────┤
-  │ snap_pharmacie           │ PHA_NOM, PHA_GERS, PHA_DATE_INSTAL_WP                           │
+  │ snap_pharmacie           │ PHA_NOM, PHA_GERS, PHA_DATE_INSTAL_WP                            │
   ├──────────────────────────┼──────────────────────────────────────────────────────────────────┤
-  │ snap_produit             │ PRD_NOM, PRD_EAN13, FOU_ID, PRD_STOCK                           │
+  │ snap_produit             │ PRD_NOM, PRD_EAN13, FOU_ID, PRD_STOCK                            │
   ├──────────────────────────┼──────────────────────────────────────────────────────────────────┤
-  │ snap_fournisseur         │ FOU_NOM, FOU_ADRESSE, FOU_VILLE, FOU_TYPE                       │
+  │ snap_fournisseur         │ FOU_NOM, FOU_ADRESSE, FOU_VILLE, FOU_TYPE                        │
   └──────────────────────────┴──────────────────────────────────────────────────────────────────┘
 
 ### Fonctionnement

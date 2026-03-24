@@ -5,6 +5,27 @@ Chaque entrée décrit **ce qui a changé** du point de vue métier et son impac
 
 ---
 
+## [2026-03-24] — Tests singular, démasquage PII, CI complète
+
+### Ajouts
+- **16 singular tests dbt** (couche 3) : vérifient les KPIs calculés sur 21 modèles MARTS (trésorerie, marge, écoulement, ruptures, stock, ABC, opérateur, univers, dormant, synthèse, 6 agrégés, PII).
+- **CI pytest complète** : les 6 fichiers test unitaires sont exécutés (avant : seulement test_audit.py).
+- **Post-hook seed** : raw_history renomme DATE → "Date" pour compatibilité casse mixte MySQL.
+- **Documentation AUDIT** : tests par environnement documentés dans workflow_multi_env.md.
+
+### Corrections
+- **mart_kpi_stock.sql** : fichier tronqué corrigé (`v.m` → `v.mois`), détecté par les singular tests.
+- **Vues AUDIT dynamiques** : `MEDICORE_PROD.AUDIT` remplacé par `{{ target.database }}.AUDIT` dans les 3 vues et la macro persist_dbt_results.
+- **Tables AUDIT Snowflake** : recréées avec le schéma correct (DDL_TABLES.sql, pas DDL_WH.sql).
+- **DDL_WH.sql** : tables AUDIT en doublon supprimées (source de vérité = DDL_TABLES.sql).
+
+### Modifications
+- **Démasquage PII** : PHA_NOM (raison sociale), ORD_OPERATEUR (besoin D5 Performance vendeurs), FOU_NOM (déjà fait). Seule FOU_ADRESSE reste masquée.
+- **CI vues AUDIT exclues** du dbt run sur MEDICORE_TEST (tables AUDIT absentes, documenté).
+- **14 tables référence corrigées** dans CLAUDE.md (5 tables inexistantes retirées).
+
+---
+
 ## [2026-03-20] — Multi-environnement et provisionnement utilisateurs
 
 ### Ajouts

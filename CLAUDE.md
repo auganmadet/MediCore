@@ -65,7 +65,8 @@ Répertoire : `.claude/dev-memories/`
 
 ### Sécurité critique
 
-- PII masquées par MD5 dans staging (noms, adresses, téléphones)
+- PII masquées par MD5 dans staging : seule `FOU_ADRESSE` reste masquée
+- Démasqué (raisons sociales/besoin métier) : `PHA_NOM`, `FOU_NOM`, `ORD_OPERATEUR`
 - Requêtes paramétrées exclusivement dans les pipelines Python
 - Pas d'interpolation de chaînes dans les requêtes SQL
 - Credentials via `.env` (non versionné)
