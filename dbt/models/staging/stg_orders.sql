@@ -25,7 +25,7 @@ dedup_cdc as (
     from source_data
 )
 select PHA_ID, FAC_ID, ORD_DATE,
-       {{ pii_mask('ORD_OPERATEUR', 'USER') }} as ORD_OPERATEUR,
+       trim(ORD_OPERATEUR) as ORD_OPERATEUR,  -- nom vendeur (nécessaire pour D5 Performance vendeurs)
        FLOOR(ORD_CLIENT_AGE_MONTHS / 36) * 36 as ORD_CLIENT_AGE_MONTHS,
        upper(trim(ORD_CLIENT_SEX)) as ORD_CLIENT_SEX,
        'DEP' || LEFT(CAST(ORD_CLIENT_DEPARTMENT AS VARCHAR), 2) || '***' as ORD_CLIENT_DEPARTMENT,

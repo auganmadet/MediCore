@@ -25,7 +25,7 @@ dedup_cdc as (
 )
 select id,
     '***' || RIGHT(CAST(adeli AS VARCHAR), 4) as adeli,
-    {{ pii_mask('name', 'PHARM') }} as name,
+    trim(name) as name,  -- raison sociale (entreprise, pas PII)
     LEFT(REPLACE(REPLACE(CAST(phone AS VARCHAR), ' ', ''), '.', ''), 2) || '**' || RIGHT(REPLACE(REPLACE(CAST(phone AS VARCHAR), ' ', ''), '.', ''), 4) as phone,
     upper(trim(city)) as city,
     LEFT(CAST(postal_code AS VARCHAR), 2) || '***' as postal_code,

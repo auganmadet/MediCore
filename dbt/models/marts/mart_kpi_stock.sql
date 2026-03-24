@@ -69,4 +69,4 @@ from stock_mensuel s
 left join ventes_mensuelles v
     on s.pharmacie_sk = v.pharmacie_sk
     and s.produit_sk = v.produit_sk
-    and s.mois = v.m
+    and s.mois = v.mois

@@ -24,5 +24,6 @@ dedup_cdc as (
     from source_data
 )
 select PHA_ID, upper(trim(PHA_IDNAT)) as PHA_IDNAT, upper(trim(PHA_GERS)) as PHA_GERS,
-    {{ pii_mask('PHA_NOM', 'PHARM') }} as PHA_NOM, PHA_DATE_INSTAL_WP, cdc_timestamp as loaded_at
+    trim(PHA_NOM) as PHA_NOM,  -- raison sociale (entreprise, pas PII)
+    PHA_DATE_INSTAL_WP, cdc_timestamp as loaded_at
 from dedup_cdc where rn = 1
