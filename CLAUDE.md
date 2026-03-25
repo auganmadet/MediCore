@@ -65,7 +65,8 @@ Répertoire : `.claude/dev-memories/`
 
 ### Sécurité critique
 
-- PII masquées par MD5 dans staging (noms, adresses, téléphones)
+- PII masquées par MD5 dans staging : seule `FOU_ADRESSE` reste masquée
+- Démasqué (raisons sociales/besoin métier) : `PHA_NOM`, `FOU_NOM`, `ORD_OPERATEUR`
 - Requêtes paramétrées exclusivement dans les pipelines Python
 - Pas d'interpolation de chaînes dans les requêtes SQL
 - Credentials via `.env` (non versionné)
@@ -111,4 +112,4 @@ python pipelines/daily_cdc_batch.py      # Consumer CDC
 
 ### 14 Tables référence
 
-`DAYBYDAY` | `EAN13` | `FOURNISSEURS` | `HISTORY` | `LOG` | `LPPR` | `OPERATEUR` | `PHARMACIE` | `PRODUITS` | `QUANTHEB` | `REMISE` | `STOCK` | `TRESORERIE` | `VENTEPRD`
+`DAYBYDAY` | `EAN13` | `FOURNISSEURS` | `HISTORY` | `LOG` | `LPPR` | `MANQHISTORY` | `MEDIPRIX_FACTURES` | `PHARMACIE` | `PHARMACIES` | `PHARMACIES_ERREUR` | `PRODUITS` | `PRODUITS_NEGATIFS` | `STOCKHISTORY`

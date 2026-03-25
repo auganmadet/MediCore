@@ -9,7 +9,7 @@
 -- 7 derniers jours : détail step par step
 WITH recent_runs AS (
     SELECT RUN_ID, RUN_START, RUN_END, STATUS AS run_status, ENV
-    FROM MEDICORE_PROD.AUDIT.PIPELINE_RUNS
+    FROM {{ target.database }}.AUDIT.PIPELINE_RUNS
     WHERE RUN_START >= DATEADD('day', -7, CURRENT_TIMESTAMP())
 )
 
@@ -27,5 +27,5 @@ SELECT
     s.ERROR_MESSAGE,
     TIMESTAMPDIFF('second', s.STEP_START, COALESCE(s.STEP_END, CURRENT_TIMESTAMP())) AS step_duration_seconds
 FROM recent_runs r
-LEFT JOIN MEDICORE_PROD.AUDIT.PIPELINE_STEP_RUNS s ON r.RUN_ID = s.RUN_ID
+LEFT JOIN {{ target.database }}.AUDIT.PIPELINE_STEP_RUNS s ON r.RUN_ID = s.RUN_ID
 ORDER BY r.RUN_START DESC, s.STEP_START ASC

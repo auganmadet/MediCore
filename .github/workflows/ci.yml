@@ -25,7 +25,7 @@ jobs:
         run: flake8 pipelines/ --max-line-length=120 --ignore=E501,W503,E241
 
   test-python:
-    name: Tests Python (audit)
+    name: Tests Python (unitaires)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -38,8 +38,8 @@ jobs:
       - name: Installer les dependances
         run: pip install -r requirements.txt pytest
 
-      - name: Tests audit
-        run: pytest tests/test_audit.py -v
+      - name: Tests unitaires Python (6 fichiers)
+        run: pytest tests/ -v
 
   validate-dbt:
     name: Valider syntaxe dbt
@@ -99,10 +99,10 @@ jobs:
         run: >
           dbt run --target test --project-dir dbt --full-refresh
           --vars '{"allow_full_refresh": true}'
-          --exclude stg_history fact_tresorerie mart_kpi_tresorerie mart_kpi_stock
+          --exclude audit_dbt_summary audit_latest_runs audit_run_summary
 
       - name: dbt test (validation contraintes)
-        run: dbt test --target test --project-dir dbt --exclude stg_history fact_tresorerie mart_kpi_tresorerie mart_kpi_stock source:mysql_raw snap_pharmacie snap_produit snap_fournisseur
+        run: dbt test --target test --project-dir dbt --exclude source:mysql_raw snap_pharmacie snap_produit snap_fournisseur
 
   build-docker:
     name: Build Docker image

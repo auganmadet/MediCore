@@ -27,7 +27,7 @@ dedup_cdc as (
 select id, PHA_ID, FAC_ID, FAC_TI, FAC_DATE, FAC_HEURE, FAC_TVA,
        FAC_QUANTITE, FAC_PAHT, FAC_PVHT, FAC_PVTTC, FAC_PRIXPUBLIC,
        FAC_CODEREMBT, PRD_ID, PRD_EAN13, upper(trim(PRD_NOM)) as PRD_NOM,
-       {{ pii_mask('ORD_OPERATEUR', 'USER') }} as ORD_OPERATEUR,
-       {{ pii_mask('PHA_NOM', 'PHARM') }} as PHA_NOM,
+       trim(ORD_OPERATEUR) as ORD_OPERATEUR,  -- nom vendeur (entreprise, pas PII)
+       trim(PHA_NOM) as PHA_NOM,  -- raison sociale (entreprise, pas PII)
        cdc_timestamp as loaded_at
 from dedup_cdc where rn = 1

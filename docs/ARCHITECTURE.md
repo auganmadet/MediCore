@@ -33,6 +33,29 @@
 
 ## Flux de données global
 
+**Prérequis MySQL binlog** (vérifiés par `scripts/setup.sh`) :
+
+  Sur AWS RDS, les variables MySQL ne se modifient pas avec SET GLOBAL (pas d'accès SUPER) — il faut passer par un Parameter Group dans la console AWS RDS :
+
+  1. AWS Console → RDS → Parameter Groups
+  2. Modifier (ou créer) le parameter group associé à l'instance RDS
+  3. Changer les 3 variables
+  4. Redémarrer l'instance RDS pour appliquer
+
+  ┌────────────────────────────────────┬────────┬──────────────────────────────────────────┐
+  │ Variable MySQL                     │ Requis │ Pourquoi                                 │
+  ├────────────────────────────────────┼────────┼──────────────────────────────────────────┤
+  │ binlog_format                      │ ROW    │ Debezium capture les changements ligne   │
+  │                                    │        │ par ligne (pas les statements SQL)       │
+  ├────────────────────────────────────┼────────┼──────────────────────────────────────────┤
+  │ binlog_row_image                   │ FULL   │ Chaque event contient toutes les colonnes│
+  │                                    │        │ (before + after), pas seulement les      │
+  │                                    │        │ colonnes modifiées                       │
+  ├────────────────────────────────────┼────────┼──────────────────────────────────────────┤
+  │ log_bin_trust_function_creators    │ ON     │ Autorise la réplication des fonctions    │
+  │                                    │        │ stockées via le binlog                   │
+  └────────────────────────────────────┴────────┴──────────────────────────────────────────┘
+
 ```
 ┌───────────┐   binlog    ┌──────────┐         ┌─────────┐
 │ MySQL RDS │───────────▶│ Debezium │────────▶│  Kafka  │

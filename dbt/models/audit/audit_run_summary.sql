@@ -15,7 +15,7 @@ WITH runs AS (
         STATUS,
         ENV,
         TIMESTAMPDIFF('second', RUN_START, COALESCE(RUN_END, CURRENT_TIMESTAMP())) AS duration_seconds
-    FROM MEDICORE_PROD.AUDIT.PIPELINE_RUNS
+    FROM {{ target.database }}.AUDIT.PIPELINE_RUNS
 ),
 
 steps_agg AS (
@@ -25,7 +25,7 @@ steps_agg AS (
         SUM(CASE WHEN STATUS = 'SUCCESS' THEN 1 ELSE 0 END) AS steps_ok,
         SUM(CASE WHEN STATUS = 'FAILED' THEN 1 ELSE 0 END) AS steps_failed,
         SUM(COALESCE(ROWS_PROCESSED, 0)) AS total_rows
-    FROM MEDICORE_PROD.AUDIT.PIPELINE_STEP_RUNS
+    FROM {{ target.database }}.AUDIT.PIPELINE_STEP_RUNS
     GROUP BY RUN_ID
 )
 
