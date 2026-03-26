@@ -48,8 +48,8 @@ class MediCoreCDC:
             user=os.getenv('SNOWFLAKE_USER'),
             password=os.getenv('SNOWFLAKE_PASSWORD'),
             role=os.getenv('SNOWFLAKE_ROLE_NAME', 'MEDICORE_RAW_WRITER'),
-            database=os.getenv('SNOWFLAKE_DATABASE', 'MEDIcore'),
-            warehouse=os.getenv('SNOWFLAKE_WAREHOUSE_NAME', 'MEDIcore_WH'),
+            database=os.getenv('SNOWFLAKE_DATABASE', 'MEDICORE_PROD'),
+            warehouse=os.getenv('SNOWFLAKE_WAREHOUSE_NAME', 'MEDICORE_WH'),
             schema='RAW'
         )
 
