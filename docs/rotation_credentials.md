@@ -1,5 +1,21 @@
 # Rotation des credentials — MediCore
 
+## Table des matières
+
+1. [Objectif](#objectif)
+2. [Inventaire des credentials](#1-inventaire-des-credentials)
+3. [Procédure de rotation par credential](#2-procédure-de-rotation-par-credential)
+   - [SNOWFLAKE_PASSWORD](#2a-snowflake_password-priorité-haute)
+   - [MYSQL_PASSWORD](#2b-mysql_password)
+   - [TEAMS_WEBHOOK_URL](#2c-teams_webhook_url)
+   - [MB_EMAIL_SMTP_PASSWORD](#2d-mb_email_smtp_password-mot-de-passe-app-gmail)
+   - [Metabase admin password](#2e-metabase-admin-password)
+4. [Checklist de rotation trimestrielle](#3-checklist-de-rotation-trimestrielle)
+5. [Historique des rotations](#4-historique-des-rotations)
+6. [Bonnes pratiques](#5-bonnes-pratiques)
+
+---
+
 ## Objectif
 
 Changer régulièrement les mots de passe et tokens des comptes de service

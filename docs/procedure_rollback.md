@@ -1,5 +1,27 @@
 # Procédure de rollback — MediCore PROD
 
+## Table des matières
+
+1. [Quand utiliser cette procédure](#quand-utiliser-cette-procédure)
+2. [Détecter le problème](#1-détecter-le-problème)
+3. [Évaluer l'impact](#2-évaluer-limpact)
+4. [Restaurer via Snowflake Time Travel](#3-restaurer-via-snowflake-time-travel)
+   - [Restaurer un modèle MARTS](#3a-restaurer-un-modèle-marts-cas-le-plus-fréquent)
+   - [Restaurer un modèle STAGING](#3b-restaurer-un-modèle-staging)
+   - [Restaurer une table RAW](#3c-restaurer-une-table-raw-après-bulk_load-corrompu)
+   - [Restaurer plusieurs modèles](#3d-restaurer-plusieurs-modèles-à-la-fois)
+5. [Alternative : re-run du modèle corrigé](#4-alternative--re-run-du-modèle-corrigé)
+6. [Investiguer la cause](#5-investiguer-la-cause)
+   - [Historique des runs dbt](#5a-consulter-lhistorique-des-runs-dbt)
+   - [Query_history Snowflake](#5b-consulter-le-query_history-snowflake)
+   - [Fichiers dbt](#5c-consulter-les-fichiers-dbt)
+   - [Commit fautif](#5d-identifier-le-commit-fautif)
+7. [Prévenir la récurrence](#6-prévenir-la-récurrence)
+8. [Checklist rapide](#7-checklist-rapide)
+9. [Limitations](#8-limitations)
+
+---
+
 ## Quand utiliser cette procédure
 
 Un modèle dbt bugué a été déployé en production (`dbt run --target prod`) et

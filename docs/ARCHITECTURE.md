@@ -1,5 +1,22 @@
 # Architecture MediCore
 
+## Table des matières
+
+1. [Vue d'ensemble : Architecture data](#vue-densemble--architecture-data-slide-7---docsmedicore_presentationpptx)
+2. [Flux de données global](#flux-de-données-global)
+3. [Layers Snowflake](#layers-snowflake)
+   - [RAW Layer](#raw-layer)
+   - [STAGING Layer](#staging-layer)
+   - [MARTS Layer](#marts-layer)
+   - [Pourquoi Kafka plutôt qu'une connexion directe ?](#pourquoi-kafka-plutot-quune-connexion-directe-)
+   - [Composants Snowflake DWH](#composants-snowflake-dwh)
+   - [Couche Exposition](#couche-exposition)
+4. [Services Docker](#services-docker)
+5. [Monitoring](#monitoring)
+6. [Fichiers clés](#fichiers-clés)
+
+---
+
 ## Vue d'ensemble : Architecture data (slide 7 - docs\MediCore_Presentation.pptx)
 
 ```

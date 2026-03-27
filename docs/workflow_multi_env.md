@@ -1,5 +1,37 @@
 # Workflow Multi-Environnement MediCore
 
+## Table des matières
+
+1. [Objectif](#objectif)
+2. [Environnements](#environnements)
+3. [Schéma global](#schéma-global)
+4. [Workflow 1 — Données CDC en production](#workflow-1--données-cdc-en-production)
+5. [Workflow 2 — Développement d'un nouveau modèle dbt](#workflow-2--développement-dun-nouveau-modèle-dbt)
+6. [Initialiser MEDICORE_DEV (clone de production)](#initialiser-medicore_dev-clone-de-production)
+   - [Quand cloner ?](#quand-cloner-)
+   - [Procédure](#procédure)
+   - [Vérification](#vérification)
+   - [Utilisation](#utilisation)
+7. [Workflow 3 — Bulk load des tables référence](#workflow-3--bulk-load-des-tables-référence)
+8. [AUDIT — Lineage opérationnel](#audit--lineage-opérationnel)
+   - [Tables](#tables)
+   - [Rétention](#rétention)
+   - [Consultation](#consultation)
+   - [Tests par environnement](#tests-par-environnement)
+9. [SNAPSHOTS — Historisation SCD2 des dimensions](#snapshots--historisation-scd2-des-dimensions)
+   - [Tables](#tables-1)
+   - [Fonctionnement](#fonctionnement)
+   - [Exemple de consultation](#exemple-de-consultation)
+   - [Flux dans batch_loop.sh](#flux-dans-batch_loopsh)
+10. [GitHub Secrets (CI)](#github-secrets-ci)
+    - [Configuration](#configuration)
+11. [Branch protection (main)](#branch-protection-main)
+    - [Configuration](#configuration-1)
+    - [Flux résultant](#flux-résultant)
+12. [Règle d'or](#règle-dor)
+
+---
+
 ## Objectif
 
 Isoler les environnements de développement, de test et de production pour garantir

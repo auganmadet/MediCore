@@ -1,5 +1,36 @@
 # Guide de provisionnement des utilisateurs Metabase
 
+## Table des matières
+
+1. [Objectif](#objectif)
+2. [Prérequis](#prérequis)
+3. [Fichiers concernés](#fichiers-concernés)
+4. [Éditer le fichier CSV](#1-éditer-le-fichier-csv)
+   - [Format](#format)
+   - [Colonnes](#colonnes)
+   - [Règles](#règles)
+5. [Obtenir un session token](#2-obtenir-un-session-token)
+6. [Lancer le provisionnement](#3-lancer-le-provisionnement)
+   - [Exemple de sortie](#exemple-de-sortie)
+7. [Comportement idempotent](#4-comportement-idempotent)
+8. [Gouvernance des collections](#5-gouvernance-des-collections)
+   - [Structure résultante](#structure-résultante)
+   - [Droits par service](#droits-par-service)
+9. [Cas d'usage courants](#6-cas-dusage-courants)
+   - [Ajouter un nouvel utilisateur](#ajouter-un-nouvel-utilisateur)
+   - [Désactiver un utilisateur](#désactiver-un-utilisateur-départ-changement-de-poste)
+   - [Ajouter un nouveau service](#ajouter-un-nouveau-service)
+   - [Changer un utilisateur de service](#changer-un-utilisateur-de-service)
+10. [Connexion utilisateur](#7-connexion-utilisateur)
+    - [URL d'accès](#url-daccès)
+    - [Première connexion — avec SMTP](#première-connexion--avec-smtp-recommandé)
+    - [Configuration SMTP](#configuration-smtp)
+    - [Première connexion — sans SMTP](#première-connexion--sans-smtp-fallback)
+    - [Accès réseau](#accès-réseau)
+11. [Dépannage](#8-dépannage)
+
+---
+
 ## Objectif
 
 Gérer les comptes utilisateurs Metabase de manière centralisée via un fichier CSV et un script idempotent. Chaque utilisateur est associé à un service qui détermine ses droits d'accès.

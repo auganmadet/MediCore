@@ -1,5 +1,36 @@
 # Stratégie d'orchestration batch — MediCore
 
+## Table des matières
+
+1. [Contexte](#1-contexte)
+2. [Analyse du besoin réel](#2-analyse-du-besoin-réel)
+   - [Qui consomme les données ?](#qui-consomme-les-données-)
+   - [Quel niveau de fraîcheur est nécessaire ?](#quel-niveau-de-fraîcheur-est-nécessaire-)
+   - [Constat : le système précédent](#constat--le-système-précédent-ne-correspondait-pas-au-besoin)
+   - [Durées mesurées par phase (PROD)](#durées-mesurées-par-phase-prod)
+   - [Problèmes identifiés](#problèmes-identifiés)
+   - [Diagnostic](#diagnostic--un-seul-rythme-pour-trois-besoins-différents)
+   - [Perspective : orchestrateur](#perspective--migration-vers-un-orchestrateur)
+3. [Stratégie mise en place](#3-stratégie-mise-en-place)
+   - [Principe : 3 rythmes](#principe--3-rythmes-différents-pour-3-besoins-différents)
+   - [Mode jour (07h - 21h)](#mode-jour-07h---21h--cdc-rapide--dbt-périodique)
+   - [Coût du redémarrage WH](#coût-du-redémarrage-wh-auto_resume-sur-les-35-cdc-hors-dbt)
+   - [Mode nuit (21h - 07h)](#mode-nuit-21h---07h--cycles-réduits)
+4. [Récapitulatif 24h](#4-récapitulatif-24h)
+5. [Comparaison des coûts](#5-comparaison-des-coûts)
+   - [Avant vs Après](#avant-vs-après)
+   - [Détail de l'économie](#détail-de-léconomie)
+6. [Pourquoi cette stratégie est adéquate](#6-pourquoi-cette-stratégie-est-adéquate-pour-medicore)
+   - [Alignement avec le métier pharmacie](#alignement-avec-le-métier-pharmacie)
+   - [Fraîcheur adaptée aux usages](#fraîcheur-adaptée-aux-usages)
+   - [Données prêtes avant l'ouverture](#données-prêtes-avant-louverture)
+   - [Économie sans compromis fonctionnel](#économie-sans-compromis-fonctionnel)
+   - [Évolutivité vers un orchestrateur](#évolutivité-vers-un-orchestrateur)
+7. [Variables de configuration](#7-variables-de-configuration)
+8. [Temps mesurés (ref_reload)](#8-temps-mesurés-ref_reload-25-mars-2026)
+
+---
+
 ## 1. Contexte
 
 MediCore est un pipeline ELT industrialisé qui alimente les dashboards Metabase

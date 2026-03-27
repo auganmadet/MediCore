@@ -1,5 +1,26 @@
 # Guide operationnel MediCore
 
+## Table des matières
+
+1. [Demarrage](#demarrage)
+2. [Architecture du batch](#architecture-du-batch)
+3. [Lineage operationnel (AUDIT)](#lineage-operationnel-audit)
+4. [Monitoring et alertes](#monitoring-et-alertes)
+5. [Diagnostic et recovery](#diagnostic-et-recovery)
+6. [Variables d'environnement](#variables-denvironnement)
+7. [Commandes utiles](#commandes-utiles)
+8. [Arret propre](#arret-propre)
+9. [Metabase (BI dashboards)](#metabase-bi-dashboards)
+   - [Architecture](#architecture)
+   - [Acces](#acces)
+   - [Configuration Snowflake](#configuration-snowflake-premier-lancement)
+   - [Ressources ajoutees](#ressources-ajoutees)
+   - [Variables d'environnement Metabase](#variables-denvironnement-1)
+   - [Verification](#verification)
+   - [Plan dashboards](#plan-dashboards--16-dashboards-2626-tables-95-cartes)
+
+---
+
 ## Demarrage
 
 ```bash
