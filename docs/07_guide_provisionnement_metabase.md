@@ -35,6 +35,8 @@
 
 Gérer les comptes utilisateurs Metabase de manière centralisée via un fichier CSV et un script idempotent. Chaque utilisateur est associé à un service qui détermine ses droits d'accès.
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ---
 
 ## Prérequis
@@ -42,6 +44,8 @@ Gérer les comptes utilisateurs Metabase de manière centralisée via un fichier
 - Metabase en cours d'exécution (`http://localhost:3000`)
 - Un **session token** administrateur (voir [Obtenir un token](#obtenir-un-session-token))
 - Python 3.10+ (aucune dépendance externe)
+
+[↑ Retour au sommaire](#table-des-matières)
 
 ---
 
@@ -54,6 +58,8 @@ Gérer les comptes utilisateurs Metabase de manière centralisée via un fichier
   ├──────────────────────────────────────────┼──────────────────────────────────────────────────────────┤
   │ `scripts/provision_metabase_users.py`    │ Script de provisionnement (idempotent)                   │
   └──────────────────────────────────────────┴──────────────────────────────────────────────────────────┘
+
+[↑ Retour au sommaire](#table-des-matières)
 
 ---
 
@@ -92,6 +98,8 @@ lucie.ritzenthaler@mediprix.fr,Lucie,Ritzenthaler,Communication,oui
 - Le champ `service` est libre : chaque valeur distincte crée un groupe et des sous-collections
 - Le champ `actif` accepte : `oui`, `true`, `1`, `yes` (actif) ou toute autre valeur (inactif)
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ---
 
 ## 2. Obtenir un session token
@@ -112,6 +120,8 @@ curl -X POST http://localhost:3000/api/session \
 ```
 
 Le token est dans la réponse : `{"id":"abc-123-def-456"}`.
+
+[↑ Retour au sommaire](#table-des-matières)
 
 ---
 
@@ -155,6 +165,8 @@ RÉSUMÉ
   Services : IT, Communication
 ```
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ---
 
 ## 4. Comportement idempotent
@@ -180,6 +192,8 @@ Le script peut être relancé autant de fois que nécessaire sans effet de bord.
   ├─────────────────────────────────────┼──────────────────────────────────────────────────────────┤
   │ Cartes/dashboards orphelins         │ Déplacés automatiquement dans Admin/                     │
   └─────────────────────────────────────┴──────────────────────────────────────────────────────────┘
+
+[↑ Retour au sommaire](#table-des-matières)
 
 ---
 
@@ -228,6 +242,8 @@ MediCore BI/                              view pour tous
   │ Administration Metabase              │ bloqué  │ Réservé à l'administrateur                  │
   └──────────────────────────────────────┴─────────┴─────────────────────────────────────────────┘
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ---
 
 ## 6. Cas d'usage courants
@@ -254,6 +270,8 @@ MediCore BI/                              view pour tous
 2. Créer une nouvelle ligne avec le nouveau service (`actif=oui`)
 3. Relancer le script
 4. L'utilisateur conserve son historique dans l'ancien service (lecture seule)
+
+[↑ Retour au sommaire](#table-des-matières)
 
 ---
 
@@ -471,6 +489,8 @@ netsh advfirewall firewall add rule name="Metabase" dir=in action=allow protocol
 > Le hostname (`http://DESKTOP-FKLPKRA:3000`) ne fonctionne pas sur le réseau Mediprix
 > car la résolution de nom NetBIOS/mDNS est désactivée. Utiliser l'IP fixe (demande auprès de l'Admin Sys).
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ---
 
 ## 8. Dépannage
@@ -496,3 +516,11 @@ netsh advfirewall firewall add rule name="Metabase" dir=in action=allow protocol
   │ "Connection refused" depuis un       │ Vérifier que le bind est `0.0.0.0:3000:3000` dans        │
   │ autre poste                          │ `docker-compose.yml` (pas `127.0.0.1`)                   │
   └──────────────────────────────────────┴──────────────────────────────────────────────────────────┘
+
+[↑ Retour au sommaire](#table-des-matières)
+
+---
+
+## Voir aussi
+
+- [Dashboards](06_Dashboards.md) — guide utilisateur pour créer les dashboards Metabase

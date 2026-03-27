@@ -24,6 +24,8 @@ ancien collaborateur, historique git).
 
 **Fréquence recommandée : trimestrielle** (janvier, avril, juillet, octobre).
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ---
 
 ## 1. Inventaire des credentials
@@ -44,6 +46,8 @@ ancien collaborateur, historique git).
   ├─────┼──────────────────────────┼───────────────────────────────────┼─────────────────────────────┤
   │ 5   │ Metabase admin password  │ UI Metabase (compte admin)        │ PostgreSQL interne Metabase │
   └─────┴──────────────────────────┴───────────────────────────────────┴─────────────────────────────┘
+
+[↑ Retour au sommaire](#table-des-matières)
 
 ---
 
@@ -145,6 +149,8 @@ de production (RAW, STAGING, MARTS, AUDIT).
 
 **Fichiers impactés :** aucun (stocké dans PostgreSQL interne)
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ---
 
 ## 3. Checklist de rotation trimestrielle
@@ -164,6 +170,8 @@ de production (RAW, STAGING, MARTS, AUDIT).
 [ ] 12. Documenter la date de rotation dans ce fichier (section 4)
 ```
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ---
 
 ## 4. Historique des rotations
@@ -173,6 +181,8 @@ de production (RAW, STAGING, MARTS, AUDIT).
   ├────────────┼──────────────────────────────────────┼──────────────────────┤
   │ (aucune rotation effectuée à ce jour)             │                      │
   └────────────┴──────────────────────────────────────┴──────────────────────┘
+
+[↑ Retour au sommaire](#table-des-matières)
 
 ---
 
@@ -184,3 +194,11 @@ de production (RAW, STAGING, MARTS, AUDIT).
 - **Stockage temporaire** : utiliser un gestionnaire de mots de passe (Bitwarden, 1Password), jamais un fichier texte ou un message Slack
 - **Accès limité** : seuls les administrateurs IT ont accès au `.env` de production
 - **Alerte en cas de fuite** : si un credential est exposé (log, git, screenshot), effectuer une rotation immédiate sans attendre le trimestre
+
+[↑ Retour au sommaire](#table-des-matières)
+
+---
+
+## Voir aussi
+
+- [Workflow multi-environnement](02_workflow_multi_env.md) — GitHub Secrets et configuration CI

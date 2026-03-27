@@ -48,6 +48,8 @@
 
 ```
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ## Flux de données global
 
 **Prérequis MySQL binlog** (vérifiés par `scripts/setup.sh`) :
@@ -106,6 +108,8 @@
 
 ```
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ## Layers Snowflake
 
 ### RAW Layer
@@ -159,6 +163,8 @@
   │                  │ Exports CSV/Excel pour partenaires (labos, groupements).     │
   └──────────────────┴──────────────────────────────────────────────────────────────┘
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ## Services Docker
 
 ```
@@ -182,6 +188,9 @@
   │ metabase           │ metabase/metabase:v0.58.7         │ BI dashboards (Snowflake MARTS)   │ -                            │
   └────────────────────┴───────────────────────────────────┴───────────────────────────────────┴──────────────────────────────┘
 ```
+
+[↑ Retour au sommaire](#table-des-matières)
+
 ## Monitoring
 
 - **Teams webhook** : alertes échec (seuil consécutif) + recovery
@@ -189,6 +198,8 @@
 - **dbt test** : not_null, unique, relationships, expression_is_true (severity warn)
 - **Docker healthcheck** : depends_on condition: service_healthy
 - **Lag Kafka** : alerte si lag > seuil N fois consécutives
+
+[↑ Retour au sommaire](#table-des-matières)
 
 ## Fichiers clés
 
@@ -210,3 +221,12 @@
   │ scripts/DDL_TABLES.sql           │ 18 tables RAW + AUDIT schema + ANALYST grants                  │
   └──────────────────────────────────┴────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## Voir aussi
+
+- [Workflow multi-environnement](02_workflow_multi_env.md) — flux DEV/TEST/PROD et CI/CD
+- [Opérations](03_operations.md) — exploitation quotidienne et monitoring
+
+[↑ Retour au sommaire](#table-des-matières)

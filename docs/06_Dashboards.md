@@ -4,7 +4,7 @@ Ce document est un mode d'emploi pour créer les dashboards MediCore dans
 l'interface web Metabase. Toutes les étapes décrivent les actions manuelles
 à effectuer dans le navigateur (`http://localhost:3000`).
 
-> **Séparation des responsabilités** : les cards Metabase font uniquement des `SELECT` sur les tables MARTS pré-calculées par dbt. Les `SUM()`, `AVG()`, `COUNT()` présents dans les équivalents SQL sont des **agrégations d'affichage** (regrouper par mois, par pharmacie, etc.), pas des calculs métier. La logique métier (formules, KPIs) est entièrement dans dbt — voir [`docs/KPIs.md`](KPIs.md) pour les formules détaillées.
+> **Séparation des responsabilités** : les cards Metabase font uniquement des `SELECT` sur les tables MARTS pré-calculées par dbt. Les `SUM()`, `AVG()`, `COUNT()` présents dans les équivalents SQL sont des **agrégations d'affichage** (regrouper par mois, par pharmacie, etc.), pas des calculs métier. La logique métier (formules, KPIs) est entièrement dans dbt — voir [`docs/05_KPIs.md`](05_KPIs.md) pour les formules détaillées.
 >
 > **Pourquoi des agrégations dans Metabase et pas dans dbt ?** Les agrégations d'affichage (`SUM`, `AVG`, `COUNT`) sont **dynamiques** — elles s'adaptent aux filtres choisis par l'utilisateur. Par exemple, `SUM(CA_HT)` calcule le total pour une seule pharmacie si l'utilisateur filtre dessus, ou pour toutes les pharmacies sans filtre. Pré-calculer chaque combinaison de filtres dans dbt multiplierait les tables inutilement. Le bon modèle : dbt calcule les KPIs au **grain le plus fin** (par pharmacie, par mois, par produit), et Metabase agrège à la volée selon les filtres de l'utilisateur.
 
@@ -1918,4 +1918,9 @@ si besoin.
 [↑ Retour au sommaire](#table-des-matières)
 
 ---
+
+## Voir aussi
+
+- [KPIs](05_KPIs.md) — formules métier détaillées calculées par dbt
+- [Provisionnement Metabase](07_guide_provisionnement_metabase.md) — configurer les accès utilisateurs
 

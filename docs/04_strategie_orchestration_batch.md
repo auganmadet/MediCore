@@ -55,6 +55,8 @@ Le pipeline traite **~934 millions de lignes** réparties sur 18 tables :
 L'orchestration est assurée par `batch_loop.sh`, un script bash
 qui boucle en continu dans un conteneur Docker.
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ---
 
 ## 2. Analyse du besoin réel
@@ -164,6 +166,8 @@ dans un DAG avec sa propre fréquence et ses retries :
 `cdc_consume >> dbt_staging >> dbt_marts`. En attendant, `batch_loop.sh`
 implémente cette séparation dans une boucle unique avec des compteurs.
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ---
 
 ## 3. Stratégie mise en place
@@ -264,6 +268,8 @@ Sur 10 min d'intervalle : **3 min facturées**, **7 min à 0 crédit** (30% acti
 07:00  Reprise rythme jour
 ```
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ---
 
 ## 4. Récapitulatif 24h
@@ -293,6 +299,8 @@ Sur 10 min d'intervalle : **3 min facturées**, **7 min à 0 crédit** (30% acti
   │ **Total 24h**        │        │ **87**      │ **16**      │ **~14.8h actif**           │
   │                      │        │             │             │ **~9.2h dort**             │
   └──────────────────────┴────────┴─────────────┴─────────────┴────────────────────────────┘
+
+[↑ Retour au sommaire](#table-des-matières)
 
 ---
 
@@ -326,6 +334,8 @@ Prix Snowflake Standard Edition AWS eu-west : ~2.00 USD/crédit (~1.84 EUR/créd
   ├──────────────────────────────────────────────┼──────────────────────────────────────┤
   │ **Économie annuelle**                        │ **~5 200 EUR**                       │
   └──────────────────────────────────────────────┴──────────────────────────────────────┘
+
+[↑ Retour au sommaire](#table-des-matières)
 
 ---
 
@@ -367,6 +377,8 @@ Dagster). Chaque fonction deviendra une tâche dans un DAG, avec sa propre
 fréquence et ses retries. `batch_loop.sh` sera alors supprimé sans refactoring
 des phases individuelles.
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ---
 
 ## 7. Variables de configuration
@@ -392,6 +404,8 @@ Toutes les variables sont surchargeables via l'environnement (.env) :
   ├────────────────────────────┼───────────────┼───────────────┼──────────────────────────┤
   │ PHASE_TIMEOUT_SEC          │ 1800 (30 min) │ 1800          │ Timeout par phase dbt    │
   └────────────────────────────┴───────────────┴───────────────┴──────────────────────────┘
+
+[↑ Retour au sommaire](#table-des-matières)
 
 ---
 
@@ -419,3 +433,11 @@ Toutes les variables sont surchargeables via l'environnement (.env) :
 
 Débit observé : **~1.7 — 2.1 millions de lignes/min** (goulot : extraction MySQL,
 pas Snowflake).
+
+[↑ Retour au sommaire](#table-des-matières)
+
+---
+
+## Voir aussi
+
+- [Opérations](03_operations.md) — guide opérationnel complet et monitoring

@@ -2,7 +2,7 @@
 
 Ce document recense l'ensemble des indicateurs clés de performance (KPIs) calculés par les modèles dbt de la couche MARTS, ainsi que les KPIs non réalisables aujourd'hui et les actions à mener pour les rendre disponibles.
 
-> **Séparation des responsabilités** : toute la logique métier (formules, KPIs) est calculée dans dbt (couche MARTS). Les dashboards Metabase ne font que des `SELECT` sur ces tables pré-calculées — voir [`docs/Dashboards.md`](Dashboards.md) pour les requêtes d'affichage et la disposition des cards.
+> **Séparation des responsabilités** : toute la logique métier (formules, KPIs) est calculée dans dbt (couche MARTS). Les dashboards Metabase ne font que des `SELECT` sur ces tables pré-calculées — voir [`docs/06_Dashboards.md`](06_Dashboards.md) pour les requêtes d'affichage et la disposition des cards.
 
 ---
 
@@ -1699,3 +1699,9 @@ Comparaison janvier N vs janvier N-1 :
 - Mesurer l'impact des **animations commerciales** par catégorie
 
 [↑ Retour au sommaire](#table-des-matières)
+
+---
+
+## Voir aussi
+
+- [Dashboards](06_Dashboards.md) — requêtes d'affichage et disposition des cards Metabase

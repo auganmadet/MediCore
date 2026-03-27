@@ -30,6 +30,8 @@ valeurs aberrantes, données manquantes).
 
 **Objectif** : restaurer les données correctes en moins de 15 minutes.
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ---
 
 ## 1. Détecter le problème
@@ -46,6 +48,8 @@ valeurs aberrantes, données manquantes).
   ├──────────────────────────────────┼────────────────────────────────────────┤
   │ Erreurs dans les logs conteneur  │ docker logs medicore_elt_batch         │
   └──────────────────────────────────┴────────────────────────────────────────┘
+
+[↑ Retour au sommaire](#table-des-matières)
 
 ---
 
@@ -73,6 +77,8 @@ ORDER BY STEP_START DESC;
   │ RAW                │ Critique — si le bulk_load a corrompu RAW,          │
   │                    │ toute la chaîne en aval est affectée                │
   └────────────────────┴─────────────────────────────────────────────────────┘
+
+[↑ Retour au sommaire](#table-des-matières)
 
 ---
 
@@ -143,6 +149,8 @@ UNION ALL
 SELECT 'MART_KPI_OPERATEUR', COUNT(*) FROM MEDICORE_PROD.MARTS.MART_KPI_OPERATEUR;
 ```
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ---
 
 ## 4. Alternative : re-run du modèle corrigé
@@ -157,6 +165,8 @@ docker exec medicore_elt_batch bash -c "cd /app/dbt && \
 ```
 
 Le `+` après le modèle relance aussi tous les modèles en aval (propagation).
+
+[↑ Retour au sommaire](#table-des-matières)
 
 ---
 
@@ -206,6 +216,8 @@ git log --oneline --follow dbt/models/marts/<modele>.sql
 git diff HEAD~1 dbt/models/marts/<modele>.sql
 ```
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ---
 
 ## 6. Prévenir la récurrence
@@ -231,6 +243,8 @@ git diff HEAD~1 dbt/models/marts/<modele>.sql
   │                                    │ les agrégations avant merge             │
   └────────────────────────────────────┴─────────────────────────────────────────┘
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ---
 
 ## 7. Checklist rapide
@@ -249,6 +263,8 @@ En cas d'incident, suivre dans l'ordre :
 [ ] 9. Documenter l'incident (CHANGELOG.md)
 ```
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ---
 
 ## 8. Limitations
@@ -259,3 +275,11 @@ En cas d'incident, suivre dans l'ordre :
   stockées). Restaurer la table RAW source puis relancer dbt staging.
 - **Les snapshots SCD2** ne sont pas restaurables via Time Travel sans
   perdre l'historique accumulé. Privilégier un re-run depuis staging.
+
+[↑ Retour au sommaire](#table-des-matières)
+
+---
+
+## Voir aussi
+
+- [Opérations](03_operations.md) — exploitation normale et monitoring

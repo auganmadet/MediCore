@@ -31,6 +31,8 @@
 docker compose up -d
 ```
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ## Architecture du batch
 
 Le conteneur `medicore_elt_batch` execute `batch_loop.sh` en boucle (5 min dev / 30 min prod).
@@ -54,6 +56,8 @@ Chaque iteration :
   ├───────┼──────────────────────────────────────────────────────┤
   │   5   │ dbt source freshness                                 │
   └───────┴──────────────────────────────────────────────────────┘
+
+[↑ Retour au sommaire](#table-des-matières)
 
 ## Lineage operationnel (AUDIT)
 
@@ -82,6 +86,8 @@ FROM MEDICORE_PROD.AUDIT.CDC_LAG_METRICS;
 
 Retention automatique : 90 jours (purge quotidienne a 01h).
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ## Monitoring et alertes
 
   ┌───────────────────────────┬──────────────────────────────────────────────────────────┐
@@ -102,6 +108,8 @@ Retention automatique : 90 jours (purge quotidienne a 01h).
 
 Le **lag Kafka** mesure le retard du consumer CDC (end_offset - committed_offset). Un lag croissant signifie que le consumer ne suit pas le rythme de Debezium. Les metriques sont ecrites dans `/tmp/cdc_lag_metrics` et historisees dans `AUDIT.CDC_LAG_METRICS`.
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ## Diagnostic et recovery
 
 ```bash
@@ -113,6 +121,8 @@ docker exec medicore_elt_batch python pipelines/diagnose_recover.py --fix
 ```
 
 Detecte : processus zombies, tables vides, doublons, timestamps invalides.
+
+[↑ Retour au sommaire](#table-des-matières)
 
 ## Variables d'environnement
 
@@ -144,6 +154,8 @@ Detecte : processus zombies, tables vides, doublons, timestamps invalides.
   │ `KAFKA_LAG_THRESHOLD`        │ Seuil lag Kafka en records (defaut: 10000) │
   └──────────────────────────────┴────────────────────────────────────────────┘
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ## Commandes utiles
 
 ```bash
@@ -171,6 +183,8 @@ docker exec medicore_elt_batch bash -c "cd /app/dbt && dbt source freshness"
 # http://localhost:9000
 ```
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ## Arret propre
 
 ```bash
@@ -182,6 +196,8 @@ docker compose down
 ```
 
 Le conteneur intercepte SIGTERM et termine proprement apres la phase en cours.
+
+[↑ Retour au sommaire](#table-des-matières)
 
 ## Metabase (BI dashboards)
 
@@ -767,3 +783,12 @@ L'inflation des prix d'achat grignote la marge sans que personne ne s'en rende c
 3. Pour chaque carte : `+` dans le dashboard > Nouvelle question > table > colonnes/filtres/visualisation > Sauvegarder
 4. Ajouter des filtres dashboard (date, pharmacie) qui s'appliquent a toutes les cartes
 5. Les dashboards persistent dans le volume PostgreSQL (`metabase_data`)
+
+[↑ Retour au sommaire](#table-des-matières)
+
+---
+
+## Voir aussi
+
+- [Stratégie d'orchestration batch](04_strategie_orchestration_batch.md) — détail des fréquences, phases et mode nuit
+- [Procédure de rollback](08_procedure_rollback.md) — restauration prod via Time Travel
