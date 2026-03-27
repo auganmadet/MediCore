@@ -9,5 +9,5 @@ globs: "**/*.md"
 - Séparateurs horizontaux (├─┼─┤) entre chaque ligne de données
 - Mettre à jour `CHANGELOG.md` pour tout changement métier ou architectural
 - `CHANGELOG.md` : orienté impact métier, pas technique — catégories : Ajouts, Corrections, Modifications, Nettoyage
-- `docs/KPIs.md` : documenter tout nouveau KPI avec formule + exemple concret
+- `docs/05_KPIs.md` : documenter tout nouveau KPI avec formule + exemple concret
 - Ne jamais modifier les fichiers `dbt/dbt_packages/**/*.md` (packages tiers)

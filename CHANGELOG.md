@@ -71,8 +71,8 @@ Chaque entrée décrit **ce qui a changé** du point de vue métier et son impac
 
 ### Ajouts
 - **Filtres cascadés (linked filters)** : les filtres Fournisseur, Opérateur, Univers, Statut dormant et Mois sont désormais liés au filtre Pharmacie sur 14 dashboards. Sélectionner une pharmacie restreint automatiquement les valeurs proposées dans les autres filtres aux données existantes.
-- **Documentation entités Metabase** (`docs/Dashboards.md`) : clarification des entités (collection, question/card, dashboard), différence MBQL vs SQL natif, types de visualisation, stockage PostgreSQL, export API et tableau des filtres cascadés.
-- **Guide d'ouverture des accès** (`docs/Dashboards.md` §9) : procédure pas à pas pour donner accès aux dashboards par service (groupes, comptes, permissions collections/données, réseau, email SMTP).
+- **Documentation entités Metabase** (`docs/06_Dashboards.md`) : clarification des entités (collection, question/card, dashboard), différence MBQL vs SQL natif, types de visualisation, stockage PostgreSQL, export API et tableau des filtres cascadés.
+- **Guide d'ouverture des accès** (`docs/06_Dashboards.md` §9) : procédure pas à pas pour donner accès aux dashboards par service (groupes, comptes, permissions collections/données, réseau, email SMTP).
 
 ---
 
@@ -80,7 +80,7 @@ Chaque entrée décrit **ce qui a changé** du point de vue métier et son impac
 
 ### Ajouts
 - **Filtres D11 Produits dormants** : 4 filtres globaux (Pharmacie, Statut dormant, Univers, Fournisseur) reliés aux 6 questions du dashboard.
-- **Guide utilisateur Metabase** (`docs/Dashboards.md`) : mode d'emploi complet pour créer les dashboards via l'interface web, avec D11 en exemple détaillé pas à pas.
+- **Guide utilisateur Metabase** (`docs/06_Dashboards.md`) : mode d'emploi complet pour créer les dashboards via l'interface web, avec D11 en exemple détaillé pas à pas.
 
 ---
 
@@ -165,14 +165,14 @@ Chaque entrée décrit **ce qui a changé** du point de vue métier et son impac
 - **mart_kpi_synthese_pharmacie** : vue consolidée de tous les KPIs principaux au niveau pharmacie/mois. Inclut CA + evolution, marge + taux, valeur stock, ratio stock/CA annuel, CA générique + taux, % dormants 6m/12m. Aucun calcul requis côté application.
 
 ### Documentation
-- **docs/KPIs.md** : ajout de 6 nouvelles sections (2.10-2.15) documentant les marts KPI avec formules, grain et utilités métier :
+- **docs/05_KPIs.md** : ajout de 6 nouvelles sections (2.10-2.15) documentant les marts KPI avec formules, grain et utilités métier :
   - mart_kpi_ca_evolution — Evolution CA vs A-1
   - mart_kpi_generique — Génériques et Parts de Marché Labo
   - mart_kpi_remise_labo — Remise Pondérée par Laboratoire
   - mart_kpi_univers — KPIs par Univers (Dashboard)
   - mart_kpi_dormant — Produits Sans Vente
   - mart_kpi_synthese_pharmacie — Vue Dashboard Consolidée
-- **docs/KPIs.md section 4.4** : documentation des 3 KPIs NON DISPO avec structures de données requises :
+- **docs/05_KPIs.md section 4.4** : documentation des 3 KPIs NON DISPO avec structures de données requises :
   - Cartes de fidélité (source: API Mediplace, table `mediplace.client`)
   - Montant de challenges Medila (source: API Mediplace, table `mediplace.challenge_vente`)
   - CA par catégorie de marché (source: référentiel catégories à créer)
@@ -204,7 +204,7 @@ Chaque entrée décrit **ce qui a changé** du point de vue métier et son impac
 
 ### Ajouts
 - **CI/CD GitHub Actions** : pipeline de validation automatique (lint Python, validation syntaxe dbt, build Docker, ShellCheck bash) + déploiement continu vers GitHub Container Registry (GHCR). L'image Docker est automatiquement publiée sur `ghcr.io/auganmadet/medicore` (tags SHA + latest) après passage des 4 jobs CI sur `main`.
-- **Guide opérationnel** : documentation `docs/operations.md` avec architecture batch, variables d'environnement, commandes utiles et procédures de diagnostic.
+- **Guide opérationnel** : documentation `docs/03_operations.md` avec architecture batch, variables d'environnement, commandes utiles et procédures de diagnostic.
 - **Tests marts** : `dbt test --select tag:marts` exécuté après les tests staging dans le batch loop, avec compteur d'échecs et alertes Teams.
 - **Timeout par phase** : chaque phase du batch loop est limitée par `PHASE_TIMEOUT_SEC` (défaut 30 min) pour éviter les blocages.
 - **Arrêt graceful** : le batch loop intercepte SIGTERM/SIGINT et termine proprement après la phase en cours (compatible `docker compose stop`).

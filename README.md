@@ -3,6 +3,24 @@
 Pipeline ELT industrialisé : MySQL RDS → Kafka CDC → Snowflake RAW → dbt (STG/MARTS).
 18 tables (4 CDC + 14 référence), monitoring Teams webhook, source freshness.
 
+## Table des matières
+
+1. [Prérequis](#prérequis)
+   - [Docker Desktop](#1-docker-desktop)
+   - [SnowSQL CLI](#2-snowsql-cli)
+   - [jq](#3-jq-json-processor)
+   - [Configuration snowsql](#4-configuration-snowsql)
+   - [Fichier .env](#5-fichier-env)
+   - [Vérification complète](#6-vérification-complète-des-prérequis)
+   - [Durées estimées](#durées-estimées)
+2. [Architecture](#architecture)
+3. [Structure du projet](#structure-du-projet)
+4. [Installation](#installation)
+5. [Fonctionnement](#fonctionnement)
+6. [Monitoring](#monitoring)
+
+---
+
 ## Prérequis
 
 ### 1. Docker Desktop
@@ -192,9 +210,17 @@ snowsql -c medicore_admin -q "SELECT 'OK' AS status;"
   │ **Total setup initial**     │ **~50-95 min**│ Dépend de la bande passante réseau        │
   └─────────────────────────────┴───────────────┴───────────────────────────────────────────┘
 
+[↑ Retour au sommaire](#table-des-matières)
+
+---
+
 ## Architecture
 
-Voir [Architecture détaillée](docs/ARCHITECTURE.md) pour les schémas complets (flux, services Docker, monitoring).
+Voir [Architecture détaillée](docs/01_ARCHITECTURE.md) pour les schémas complets (flux, services Docker, monitoring).
+
+[↑ Retour au sommaire](#table-des-matières)
+
+---
 
 ## Structure du projet
 
@@ -238,8 +264,21 @@ MediCore/
 │   └── DDL_TABLES.sql                  # 18 tables RAW + CLUSTER BY
 │
 └── docs/
-    └── ARCHITECTURE.md
+    ├── 01_ARCHITECTURE.md                 # Vue d'ensemble (flux, services Docker, monitoring)
+    ├── 02_workflow_multi_env.md            # Environnements (DEV/TEST/PROD) et CI/CD
+    ├── 03_operations.md                   # Orchestration batch et monitoring
+    ├── 04_strategie_orchestration_batch.md # Détail stratégie batch (fréquences, mode nuit)
+    ├── 05_KPIs.md                         # KPIs métier (formules, grain, utilités)
+    ├── 06_Dashboards.md                   # Guide utilisateur Metabase
+    ├── 07_guide_provisionnement_metabase.md # Setup et provisionnement Metabase
+    ├── 08_procedure_rollback.md           # Procédure rollback prod (Time Travel)
+    ├── 09_rotation_credentials.md         # Rotation trimestrielle des credentials
+    └── 10_guide-claude-code-rules.md      # Guide Claude Code (rules, memory-bank)
 ```
+
+[↑ Retour au sommaire](#table-des-matières)
+
+---
 
 ## Installation
 
@@ -258,6 +297,12 @@ bash scripts/verify_setup.sh
 
 **Note** : Le premier run dbt (staging + marts) démarre automatiquement via `batch_loop.sh` dès que le bulk load est terminé. Pas d'action manuelle requise.
 
+Voir [Workflow multi-environnement](docs/02_workflow_multi_env.md) pour comprendre les 3 environnements (DEV/TEST/PROD) créés par le setup.
+
+[↑ Retour au sommaire](#table-des-matières)
+
+---
+
 ## Fonctionnement
 
 Le conteneur `medicore_elt_batch` exécute `batch_loop.sh` en boucle (5 min dev / 30 min prod) :
@@ -269,9 +314,19 @@ Le conteneur `medicore_elt_batch` exécute `batch_loop.sh` en boucle (5 min dev 
 5. **dbt test** : `dbt test --select stg_*` (not_null, unique, relationships)
 6. **Source freshness** : `dbt source freshness` (détecte données stales)
 
+Voir [Opérations](docs/03_operations.md) et [Stratégie d'orchestration batch](docs/04_strategie_orchestration_batch.md) pour le détail complet.
+
+[↑ Retour au sommaire](#table-des-matières)
+
+---
+
 ## Monitoring
 
 - **Teams webhook** : alertes échec/recovery sur chaque phase (seuil configurable)
 - **Source freshness** : CDC warn 12h / error 24h, référence warn 36h / error 48h
 - **Docker healthcheck** : tous les services avec healthcheck + depends_on condition
 - **Resource limits** : mem_limit + cpus sur les 6 conteneurs
+
+Voir [Opérations](docs/03_operations.md) pour le détail du monitoring, des alertes et des procédures de diagnostic.
+
+[↑ Retour au sommaire](#table-des-matières)

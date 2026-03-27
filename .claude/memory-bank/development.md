@@ -159,7 +159,7 @@ Exemples :
 1. Créer le modèle `dbt/models/marts/mart_kpi_xxx.sql`
 2. Référencer les dimensions et faits via `{{ ref() }}`
 3. Ajouter les tests dans `_marts.yml`
-4. Documenter dans `docs/KPIs.md`
+4. Documenter dans `docs/05_KPIs.md`
 
 ## Logs
 
