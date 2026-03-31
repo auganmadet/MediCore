@@ -104,6 +104,19 @@ jobs:
       - name: dbt test (validation contraintes)
         run: dbt test --target test --project-dir dbt --exclude source:mysql_raw snap_pharmacie snap_produit snap_fournisseur
 
+      - name: dbt docs generate (Data Catalog)
+        run: dbt docs generate --target test --project-dir dbt
+
+      - name: Upload Data Catalog
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbt-docs
+          path: |
+            dbt/target/index.html
+            dbt/target/catalog.json
+            dbt/target/manifest.json
+          retention-days: 30
+
   build-docker:
     name: Build Docker image
     runs-on: ubuntu-latest
