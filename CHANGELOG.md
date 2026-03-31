@@ -96,7 +96,7 @@ Chaque entrée décrit **ce qui a changé** du point de vue métier et son impac
 ## [2026-03-09] — Exposition BI avec Metabase
 
 ### Ajouts
-- **Metabase** : ajout de l'outil BI open-source au stack Docker pour visualiser les 15 KPIs, 8 faits et 3 dimensions du schéma MARTS sur des dashboards interactifs (`http://localhost:3000`).
+- **Metabase** : ajout de l'outil BI open-source au stack Docker pour visualiser les 21 KPIs, 8 faits et 3 dimensions du schéma MARTS sur des dashboards interactifs (`http://localhost:3000`).
 - **PostgreSQL 16** : base metadata dédiée à Metabase (dashboards, questions sauvegardées, comptes utilisateurs). Persistée via volume Docker.
 - **Documentation opérationnelle** : guide de configuration Snowflake dans Metabase, dashboards suggérés couvrant les 26/26 tables MARTS.
 

@@ -30,7 +30,7 @@
 │              │    │ ┌───────▼──────────┐   │    │ │  RAW  │  │ │ STAGING │    │    MARTS      │   │    │    │ ┌──────────────────┐ │
 │ ┌──────────┐ │    │ │ Kafka            │───┼───>│ │       ┼─>│ │ 18 mod. ┼───>│  3 DIM        │   ┼────┼───>│ │ Tableau          │ │
 │ │ 4 tables │ │    │ │ 4 topics         │   │    │ │ 18    │  │ │ dedup   │    │  8 FAITS      │   │    │    │ │ visualisation    │ │
-│ │   CDC    │─┼───>│ └───────┬──────────┘   │    │ │tables │  │ │ + PII   │    │  15 KPIs      │   │    │    │ └──────────────────┘ │
+│ │   CDC    │─┼───>│ └───────┬──────────┘   │    │ │tables │  │ │ + PII   │    │  21 KPIs      │   │    │    │ └──────────────────┘ │
 │ └──────────┘ │    │ ┌───────▼──────────┐   │    │ │brutes │  │ └─────────┘    └───────────────┘   │    │    │ ┌──────────────────┐ │
 │              │    │ │ Python CDC       │   │    │ │       │  │                                    │    │    │ │ Metabase         │ │
 │ ┌──────────┐ │    │ │ micro-batch 500  │───┼───>│ │       │  └────────────────────────────────────┘    │    │ │ self-service BI  │ │
@@ -141,7 +141,7 @@
 
 - **RAW** (BRONZE) : donnees brutes sans transformation — c'est le principe ELT
 - **STAGING** (SILVER) : deduplication CDC + masquage PII (MD5)
-- **MARTS** (GOLD) : star schema — 3 DIM, 8 FAITS, 15 KPIs
+- **MARTS** (GOLD) : star schema — 3 DIM, 8 FAITS, 21 KPIs
 - **AUDIT** : tables PIPELINE_RUNS, STEP_RUNS et DBT_MODEL_RUNS — tracabilite a chaque execution. Quand un KPI semble faux, on remonte au RUN_ID pour identifier si c'est un probleme d'ingestion ou de transformation
 - **SNAPSHOTS** : SCD2 (Slowly Changing Dimension Type 2). Quand une dimension change (pharmacie qui change de nom, produit qui change de fournisseur), l'ancienne valeur est conservee avec une date de fin. Les ventes de fevrier s'affichent avec l'ancien nom, celles de mars avec le nouveau
 
