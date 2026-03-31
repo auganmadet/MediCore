@@ -1,0 +1,72 @@
+version: 2
+
+macros:
+  - name: generate_schema_name
+    description: >
+      Surcharge du nommage de schéma dbt. Si un `custom_schema_name` est défini dans le
+      `config()` du modèle (ex: `schema: STAGING`), il est utilisé tel quel. Sinon, le schéma
+      par défaut du target est utilisé. Cela permet d'écrire dans RAW, STAGING, MARTS, AUDIT
+      sans préfixe ajouté par dbt.
+    arguments:
+      - name: custom_schema_name
+        type: string
+        description: "Nom de schéma défini dans le `config()` du modèle (ex: `STAGING`, `MARTS`). NULL si non défini."
+      - name: node
+        type: object
+        description: "Objet dbt représentant le modèle en cours de compilation (non utilisé dans cette macro)."
+
+  - name: pii_mask
+    description: >
+      Masquage PII par hash MD5 tronqué. Produit une valeur pseudonymisée déterministe
+      au format `PREFIX_xxxx` (ex: `PHARM_CE5E`). Utilisée dans les modèles staging pour
+      masquer les données personnelles (adresses). Le hash est déterministe : la même valeur
+      produit toujours le même résultat, ce qui permet les jointures sans exposer les données.
+    arguments:
+      - name: column_name
+        type: string
+        description: "Nom de la colonne à masquer (ex: `FOU_ADRESSE`)."
+      - name: prefix
+        type: string
+        description: "Préfixe lisible ajouté avant le hash (ex: `PHARM`, `USER`, `FOU`, `ADDR`)."
+      - name: hash_length
+        type: integer
+        description: "Longueur du hash tronqué (défaut: 4 caractères hexadécimaux)."
+
+  - name: guard_full_refresh
+    description: >
+      Protection contre les `--full-refresh` accidentels sur les modèles tagués `high_volume`.
+      Un full-refresh sur une table de millions de lignes peut saturer le warehouse.
+      Cette macro bloque le full-refresh sauf si `allow_full_refresh: true` est passé
+      en `--vars`. Le premier run (table inexistante) est toujours autorisé.
+    arguments: []
+
+  - name: guard_seed_prod
+    description: >
+      Protection contre l'exécution de `dbt seed` sur l'environnement prod.
+      Les seeds contiennent des fixtures de test (quelques dizaines de lignes) qui
+      écraseraient les ~934M lignes des 18 tables RAW de production. Bloque avec
+      une erreur explicite sauf si `allow_seed_prod: true` est passé en `--vars`.
+      Appelée via `on-run-start` dans `dbt_project.yml`.
+    arguments: []
+
+  - name: log_run_summary
+    description: >
+      Résumé d'exécution dbt affiché en fin de run. Compte les statuts (pass, warn,
+      error, skip) et le temps total d'exécution. Appelle `persist_dbt_results()`
+      pour persister les résultats dans la table AUDIT. Conçue pour être appelée
+      via le hook `on-run-end`.
+    arguments:
+      - name: results
+        type: list
+        description: "Liste des résultats dbt (objet `results` fourni automatiquement par le hook `on-run-end`)."
+
+  - name: persist_dbt_results
+    description: >
+      Persiste les résultats d'exécution de chaque modèle dbt dans la table
+      `AUDIT.DBT_MODEL_RUNS` (RUN_ID, nom du modèle, statut, temps d'exécution,
+      lignes affectées). Skip silencieusement si la table AUDIT n'existe pas
+      (vérification via `INFORMATION_SCHEMA.TABLES`). Appelée par `log_run_summary()`.
+    arguments:
+      - name: results
+        type: list
+        description: "Liste des résultats dbt (objet `results` passé par `log_run_summary`)."

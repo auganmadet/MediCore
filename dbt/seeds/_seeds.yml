@@ -1,3 +1,56 @@
 version: 2
 
-seeds: []
+seeds:
+  - name: raw_commandes
+    description: "Fixtures de test — commandes fournisseurs CDC (MEDICORE_TEST uniquement)"
+
+  - name: raw_factures
+    description: "Fixtures de test — factures de vente CDC (MEDICORE_TEST uniquement)"
+
+  - name: raw_orders
+    description: "Fixtures de test — ordonnances CDC (MEDICORE_TEST uniquement)"
+
+  - name: raw_modstock
+    description: "Fixtures de test — mouvements de stock CDC (MEDICORE_TEST uniquement)"
+
+  - name: raw_pharmacie
+    description: "Fixtures de test — référentiel pharmacies (MEDICORE_TEST uniquement)"
+
+  - name: raw_produits
+    description: "Fixtures de test — catalogue produits (MEDICORE_TEST uniquement)"
+
+  - name: raw_fournisseurs
+    description: "Fixtures de test — répertoire fournisseurs (MEDICORE_TEST uniquement)"
+
+  - name: raw_ean13
+    description: "Fixtures de test — correspondance EAN13 par produit (MEDICORE_TEST uniquement)"
+
+  - name: raw_daybyday
+    description: "Fixtures de test — ventes journalières par produit (MEDICORE_TEST uniquement)"
+
+  - name: raw_history
+    description: "Fixtures de test — historique trésorerie journalier (MEDICORE_TEST uniquement)"
+
+  - name: raw_log
+    description: "Fixtures de test — dernière synchronisation par pharmacie (MEDICORE_TEST uniquement)"
+
+  - name: raw_lppr
+    description: "Fixtures de test — codes LPP par produit (MEDICORE_TEST uniquement)"
+
+  - name: raw_manqhistory
+    description: "Fixtures de test — historique ruptures de stock (MEDICORE_TEST uniquement)"
+
+  - name: raw_mediprix_factures
+    description: "Fixtures de test — factures Mediprix avec opérateur et pharmacie (MEDICORE_TEST uniquement)"
+
+  - name: raw_pharmacies
+    description: "Fixtures de test — annuaire pharmacies du groupement (MEDICORE_TEST uniquement)"
+
+  - name: raw_pharmacies_erreur
+    description: "Fixtures de test — erreurs de synchronisation par pharmacie (MEDICORE_TEST uniquement)"
+
+  - name: raw_produits_negatifs
+    description: "Fixtures de test — produits ayant un stock négatif (MEDICORE_TEST uniquement)"
+
+  - name: raw_stockhistory
+    description: "Fixtures de test — historique mouvements de stock (MEDICORE_TEST uniquement)"

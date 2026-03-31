@@ -5,7 +5,7 @@ models:
   - name: dim_pharmacie
     description: "Pharmacies (table de référence, source: stg_pharmacie ← RAW_PHARMACIE)"
     columns:
-      - name: pharmacie_sk
+      - name: PHARMACIE_SK
         description: "Surrogate key (ROW_NUMBER sur stg_pharmacie.PHA_ID)"
         tests:
           - unique
@@ -16,43 +16,53 @@ models:
           - unique
           - not_null
       - name: PHA_NOM
+        description: "Nom de la pharmacie (raison sociale)"
         tests:
           - not_null
 
   - name: dim_produit
     description: "Produits enrichis EAN13 + LPPR + classification (sources: stg_produits + stg_ean13 + stg_lppr)"
     columns:
-      - name: produit_sk
+      - name: PRODUIT_SK
+        description: "Surrogate key produit (ROW_NUMBER)"
         tests:
           - unique
           - not_null
       - name: PRD_ID
+        description: "Business key produit"
         tests:
           - not_null
       - name: PRD_NOM
+        description: "Nom commercial du produit"
         tests:
           - not_null
       - name: PRD_EAN13
+        description: "Code-barres EAN13 du produit"
       - name: LPP_CODE
+        description: "Code LPP (Liste des Produits et Prestations Remboursables)"
       - name: FOU_ID
-      - name: is_generique
+        description: "ID fournisseur principal"
+      - name: IS_GENERIQUE
         description: "true si produit generique (PRD_REFGEN in 71, 82)"
-      - name: univers
+      - name: UNIVERS
         description: "Classification: RX (ordonnance), OTC (conseil), PARA, HORS_REMB, AUTRE"
-      - name: derniere_vente
+      - name: DERNIERE_VENTE
         description: "Date de derniere vente du produit"
 
   - name: dim_fournisseur
     description: "Fournisseurs hiérarchiques (source: stg_fournisseurs ← RAW_FOURNISSEURS)"
     columns:
-      - name: fournisseur_sk
+      - name: FOURNISSEUR_SK
+        description: "Surrogate key fournisseur (ROW_NUMBER)"
         tests:
           - unique
           - not_null
       - name: FOU_ID
+        description: "Business key fournisseur"
         tests:
           - not_null
       - name: FOU_NOM
+        description: "Nom du fournisseur / laboratoire"
         tests:
           - not_null
 
@@ -60,30 +70,33 @@ models:
   - name: fact_ventes
     description: "Ventes journalières agrégées (sources: stg_factures + dim_pharmacie + dim_produit)"
     columns:
-      - name: pharmacie_sk
+      - name: PHARMACIE_SK
+        description: "FK vers dim_pharmacie (COALESCE -1 si orphelin)"
         tests:
           - not_null
           - relationships:
               to: ref('dim_pharmacie')
               field: pharmacie_sk
-      - name: produit_sk
+      - name: PRODUIT_SK
+        description: "FK vers dim_produit (COALESCE -1 si orphelin)"
         tests:
           - not_null
           - relationships:
               to: ref('dim_produit')
               field: produit_sk
-      - name: date_vente
+      - name: DATE_VENTE
+        description: "Date de la vente (granularité jour)"
         tests:
           - not_null
-      - name: quantite_vendue
+      - name: QUANTITE_VENDUE
         description: "Quantité facturée (peut être négatif pour retours)"
         tests:
           - not_null
-      - name: ca_ht
+      - name: CA_HT
         description: "Chiffre d'affaires HT (peut être négatif pour avoirs)"
         tests:
           - not_null
-      - name: ca_ttc
+      - name: CA_TTC
         description: "Chiffre d'affaires TTC (peut être négatif pour avoirs)"
         tests:
           - not_null
@@ -91,167 +104,192 @@ models:
   - name: fact_commandes
     description: "Commandes fournisseurs (sources: stg_commandes + dim_pharmacie + dim_produit + dim_fournisseur)"
     columns:
-      - name: pharmacie_sk
+      - name: PHARMACIE_SK
+        description: "FK vers dim_pharmacie"
         tests:
           - not_null
           - relationships:
               to: ref('dim_pharmacie')
               field: pharmacie_sk
-      - name: fournisseur_sk
+      - name: FOURNISSEUR_SK
+        description: "FK vers dim_fournisseur"
         tests:
           - not_null
           - relationships:
               to: ref('dim_fournisseur')
               field: fournisseur_sk
-      - name: produit_sk
+      - name: PRODUIT_SK
+        description: "FK vers dim_produit"
         tests:
           - not_null
           - relationships:
               to: ref('dim_produit')
               field: produit_sk
-      - name: date_commande
+      - name: DATE_COMMANDE
+        description: "Date de la commande fournisseur (granularité jour)"
         tests:
           - not_null
-      - name: quantite_commandee
+      - name: QUANTITE_COMMANDEE
         description: "Quantité commandée (peut être négative pour annulations)"
         tests:
           - not_null
-      - name: montant_pahtnet
+      - name: MONTANT_PAHTNET
         description: "Montant prix achat HT net (peut être négatif pour avoirs)"
 
   - name: fact_stock_mouvement
     description: "Mouvements stock granulaire (sources: stg_modstock + dim_pharmacie + dim_produit)"
     columns:
-      - name: pharmacie_sk
+      - name: PHARMACIE_SK
+        description: "FK vers dim_pharmacie"
         tests:
           - not_null
           - relationships:
               to: ref('dim_pharmacie')
               field: pharmacie_sk
-      - name: produit_sk
+      - name: PRODUIT_SK
+        description: "FK vers dim_produit"
         tests:
           - not_null
           - relationships:
               to: ref('dim_produit')
               field: produit_sk
-      - name: date_mouvement
+      - name: DATE_MOUVEMENT
+        description: "Date du mouvement de stock (granularité jour)"
         tests:
           - not_null
-      - name: delta_stock
+      - name: DELTA_STOCK
+        description: "Variation de stock (positif=entrée, négatif=sortie)"
         tests:
           - not_null
 
   - name: fact_prix_journalier
     description: "Prix évolutifs par jour (sources: stg_daybyday + dim_pharmacie + dim_produit)"
     columns:
-      - name: pharmacie_sk
+      - name: PHARMACIE_SK
+        description: "FK vers dim_pharmacie"
         tests:
           - not_null
           - relationships:
               to: ref('dim_pharmacie')
               field: pharmacie_sk
-      - name: produit_sk
+      - name: PRODUIT_SK
+        description: "FK vers dim_produit"
         tests:
           - not_null
           - relationships:
               to: ref('dim_produit')
               field: produit_sk
-      - name: date_prix
+      - name: DATE_PRIX
+        description: "Date du relevé de prix (granularité jour)"
         tests:
           - not_null
-      - name: prix_tarif
+      - name: PRIX_TARIF
         description: "Prix tarif (peut être 0 pour produits gratuits)"
-      - name: prix_public
+      - name: PRIX_PUBLIC
         description: "Prix public TTC (peut être 0 pour produits gratuits)"
-      - name: prix_achat_moyen_pondere
+      - name: PRIX_ACHAT_MOYEN_PONDERE
         description: "PAMP (peut être 0)"
-      - name: prix_achat_net
+      - name: PRIX_ACHAT_NET
         description: "Prix achat net (peut être 0)"
 
   # KPIs CROISES
   - name: mart_kpi_marge
     description: "Marge journalière par pharmacie et produit (sources: fact_ventes + fact_prix_journalier)"
     columns:
-      - name: pharmacie_sk
+      - name: PHARMACIE_SK
+        description: "FK vers dim_pharmacie"
         tests:
           - not_null
-      - name: produit_sk
+      - name: PRODUIT_SK
+        description: "FK vers dim_produit"
         tests:
           - not_null
-      - name: date_jour
+      - name: DATE_JOUR
+        description: "Date du jour (granularité journalière)"
         tests:
           - not_null
-      - name: marge_brute
+      - name: MARGE_BRUTE
+        description: "CA HT - coût d'achat (peut être négatif si vente à perte)"
         tests:
           - not_null
-      - name: taux_marge
+      - name: TAUX_MARGE
         description: "Ratio marge_brute / ca_ht (null si ca_ht = 0)"
 
   - name: mart_kpi_stock
     description: "Rotation de stock et taux de rupture mensuels (sources: fact_stock_mouvement + fact_ventes)"
     columns:
-      - name: pharmacie_sk
+      - name: PHARMACIE_SK
+        description: "FK vers dim_pharmacie"
         tests:
           - not_null
-      - name: produit_sk
+      - name: PRODUIT_SK
+        description: "FK vers dim_produit"
         tests:
           - not_null
-      - name: mois
+      - name: MOIS
+        description: "Mois d'agrégation (format YYYY-MM-01)"
         tests:
           - not_null
-      - name: stock_moyen
+      - name: STOCK_MOYEN
+        description: "Stock moyen sur le mois (moyenne des mouvements)"
         tests:
           - not_null
-      - name: taux_rupture_stock
+      - name: TAUX_RUPTURE_STOCK
         description: "Ratio jours a stock zero / jours avec mouvement (vue stock, source: MODSTOCK)"
-      - name: rotation_stock
+      - name: ROTATION_STOCK
         description: "Ratio quantite_vendue / stock_moyen (null si stock_moyen = 0)"
 
   - name: mart_kpi_ecoulement
     description: "Taux d'écoulement mensuel (sources: fact_commandes + fact_ventes)"
     columns:
-      - name: pharmacie_sk
+      - name: PHARMACIE_SK
+        description: "FK vers dim_pharmacie"
         tests:
           - not_null
-      - name: produit_sk
+      - name: PRODUIT_SK
+        description: "FK vers dim_produit"
         tests:
           - not_null
-      - name: mois
+      - name: MOIS
+        description: "Mois d'agrégation (format YYYY-MM-01)"
         tests:
           - not_null
-      - name: taux_ecoulement
+      - name: TAUX_ECOULEMENT
         description: "Ratio quantite_vendue / quantite_commandee (null si aucune commande)"
 
   - name: fact_ruptures
     description: "Ruptures de stock journalieres par pharmacie et produit (sources: stg_manqhistory + dim_pharmacie + dim_produit)"
     columns:
-      - name: pharmacie_sk
+      - name: PHARMACIE_SK
+        description: "FK vers dim_pharmacie"
         tests:
           - not_null
           - relationships:
               to: ref('dim_pharmacie')
               field: pharmacie_sk
-      - name: produit_sk
+      - name: PRODUIT_SK
+        description: "FK vers dim_produit"
         tests:
           - not_null
           - relationships:
               to: ref('dim_produit')
               field: produit_sk
-      - name: date_rupture
+      - name: DATE_RUPTURE
+        description: "Date de la rupture de stock"
         tests:
           - not_null
-      - name: nb_lignes_manquantes
+      - name: NB_LIGNES_MANQUANTES
         description: "Nombre de lignes de commande non satisfaites"
         tests:
           - not_null
-      - name: nb_boites_manquantes
+      - name: NB_BOITES_MANQUANTES
         description: "Nombre de boites non delivrees"
         tests:
           - not_null
           - dbt_utils.expression_is_true:
               expression: ">= 0"
               severity: warn
-      - name: nb_clients_impactes
+      - name: NB_CLIENTS_IMPACTES
         description: "Nombre de clients ayant subi la rupture"
         tests:
           - not_null
@@ -259,380 +297,421 @@ models:
   - name: mart_kpi_ruptures
     description: "Impact des ruptures et estimation CA/marge perdus mensuels (sources: fact_ruptures + fact_ventes + fact_prix_journalier)"
     columns:
-      - name: pharmacie_sk
+      - name: PHARMACIE_SK
+        description: "FK vers dim_pharmacie"
         tests:
           - not_null
-      - name: produit_sk
+      - name: PRODUIT_SK
+        description: "FK vers dim_produit"
         tests:
           - not_null
-      - name: mois
+      - name: MOIS
+        description: "Mois d'agrégation (format YYYY-MM-01)"
         tests:
           - not_null
-      - name: taux_rupture_demande
+      - name: TAUX_RUPTURE_DEMANDE
         description: "Ratio lignes non satisfaites / total lignes (vue demande client, source: MANQHISTORY)"
-      - name: ca_estime_perdu
+      - name: CA_ESTIME_PERDU
         description: "Boites manquantes * prix public moyen du mois (null si prix inconnu)"
-      - name: marge_estimee_perdue
+      - name: MARGE_ESTIMEE_PERDUE
         description: "Boites manquantes * (prix public - prix achat) moyen du mois"
 
   - name: fact_tresorerie
     description: "Tresorerie journaliere par pharmacie (sources: stg_history + dim_pharmacie)"
     columns:
-      - name: pharmacie_sk
+      - name: PHARMACIE_SK
+        description: "FK vers dim_pharmacie"
         tests:
           - not_null
           - relationships:
               to: ref('dim_pharmacie')
               field: pharmacie_sk
-      - name: date_jour
+      - name: DATE_JOUR
+        description: "Date du jour (granularité journalière)"
         tests:
           - not_null
-      - name: ca_total_jour
+      - name: CA_TOTAL_JOUR
         description: "CA total jour (peut être négatif pour avoirs)"
         tests:
           - not_null
-      - name: montant_especes
+      - name: MONTANT_ESPECES
         description: "Encaissements espèces (peut être négatif)"
-      - name: montant_cb
+      - name: MONTANT_CB
         description: "Encaissements CB (peut être négatif)"
-      - name: montant_mutuelle
+      - name: MONTANT_MUTUELLE
         description: "Encaissements mutuelle (peut être négatif)"
-      - name: montant_virement
+      - name: MONTANT_VIREMENT
         description: "Encaissements virement (peut être négatif)"
-      - name: marge_totale
+      - name: MARGE_TOTALE
+        description: "Marge totale du jour (remboursable + non remboursable)"
         tests:
           - not_null
 
   - name: mart_kpi_tresorerie
     description: "Tresorerie mensuelle : panier moyen, repartition paiements, marges (source: fact_tresorerie)"
     columns:
-      - name: pharmacie_sk
+      - name: PHARMACIE_SK
+        description: "FK vers dim_pharmacie"
         tests:
           - not_null
-      - name: mois
+      - name: MOIS
+        description: "Mois d'agrégation (format YYYY-MM-01)"
         tests:
           - not_null
-      - name: ca_total
+      - name: CA_TOTAL
+        description: "CA total du mois"
         tests:
           - not_null
-      - name: panier_moyen
+      - name: PANIER_MOYEN
         description: "CA total / nb factures (null si aucune facture)"
-      - name: pct_tiers_payant
+      - name: PCT_TIERS_PAYANT
         description: "Part (mutuelle + centre + subrogation) / CA total"
-      - name: pct_marge_remboursable
+      - name: PCT_MARGE_REMBOURSABLE
         description: "Part marge remboursable / marge totale"
 
   - name: fact_stock_valorisation
     description: "Snapshots stock quotidiens valorises par pharmacie et produit (sources: stg_stockhistory + dim_pharmacie + dim_produit)"
     columns:
-      - name: pharmacie_sk
+      - name: PHARMACIE_SK
+        description: "FK vers dim_pharmacie"
         tests:
           - not_null
           - relationships:
               to: ref('dim_pharmacie')
               field: pharmacie_sk
-      - name: produit_sk
+      - name: PRODUIT_SK
+        description: "FK vers dim_produit"
         tests:
           - not_null
           - relationships:
               to: ref('dim_produit')
               field: produit_sk
-      - name: date_stock
+      - name: DATE_STOCK
+        description: "Date du relevé de stock (granularité jour)"
         tests:
           - not_null
-      - name: valeur_stock_pa
+      - name: VALEUR_STOCK_PA
         description: "Valeur stock prix achat (peut être négatif si stock négatif)"
-      - name: valeur_stock_pv
+      - name: VALEUR_STOCK_PV
         description: "Valeur stock prix vente (peut être négatif si stock négatif)"
-      - name: marge_latente
+      - name: MARGE_LATENTE
         description: "Valeur PV - valeur PA (marge en rayon non réalisée)"
-      - name: prix_tarif
+      - name: PRIX_TARIF
         description: "Prix tarif unitaire (peut être 0)"
-      - name: prix_public
+      - name: PRIX_PUBLIC
         description: "Prix public unitaire (peut être 0)"
-      - name: prix_achat_moyen_pondere
+      - name: PRIX_ACHAT_MOYEN_PONDERE
         description: "PAMP (peut être 0)"
-      - name: prix_achat_net
+      - name: PRIX_ACHAT_NET
         description: "Prix achat net (peut être 0)"
 
   - name: mart_kpi_stock_valorisation
     description: "Valorisation stock, couverture en jours, detection stock dormant et inflation (sources: fact_stock_valorisation + fact_ventes)"
     columns:
-      - name: pharmacie_sk
+      - name: PHARMACIE_SK
+        description: "FK vers dim_pharmacie"
         tests:
           - not_null
-      - name: produit_sk
+      - name: PRODUIT_SK
+        description: "FK vers dim_produit"
         tests:
           - not_null
-      - name: mois
+      - name: MOIS
+        description: "Mois d'agrégation (format YYYY-MM-01)"
         tests:
           - not_null
-      - name: couverture_stock_jours
+      - name: COUVERTURE_STOCK_JOURS
         description: "Stock fin mois * 30 / quantite vendue (null si aucune vente)"
-      - name: variation_prix_achat
+      - name: VARIATION_PRIX_ACHAT
         description: "Variation relative du prix achat net dans le mois (detection inflation)"
-      - name: stock_dormant
+      - name: STOCK_DORMANT
         description: "true si stock moyen > 0 et aucune vente dans le mois"
 
   - name: mart_kpi_qualite_donnees
     description: "Fraicheur des donnees et erreurs de synchronisation par pharmacie (sources: stg_log + stg_pharmacies_erreur + dim_pharmacie)"
     columns:
-      - name: pharmacie_sk
+      - name: PHARMACIE_SK
+        description: "FK vers dim_pharmacie"
         tests:
           - not_null
       - name: PHA_NOM
+        description: "Nom de la pharmacie"
         tests:
           - not_null
-      - name: statut_fraicheur
+      - name: STATUT_FRAICHEUR
         description: "OK (<= 24h), ALERTE (24-48h), CRITIQUE (> 48h)"
-      - name: heures_depuis_sync
+      - name: HEURES_DEPUIS_SYNC
         description: "Nombre d'heures depuis la derniere synchronisation"
-      - name: taux_pharmacies_ok
+      - name: TAUX_PHARMACIES_OK
         description: "Part des pharmacies avec statut OK"
 
   - name: fact_operateur
     description: "Ventes horaires par operateur et pharmacie (sources: stg_mediprix_factures + stg_orders + dim_pharmacie)"
     columns:
-      - name: pharmacie_sk
+      - name: PHARMACIE_SK
+        description: "FK vers dim_pharmacie"
         tests:
           - not_null
           - relationships:
               to: ref('dim_pharmacie')
               field: pharmacie_sk
-      - name: operateur
+      - name: OPERATEUR
+        description: "Nom de l'opérateur (vendeur)"
         tests:
           - not_null
-      - name: date_vente
+      - name: DATE_VENTE
+        description: "Date de la vente (granularité jour)"
         tests:
           - not_null
-      - name: ca_ttc
+      - name: CA_TTC
         description: "CA TTC opérateur (peut être négatif pour avoirs)"
         tests:
           - not_null
-      - name: ca_ht
+      - name: CA_HT
         description: "CA HT opérateur (peut être négatif pour avoirs)"
-      - name: cout_achat_ht
+      - name: COUT_ACHAT_HT
         description: "Coût d'achat HT (peut être négatif)"
-      - name: nb_clients_distincts
+      - name: NB_CLIENTS_DISTINCTS
         description: "Nombre de clients distincts servis (via ORD_CLI_TI)"
 
   - name: mart_kpi_operateur
     description: "Performance operateur mensuelle : CA, panier moyen, marge, clients par jour, mix rembourse/libre, heure de pic (source: fact_operateur)"
     columns:
-      - name: pharmacie_sk
+      - name: PHARMACIE_SK
+        description: "FK vers dim_pharmacie"
         tests:
           - not_null
-      - name: operateur
+      - name: OPERATEUR
+        description: "Nom de l'opérateur (vendeur)"
         tests:
           - not_null
-      - name: mois
+      - name: MOIS
+        description: "Mois d'agrégation (format YYYY-MM-01)"
         tests:
           - not_null
-      - name: nb_clients_total
+      - name: NB_CLIENTS_TOTAL
         description: "Nombre total de clients distincts servis dans le mois"
-      - name: nb_clients_par_jour
+      - name: NB_CLIENTS_PAR_JOUR
         description: "Nombre moyen de clients servis par jour (nb_clients_total / nb_jours_activite)"
-      - name: panier_moyen
+      - name: PANIER_MOYEN
         description: "CA TTC / nb lignes (null si aucune ligne)"
-      - name: taux_marge
+      - name: TAUX_MARGE
         description: "Ratio (CA HT - cout achat) / CA HT"
-      - name: pct_lignes_remboursables
+      - name: PCT_LIGNES_REMBOURSABLES
         description: "Part des lignes avec code remboursement"
-      - name: heure_pic_ca
+      - name: HEURE_PIC_CA
         description: "Heure de la journee avec le plus de CA TTC"
 
   - name: mart_kpi_abc
     description: "Classification ABC mensuelle des produits par pharmacie (sources: fact_ventes + dim_pharmacie + dim_produit)"
     columns:
-      - name: pharmacie_sk
+      - name: PHARMACIE_SK
+        description: "FK vers dim_pharmacie"
         tests:
           - not_null
-      - name: produit_sk
+      - name: PRODUIT_SK
+        description: "FK vers dim_produit"
         tests:
           - not_null
-      - name: mois
+      - name: MOIS
+        description: "Mois d'agrégation (format YYYY-MM-01)"
         tests:
           - not_null
-      - name: rang
+      - name: RANG
         description: "Rang du produit par CA decroissant dans la pharmacie"
-      - name: pct_ca_cumule
+      - name: PCT_CA_CUMULE
         description: "Pourcentage cumule du CA (pour tracer la courbe de Pareto)"
-      - name: classe_abc
+      - name: CLASSE_ABC
         description: "A (top 80% CA), B (80-95%), C (> 95%)"
 
   - name: mart_kpi_ca_evolution
     description: "Evolution du CA : année N vs N-1, cumul YTD, 12 derniers mois glissants (source: fact_ventes)"
     columns:
-      - name: pharmacie_sk
+      - name: PHARMACIE_SK
+        description: "FK vers dim_pharmacie"
         tests:
           - not_null
-      - name: mois
+      - name: MOIS
+        description: "Mois d'agrégation (format YYYY-MM-01)"
         tests:
           - not_null
-      - name: ca_ht
+      - name: CA_HT
         description: "CA HT du mois"
-      - name: evolution_ca_ht_vs_a1
+      - name: EVOLUTION_CA_HT_VS_A1
         description: "Variation CA HT vs meme mois A-1 (ratio)"
-      - name: ca_ht_ytd
+      - name: CA_HT_YTD
         description: "CA HT cumule depuis debut d'annee (Year-To-Date)"
-      - name: evolution_ytd_vs_a1
+      - name: EVOLUTION_YTD_VS_A1
         description: "Variation YTD vs YTD A-1"
-      - name: ca_ht_12dm
+      - name: CA_HT_12DM
         description: "CA HT sur les 12 derniers mois glissants"
-      - name: evolution_12dm_vs_a1
+      - name: EVOLUTION_12DM_VS_A1
         description: "Variation 12DM vs 12DM A-1"
 
   - name: mart_kpi_generique
     description: "KPIs generiques et parts de marche laboratoires par pharmacie (sources: fact_ventes + dim_produit + dim_fournisseur)"
     columns:
-      - name: pharmacie_sk
+      - name: PHARMACIE_SK
+        description: "FK vers dim_pharmacie"
         tests:
           - not_null
-      - name: mois
+      - name: MOIS
+        description: "Mois d'agrégation (format YYYY-MM-01)"
         tests:
           - not_null
       - name: FOU_ID
         description: "Identifiant fournisseur/laboratoire"
       - name: FOU_NOM
         description: "Nom du laboratoire"
-      - name: is_generique
+      - name: IS_GENERIQUE
         description: "true si produit generique"
-      - name: univers
+      - name: UNIVERS
         description: "Classification: RX (ordonnance), OTC (conseil), PARA, HORS_REMB"
-      - name: pdm_labo
+      - name: PDM_LABO
         description: "Part de marche du labo dans la pharmacie (CA labo / CA total)"
-      - name: taux_generique_pharmacie
+      - name: TAUX_GENERIQUE_PHARMACIE
         description: "Taux de generique global de la pharmacie"
-      - name: evolution_vs_a1
+      - name: EVOLUTION_VS_A1
         description: "Variation CA vs meme mois A-1"
 
   - name: mart_kpi_dormant
     description: "Produits dormants (sans vente 6/12 mois) avec valorisation stock immobilise (sources: dim_produit + fact_ventes + fact_stock_valorisation)"
     columns:
-      - name: produit_sk
+      - name: PRODUIT_SK
+        description: "FK vers dim_produit"
         tests:
           - not_null
-      - name: pharmacie_sk
+      - name: PHARMACIE_SK
+        description: "FK vers dim_pharmacie"
         tests:
           - not_null
-      - name: statut_dormant
+      - name: STATUT_DORMANT
         description: "ACTIF, DORMANT_3M, DORMANT_6M, DORMANT_12M, JAMAIS_VENDU"
-      - name: jours_sans_vente
+      - name: JOURS_SANS_VENTE
         description: "Nombre de jours depuis la derniere vente"
-      - name: is_dormant_6m
+      - name: IS_DORMANT_6M
         description: "true si aucune vente depuis 6 mois"
-      - name: is_dormant_12m
+      - name: IS_DORMANT_12M
         description: "true si aucune vente depuis 12 mois"
-      - name: valeur_stock_pa
+      - name: VALEUR_STOCK_PA
         description: "Valeur du stock au prix d'achat (capital immobilise)"
-      - name: marge_latente_bloquee
+      - name: MARGE_LATENTE_BLOQUEE
         description: "Marge potentielle bloquee dans le stock dormant"
 
   - name: mart_kpi_remise_labo
     description: "Remise ponderee par laboratoire et pharmacie (source: fact_commandes + dim_fournisseur)"
     columns:
-      - name: pharmacie_sk
+      - name: PHARMACIE_SK
+        description: "FK vers dim_pharmacie"
         tests:
           - not_null
       - name: FOU_ID
         description: "Identifiant du laboratoire/fournisseur"
         tests:
           - not_null
-      - name: laboratoire
+      - name: LABORATOIRE
         description: "Nom du laboratoire"
-      - name: mois
+      - name: MOIS
+        description: "Mois d'agrégation (format YYYY-MM-01)"
         tests:
           - not_null
-      - name: nb_commandes
+      - name: NB_COMMANDES
         description: "Nombre de commandes passees au labo"
-      - name: quantite_commandee
+      - name: QUANTITE_COMMANDEE
         description: "Quantite totale commandee"
-      - name: montant_pahtnet
+      - name: MONTANT_PAHTNET
         description: "Montant total HT net des commandes"
-      - name: remise_moyenne_simple
+      - name: REMISE_MOYENNE_SIMPLE
         description: "Moyenne arithmetique des taux de remise"
-      - name: remise_ponderee_qte
+      - name: REMISE_PONDEREE_QTE
         description: "Remise moyenne ponderee par quantite"
-      - name: remise_ponderee_montant
+      - name: REMISE_PONDEREE_MONTANT
         description: "Remise moyenne ponderee par montant (KPI principal)"
 
   - name: mart_kpi_univers
     description: "KPIs par univers (RX, OTC, PARA, HORS_REMB) - pret pour dashboard (source: mart_kpi_generique)"
     columns:
-      - name: pharmacie_sk
+      - name: PHARMACIE_SK
+        description: "FK vers dim_pharmacie"
         tests:
           - not_null
-      - name: mois
+      - name: MOIS
+        description: "Mois d'agrégation (format YYYY-MM-01)"
         tests:
           - not_null
-      - name: univers
+      - name: UNIVERS
         description: "Univers produit: RX, OTC, PARA, HORS_REMB, AUTRE"
         tests:
           - not_null
-      - name: ca_ht
+      - name: CA_HT
         description: "CA HT de l'univers"
-      - name: marge_brute
+      - name: MARGE_BRUTE
         description: "Marge brute de l'univers"
-      - name: taux_marge
+      - name: TAUX_MARGE
         description: "Taux de marge de l'univers"
-      - name: pct_ca_univers
+      - name: PCT_CA_UNIVERS
         description: "Part du CA de l'univers dans le CA total pharmacie"
-      - name: pct_marge_univers
+      - name: PCT_MARGE_UNIVERS
         description: "Part de la marge de l'univers dans la marge totale"
-      - name: evolution_ca_vs_a1
+      - name: EVOLUTION_CA_VS_A1
         description: "Evolution CA vs annee precedente"
 
   - name: mart_kpi_synthese_pharmacie
     description: "Synthese KPIs par pharmacie/mois - PRET POUR DASHBOARD, aucun calcul supplementaire requis"
     columns:
-      - name: pharmacie_sk
+      - name: PHARMACIE_SK
+        description: "FK vers dim_pharmacie"
         tests:
           - not_null
-      - name: mois
+      - name: MOIS
+        description: "Mois d'agrégation (format YYYY-MM-01)"
         tests:
           - not_null
-      - name: ca_ht
+      - name: CA_HT
         description: "CA HT mensuel"
-      - name: evolution_ca_vs_a1
+      - name: EVOLUTION_CA_VS_A1
         description: "Evolution CA vs A-1"
-      - name: ca_ht_ytd
+      - name: CA_HT_YTD
         description: "CA HT cumule annee en cours"
-      - name: evolution_ytd_vs_a1
+      - name: EVOLUTION_YTD_VS_A1
         description: "Evolution YTD vs A-1"
-      - name: marge_brute
+      - name: MARGE_BRUTE
         description: "Marge brute totale"
-      - name: taux_marge
+      - name: TAUX_MARGE
         description: "Taux de marge global"
-      - name: valeur_stock_pa
+      - name: VALEUR_STOCK_PA
         description: "Valeur stock au prix d'achat"
-      - name: ratio_stock_ca_annuel_pct
+      - name: RATIO_STOCK_CA_ANNUEL_PCT
         description: "Ratio valeur stock / CA annuel en % (KPI cle)"
-      - name: ca_ht_generique
+      - name: CA_HT_GENERIQUE
         description: "CA HT des generiques"
-      - name: taux_generique
+      - name: TAUX_GENERIQUE
         description: "Part des generiques dans le CA"
-      - name: taux_marge_generique
+      - name: TAUX_MARGE_GENERIQUE
         description: "Taux de marge sur les generiques"
-      - name: pct_dormants_6m
+      - name: PCT_DORMANTS_6M
         description: "% produits sans vente > 6 mois"
-      - name: pct_dormants_12m
+      - name: PCT_DORMANTS_12M
         description: "% produits sans vente > 12 mois"
 
   # MODELES AGREGES (lecture directe Metabase, sans JOIN ni recalcul)
   - name: mart_kpi_marge_par_produit
     description: "Marge agrégée par produit avec nom (source: mart_kpi_marge + dim_produit)"
     columns:
-      - name: produit_sk
+      - name: PRODUIT_SK
+        description: "FK vers dim_produit"
         tests:
           - not_null
       - name: PRD_NOM
+        description: "Nom commercial du produit"
         tests:
           - not_null
 
   - name: mart_kpi_marge_par_univers
     description: "Marge agrégée par univers RX/OTC/PARA (source: mart_kpi_marge + dim_produit)"
     columns:
-      - name: univers
+      - name: UNIVERS
+        description: "Univers produit: RX, OTC, PARA, HORS_REMB, AUTRE"
         tests:
           - not_null
 
@@ -640,29 +719,32 @@ models:
     description: "Ruptures enrichies avec nom produit (source: mart_kpi_ruptures + dim_produit)"
     columns:
       - name: PRD_NOM
+        description: "Nom commercial du produit"
         tests:
           - not_null
 
   - name: mart_kpi_ecoulement_par_fournisseur
     description: "Écoulement pondéré par fournisseur (source: mart_kpi_ecoulement + dim_produit + dim_fournisseur)"
     columns:
-      - name: fou_nom
+      - name: FOU_NOM
+        description: "Nom du fournisseur / laboratoire"
         tests:
           - not_null
-      - name: taux_ecoulement
+      - name: TAUX_ECOULEMENT
         description: "Taux d'écoulement pondéré = SUM(qte_vendue) / SUM(qte_commandée)"
 
   - name: mart_kpi_ventes_par_produit
     description: "Ventes agrégées par produit avec nom (source: fact_ventes + dim_produit)"
     columns:
       - name: PRD_NOM
+        description: "Nom commercial du produit"
         tests:
           - not_null
 
   - name: mart_kpi_generique_marge
     description: "Marge agrégée générique vs princeps (source: mart_kpi_generique)"
     columns:
-      - name: type_produit
+      - name: TYPE_PRODUIT
         description: "'Générique' ou 'Princeps'"
         tests:
           - not_null

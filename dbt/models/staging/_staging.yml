@@ -40,6 +40,7 @@ models:
         description: "Date du jour (source: RAW_DAYBYDAY.DBD_DATE)"
         tests: [not_null]
       - name: PRD_ID
+        description: "ID produit"
         tests:
           - not_null
           - relationships:
@@ -55,6 +56,7 @@ models:
         description: "ID pharmacie (source: RAW_EAN13.PHA_ID)"
         tests: [not_null]
       - name: PRD_ID
+        description: "ID produit"
         tests:
           - not_null
           - relationships:
@@ -63,6 +65,7 @@ models:
               config:
                 severity: warn
       - name: EAN_13
+        description: "Code-barres EAN13 du produit (13 chiffres)"
         tests: [not_null]
 
   - name: stg_factures
@@ -81,6 +84,7 @@ models:
         description: "Date facture (source: RAW_FACTURES.FAC_DATE)"
         tests: [not_null]
       - name: PRD_ID
+        description: "ID produit"
         tests:
           - not_null
           - relationships:
@@ -116,6 +120,8 @@ models:
       - name: PHA_ID
         description: "ID pharmacie (source: RAW_LOG.PHA_ID)"
         tests: [not_null, unique]
+      - name: DATE_SYNC
+        description: "Date/heure de la dernière synchronisation des données"
 
   - name: stg_lppr
     description: "LPPR par produit (source: RAW_LPPR ← winstat.LPPR)"
@@ -124,6 +130,7 @@ models:
         description: "ID pharmacie (source: RAW_LPPR.PHA_ID)"
         tests: [not_null]
       - name: PRD_ID
+        description: "ID produit"
         tests:
           - not_null
           - relationships:
@@ -132,8 +139,10 @@ models:
               config:
                 severity: warn
       - name: LPP_INDEX
+        description: "Index dans la liste LPP"
         tests: [not_null]
       - name: LPP_CODE
+        description: "Code LPP (Liste des Produits et Prestations Remboursables)"
         tests: [not_null]
 
   - name: stg_manqhistory
@@ -146,6 +155,7 @@ models:
         description: "Date manquant (source: RAW_MANQHISTORY.MNQ_DATE)"
         tests: [not_null]
       - name: PRD_ID
+        description: "ID produit en rupture"
         tests:
           - not_null
           - relationships:
@@ -154,18 +164,23 @@ models:
               config:
                 severity: warn
       - name: FAC_ID
+        description: "ID facture associée à la demande non servie"
         tests: [not_null]
 
   - name: stg_mediprix_factures
     description: "Factures Mediprix nettoyées (source: RAW_MEDIPRIX_FACTURES ← winstat.MEDIPRIX_FACTURES)"
     columns:
-      - name: id
+      - name: ID
+        description: "Identifiant unique de la ligne de facture"
         tests: [not_null, unique]
       - name: PHA_ID
+        description: "ID pharmacie"
         tests: [not_null]
       - name: FAC_ID
+        description: "ID facture"
         tests: [not_null]
       - name: FAC_TI
+        description: "Type d'identification (tiers payant)"
         tests: [not_null]
       - name: FAC_QUANTITE
         description: "Quantité facturée (peut être négative pour retours)"
@@ -180,6 +195,7 @@ models:
         description: "Date mouvement (source: RAW_MODSTOCK.MOD_DATE ← winstat.MODSTOCK.MOD_DATE)"
         tests: [not_null]
       - name: PRD_ID
+        description: "ID produit"
         tests:
           - not_null
           - relationships:
@@ -188,6 +204,7 @@ models:
               config:
                 severity: warn
       - name: MOD_TIMESTAMP
+        description: "Timestamp du mouvement de stock (précision seconde)"
         tests: [not_null]
 
   - name: stg_orders
@@ -226,6 +243,7 @@ models:
         description: "Nom produit (source: RAW_PRODUITS.PRD_NOM)"
         tests: [not_null]
       - name: FOU_ID
+        description: "ID fournisseur principal"
         tests:
           - relationships:
               to: ref('stg_fournisseurs')
@@ -239,6 +257,7 @@ models:
     description: "Produits négatifs (source: RAW_PRODUITS_NEGATIFS ← winstat.PRODUITS_NEGATIFS)"
     columns:
       - name: PRD_ID
+        description: "ID produit ayant un stock négatif"
         tests: [not_null, unique]
 
   - name: stg_stockhistory
@@ -248,6 +267,7 @@ models:
         description: "ID pharmacie (source: RAW_STOCKHISTORY.PHA_ID)"
         tests: [not_null]
       - name: PRD_ID
+        description: "ID produit"
         tests:
           - not_null
           - relationships:
@@ -256,19 +276,37 @@ models:
               config:
                 severity: warn
       - name: STH_DATE
+        description: "Date du mouvement de stock"
         tests: [not_null]
 
   - name: stg_pharmacies
     description: "Pharmacies référentiel externe (source: RAW_PHARMACIES ← winstat.pharmacies)"
     columns:
-      - name: id
+      - name: ID
+        description: "ID pharmacie (référentiel Mediprix)"
         tests: [not_null, unique]
-      - name: left_groupment
+      - name: ADELI
+        description: "Numéro ADELI (identifiant national de la pharmacie)"
+      - name: NAME
+        description: "Nom de la pharmacie (raison sociale)"
+      - name: PHONE
+        description: "Numéro de téléphone"
+      - name: CITY
+        description: "Ville"
+      - name: POSTAL_CODE
+        description: "Code postal"
+      - name: PARENT_ID
+        description: "ID de la pharmacie parente (groupement)"
+      - name: LEFT_GROUPMENT
+        description: "Indicateur de sortie du groupement (0=membre, 1=sorti)"
         tests: [not_null]
 
   - name: stg_pharmacies_erreur
     description: "Erreurs de mapping pharmacies (source: RAW_PHARMACIES_ERREUR ← winstat.pharmacies_erreur)"
     columns:
-      - name: id
-      - name: code_erreur
-      - name: date_erreur
+      - name: ID
+        description: "ID de la pharmacie en erreur"
+      - name: CODE_ERREUR
+        description: "Code d'erreur de synchronisation"
+      - name: DATE_ERREUR
+        description: "Date de l'erreur"
