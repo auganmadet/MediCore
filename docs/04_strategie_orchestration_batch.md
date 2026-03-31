@@ -306,34 +306,71 @@ Sur 10 min d'intervalle : **3 min facturées**, **7 min à 0 crédit** (30% acti
 
 ## 5. Comparaison des coûts
 
-Infrastructure Snowflake : warehouse XSMALL (1 crédit/heure actif, 0 à l'arrêt).
-Prix Snowflake Standard Edition AWS eu-west : ~2.00 USD/crédit (~1.84 EUR/crédit).
+Infrastructure Snowflake :
+- Édition : **Enterprise**, région **AWS EU West 3 (Paris)**
+- Warehouse : XSMALL (1 crédit/heure actif, 0 à l'arrêt)
+- Tarif compute : **$3.00/crédit** (~2.76 EUR/crédit)
+- Tarif stockage : **$24/TB/mois** (~22.08 EUR/TB/mois)
+- Source : `SNOWFLAKE.ORGANIZATION_USAGE.RATE_SHEET_DAILY` (30 mars 2026)
 
-### Avant vs Après
+### Avant vs Après (compute)
 
   ┌──────────────────────────────┬─────────────┬──────────────┬──────────────┬──────────┐
   │ Scénario                     │ Crédits/jour│ EUR/mois     │ EUR/an       │ Économie │
   ├──────────────────────────────┼─────────────┼──────────────┼──────────────┼──────────┤
-  │ Avant : boucle monolithique  │ 23.4        │ 1 292 EUR    │ 15 467 EUR   │ —        │
+  │ Avant : boucle monolithique  │ 23.4        │ 1 937 EUR    │ 23 244 EUR   │ —        │
   │ 30 min, 24/7                 │             │              │              │          │
   ├──────────────────────────────┼─────────────┼──────────────┼──────────────┼──────────┤
-  │ Après : CDC 10min, dbt 1h,   │ 15.3        │ 845 EUR      │ 10 280 EUR   │ -35%     │
+  │ Après : CDC 10min, dbt 1h,   │ 15.3        │ 1 268 EUR    │ 15 418 EUR   │ -35%     │
   │ nuit réduite, WH se suspend  │             │              │              │          │
   └──────────────────────────────┴─────────────┴──────────────┴──────────────┴──────────┘
 
-### Détail de l'économie
+### Stockage (mesuré le 30 mars 2026)
+
+  ┌──────────────────────┬──────────┬──────────────┬──────────────┬──────────┐
+  │ Database             │ GB       │ EUR/mois     │ EUR/an       │ Note     │
+  ├──────────────────────┼──────────┼──────────────┼──────────────┼──────────┤
+  │ MEDICORE_PROD        │ 67       │ 1.48         │ 18           │ Données  │
+  │                      │          │              │              │ réelles  │
+  ├──────────────────────┼──────────┼──────────────┼──────────────┼──────────┤
+  │ MEDICORE_DEV         │ 120      │ 2.65         │ 32           │ Clone +  │
+  │ (+ 118 Time Travel)  │ (+118)   │ (+2.60)      │ (+31)        │ modifs   │
+  ├──────────────────────┼──────────┼──────────────┼──────────────┼──────────┤
+  │ MEDICORE_TEST        │ ~0       │ 0            │ 0            │ Seeds    │
+  ├──────────────────────┼──────────┼──────────────┼──────────────┼──────────┤
+  │ Failsafe             │ 15       │ 0.33         │ 4            │ Auto     │
+  ├──────────────────────┼──────────┼──────────────┼──────────────┼──────────┤
+  │ **Total stockage**   │ **~320** │ **~5 EUR**   │ **~60 EUR**  │          │
+  └──────────────────────┴──────────┴──────────────┴──────────────┴──────────┘
+
+### Détail de l'économie (compute)
 
   ┌──────────────────────────────────────────────┬──────────────────────────────────────┐
   │ Poste d'économie                             │ Gain                                 │
   ├──────────────────────────────────────────────┼──────────────────────────────────────┤
   │ Nuit : 14 cycles dbt supprimés               │ ~4.5h WH/nuit                        │
   ├──────────────────────────────────────────────┼──────────────────────────────────────┤
-  │ Jour : WH se suspend entre les CDC           │ ~4.1h WH/jour (14h → 9.9h actif)     │
+  │ Jour : WH se suspend entre les CDC           │ ~4.1h WH/jour (14h → 9.9h actif)    │
   ├──────────────────────────────────────────────┼──────────────────────────────────────┤
   │ Skip dbt quand 0 event CDC                   │ Variable (évite ~35 min/cycle vide)  │
   ├──────────────────────────────────────────────┼──────────────────────────────────────┤
-  │ **Économie annuelle**                        │ **~5 200 EUR**                       │
+  │ **Économie compute annuelle**                │ **~7 800 EUR**                       │
   └──────────────────────────────────────────────┴──────────────────────────────────────┘
+
+### Coût total annuel MediCore
+
+  ┌────────────────────────┬──────────────┬──────────┐
+  │ Poste                  │ EUR/an       │ %        │
+  ├────────────────────────┼──────────────┼──────────┤
+  │ Compute (orch. V2)     │ 15 418       │ 99.6%    │
+  ├────────────────────────┼──────────────┼──────────┤
+  │ Stockage               │ ~60          │ 0.4%     │
+  ├────────────────────────┼──────────────┼──────────┤
+  │ **Total**              │ **~15 478**  │          │
+  └────────────────────────┴──────────────┴──────────┘
+
+Le stockage est négligeable (0.4% du coût total). L'optimisation du
+compute via l'orchestration V2 génère l'essentiel de l'économie.
 
 [↑ Retour au sommaire](#table-des-matières)
 
