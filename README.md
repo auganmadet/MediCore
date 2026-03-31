@@ -16,8 +16,9 @@ Pipeline ELT industrialisé : MySQL RDS → Kafka CDC → Snowflake RAW → dbt 
 2. [Architecture](#architecture)
 3. [Structure du projet](#structure-du-projet)
 4. [Installation](#installation)
-5. [Fonctionnement](#fonctionnement)
-6. [Monitoring](#monitoring)
+5. [Accès web](#accès-web)
+6. [Fonctionnement](#fonctionnement)
+7. [Monitoring](#monitoring)
 
 ---
 
@@ -226,7 +227,7 @@ Voir [Architecture détaillée](docs/01_ARCHITECTURE.md) pour les schémas compl
 
 ```
 MediCore/
-├── docker-compose.yml                  # 6 services (ELT, MySQL, Kafka, Zookeeper, Connect, Kafdrop)
+├── docker-compose.yml                  # 7 services (ELT, MySQL, Kafka, Zookeeper, Connect, Kafdrop, dbt_docs)
 ├── Dockerfile                          # Image medicore_elt_batch
 ├── requirements.txt                    # Dépendances Python
 ├── .env                                # Variables d'environnement (non versionné)
@@ -299,6 +300,24 @@ bash scripts/verify_setup.sh
 **Note** : Le premier run dbt (staging + marts) démarre automatiquement via `batch_loop.sh` dès que le bulk load est terminé. Pas d'action manuelle requise.
 
 Voir [Workflow multi-environnement](docs/02_workflow_multi_env.md) pour comprendre les 3 environnements (DEV/TEST/PROD) créés par le setup.
+
+[↑ Retour au sommaire](#table-des-matières)
+
+---
+
+## Accès web
+
+  ┌───────────────────────────┬──────────┬────────────────────────────────────────────────────┐
+  │ Service                   │ Port     │ URL                                                │
+  ├───────────────────────────┼──────────┼────────────────────────────────────────────────────┤
+  │ Metabase (BI dashboards)  │ 3000     │ http://localhost:3000                               │
+  ├───────────────────────────┼──────────┼────────────────────────────────────────────────────┤
+  │ Data Catalog (dbt docs)   │ 8080     │ http://localhost:8080                               │
+  ├───────────────────────────┼──────────┼────────────────────────────────────────────────────┤
+  │ Kafdrop (Kafka UI)        │ 9000     │ http://localhost:9000                               │
+  └───────────────────────────┴──────────┴────────────────────────────────────────────────────┘
+
+Voir [Opérations — Data Catalog](docs/03_operations.md#data-catalog-dbt-docs) pour la configuration réseau (pare-feu, portproxy WSL2).
 
 [↑ Retour au sommaire](#table-des-matières)
 

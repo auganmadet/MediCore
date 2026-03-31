@@ -1,27 +1,31 @@
-# Guide operationnel MediCore
+# Guide opérationnel MediCore
 
 ## Table des matières
 
-1. [Demarrage](#demarrage)
+1. [Démarrage](#démarrage)
 2. [Architecture du batch](#architecture-du-batch)
-3. [Lineage operationnel (AUDIT)](#lineage-operationnel-audit)
+3. [Lineage opérationnel (AUDIT)](#lineage-opérationnel-audit)
 4. [Monitoring et alertes](#monitoring-et-alertes)
 5. [Diagnostic et recovery](#diagnostic-et-recovery)
 6. [Variables d'environnement](#variables-denvironnement)
 7. [Commandes utiles](#commandes-utiles)
-8. [Arret propre](#arret-propre)
-9. [Metabase (BI dashboards)](#metabase-bi-dashboards)
-   - [Architecture](#architecture)
-   - [Acces](#acces)
-   - [Configuration Snowflake](#configuration-snowflake-premier-lancement)
-   - [Ressources ajoutees](#ressources-ajoutees)
-   - [Variables d'environnement Metabase](#variables-denvironnement-1)
-   - [Verification](#verification)
-   - [Plan dashboards](#plan-dashboards--16-dashboards-2626-tables-95-cartes)
+8. [Arrêt propre](#arrêt-propre)
+9. [Data Catalog (dbt docs)](#data-catalog-dbt-docs)
+   - [Accès](#accès-data-catalog)
+   - [Régénérer le catalogue](#régénérer-le-catalogue)
+   - [Pare-feu Windows](#pare-feu-windows)
+10. [Metabase (BI dashboards)](#metabase-bi-dashboards)
+    - [Architecture](#architecture)
+    - [Accès](#accès)
+    - [Configuration Snowflake](#configuration-snowflake-premier-lancement)
+    - [Ressources ajoutées](#ressources-ajoutées)
+    - [Variables d'environnement Metabase](#variables-denvironnement-1)
+    - [Vérification](#vérification)
+    - [Plan dashboards](#plan-dashboards--16-dashboards-2626-tables-95-cartes)
 
 ---
 
-## Demarrage
+## Démarrage
 
 ```bash
 # Premier lancement (DDL + Docker + Debezium connector)
@@ -35,18 +39,18 @@ docker compose up -d
 
 ## Architecture du batch
 
-Le conteneur `medicore_elt_batch` execute `batch_loop.sh` en boucle (5 min dev / 30 min prod).
+Le conteneur `medicore_elt_batch` exécute `batch_loop.sh` en boucle (5 min dev / 30 min prod).
 
-Chaque iteration :
+Chaque itération :
 
   ┌───────┬──────────────────────────────────────────────────────┐
   │ Phase │ Description                                          │
   ├───────┼──────────────────────────────────────────────────────┤
-  │   0   │ Re-bulk reference (14 tables, 1x/jour a 03h)         │
+  │   0   │ Re-bulk référence (14 tables, 1x/jour à 01h)         │
   ├───────┼──────────────────────────────────────────────────────┤
   │   1   │ CDC Kafka -> Snowflake RAW (4 tables)                │
   ├───────┼──────────────────────────────────────────────────────┤
-  │   2   │ dbt run staging (dedup + PII masking)                │
+  │   2   │ dbt run staging (dédup + PII masking)                │
   ├───────┼──────────────────────────────────────────────────────┤
   │   3   │ dbt snapshot (SCD2)                                  │
   ├───────┼──────────────────────────────────────────────────────┤
@@ -59,21 +63,21 @@ Chaque iteration :
 
 [↑ Retour au sommaire](#table-des-matières)
 
-## Lineage operationnel (AUDIT)
+## Lineage opérationnel (AUDIT)
 
-Chaque iteration genere un `RUN_ID` UUID. Les resultats sont persistes dans `MEDICORE_PROD.AUDIT` :
+Chaque itération génère un `RUN_ID` UUID. Les résultats sont persistés dans `MEDICORE_PROD.AUDIT` :
 
 ```sql
 -- Derniers runs
 SELECT * FROM MEDICORE_PROD.AUDIT.PIPELINE_RUNS ORDER BY RUN_START DESC LIMIT 10;
 
--- Detail des etapes d'un run
+-- Détail des étapes d'un run
 SELECT * FROM MEDICORE_PROD.AUDIT.PIPELINE_STEP_RUNS WHERE RUN_ID = '<uuid>' ORDER BY STEP_START;
 
--- Resultats dbt par run
+-- Résultats dbt par run
 SELECT * FROM MEDICORE_PROD.AUDIT.DBT_MODEL_RUNS WHERE RUN_ID = '<uuid>';
 
--- Vue resume
+-- Vue résumé
 SELECT * FROM MEDICORE_PROD.AUDIT.AUDIT_RUN_SUMMARY ORDER BY RUN_START DESC LIMIT 10;
 
 -- Lag Kafka par topic (derniers runs)
@@ -84,29 +88,29 @@ SELECT AVG(LAG), MAX(LAG), PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY LAG)
 FROM MEDICORE_PROD.AUDIT.CDC_LAG_METRICS;
 ```
 
-Retention automatique : 90 jours (purge quotidienne a 01h).
+Rétention automatique : 90 jours (purge quotidienne à 00h).
 
 [↑ Retour au sommaire](#table-des-matières)
 
 ## Monitoring et alertes
 
   ┌───────────────────────────┬──────────────────────────────────────────────────────────┐
-  │ Mecanisme                 │ Configuration                                            │
+  │ Mécanisme                 │ Configuration                                            │
   ├───────────────────────────┼──────────────────────────────────────────────────────────┤
   │ Teams webhook             │ `TEAMS_WEBHOOK_URL` (.env)                               │
   ├───────────────────────────┼──────────────────────────────────────────────────────────┤
-  │ Seuil alerte              │ `ALERT_THRESHOLD` (defaut: 3)                            │
+  │ Seuil alerte              │ `ALERT_THRESHOLD` (défaut: 3)                            │
   ├───────────────────────────┼──────────────────────────────────────────────────────────┤
   │ Freshness CDC             │ warn 12h / error 24h                                     │
   ├───────────────────────────┼──────────────────────────────────────────────────────────┤
-  │ Freshness reference       │ warn 36h / error 48h                                     │
+  │ Freshness référence       │ warn 36h / error 48h                                     │
   ├───────────────────────────┼──────────────────────────────────────────────────────────┤
-  │ Volume CDC                │ Alerte apres N batches a 0 events                        │
+  │ Volume CDC                │ Alerte après N batches à 0 events                        │
   ├───────────────────────────┼──────────────────────────────────────────────────────────┤
-  │ Lag Kafka                 │ Alerte si lag > `KAFKA_LAG_THRESHOLD` N fois consecutives │
+  │ Lag Kafka                 │ Alerte si lag > `KAFKA_LAG_THRESHOLD` N fois consécutives │
   └───────────────────────────┴──────────────────────────────────────────────────────────┘
 
-Le **lag Kafka** mesure le retard du consumer CDC (end_offset - committed_offset). Un lag croissant signifie que le consumer ne suit pas le rythme de Debezium. Les metriques sont ecrites dans `/tmp/cdc_lag_metrics` et historisees dans `AUDIT.CDC_LAG_METRICS`.
+Le **lag Kafka** mesure le retard du consumer CDC (end_offset - committed_offset). Un lag croissant signifie que le consumer ne suit pas le rythme de Debezium. Les métriques sont écrites dans `/tmp/cdc_lag_metrics` et historisées dans `AUDIT.CDC_LAG_METRICS`.
 
 [↑ Retour au sommaire](#table-des-matières)
 
@@ -120,7 +124,7 @@ docker exec medicore_elt_batch python pipelines/diagnose_recover.py
 docker exec medicore_elt_batch python pipelines/diagnose_recover.py --fix
 ```
 
-Detecte : processus zombies, tables vides, doublons, timestamps invalides.
+Détecte : processus zombies, tables vides, doublons, timestamps invalides.
 
 [↑ Retour au sommaire](#table-des-matières)
 
@@ -137,21 +141,21 @@ Detecte : processus zombies, tables vides, doublons, timestamps invalides.
   ├──────────────────────────────┼────────────────────────────────────────────┤
   │ `SNOWFLAKE_PASSWORD`         │ Mot de passe Snowflake                     │
   ├──────────────────────────────┼────────────────────────────────────────────┤
-  │ `SNOWFLAKE_DATABASE`         │ Base de donnees (defaut: MEDIcore)         │
+  │ `SNOWFLAKE_DATABASE`         │ Base de données (défaut: MEDICORE_PROD)    │
   ├──────────────────────────────┼────────────────────────────────────────────┤
-  │ `SNOWFLAKE_WAREHOUSE_NAME`   │ Warehouse (defaut: MEDIcore_WH)            │
+  │ `SNOWFLAKE_WAREHOUSE_NAME`   │ Warehouse (défaut: MEDICORE_WH)            │
   ├──────────────────────────────┼────────────────────────────────────────────┤
   │ `BATCH_INTERVAL_MIN`         │ Intervalle batch en minutes                │
   ├──────────────────────────────┼────────────────────────────────────────────┤
-  │ `PHASE_TIMEOUT_SEC`          │ Timeout par phase (defaut: 1800)           │
+  │ `PHASE_TIMEOUT_SEC`          │ Timeout par phase (défaut: 1800)           │
   ├──────────────────────────────┼────────────────────────────────────────────┤
-  │ `CDC_BATCH_TIMEOUT_SEC`      │ Timeout consumer Kafka (defaut: 30)        │
+  │ `CDC_BATCH_TIMEOUT_SEC`      │ Timeout consumer Kafka (défaut: 30)        │
   ├──────────────────────────────┼────────────────────────────────────────────┤
   │ `TEAMS_WEBHOOK_URL`          │ Webhook Teams (optionnel)                  │
   ├──────────────────────────────┼────────────────────────────────────────────┤
-  │ `ALERT_THRESHOLD`            │ Echecs avant alerte (defaut: 3)            │
+  │ `ALERT_THRESHOLD`            │ Échecs avant alerte (défaut: 3)            │
   ├──────────────────────────────┼────────────────────────────────────────────┤
-  │ `KAFKA_LAG_THRESHOLD`        │ Seuil lag Kafka en records (defaut: 10000) │
+  │ `KAFKA_LAG_THRESHOLD`        │ Seuil lag Kafka en records (défaut: 10000) │
   └──────────────────────────────┴────────────────────────────────────────────┘
 
 [↑ Retour au sommaire](#table-des-matières)
@@ -162,7 +166,7 @@ Detecte : processus zombies, tables vides, doublons, timestamps invalides.
 # Shell dans le conteneur
 docker exec -it medicore_elt_batch bash
 
-# Logs en temps reel
+# Logs en temps réel
 docker logs -f medicore_elt_batch
 
 # Bulk load manuel (toutes les tables)
@@ -185,23 +189,75 @@ docker exec medicore_elt_batch bash -c "cd /app/dbt && dbt source freshness"
 
 [↑ Retour au sommaire](#table-des-matières)
 
-## Arret propre
+## Arrêt propre
 
 ```bash
-# Arret graceful (attend la fin de la phase en cours)
+# Arrêt graceful (attend la fin de la phase en cours)
 docker compose stop medicore-elt-batch
 
-# Arret complet
+# Arrêt complet
 docker compose down
 ```
 
-Le conteneur intercepte SIGTERM et termine proprement apres la phase en cours.
+Le conteneur intercepte SIGTERM et termine proprement après la phase en cours.
+
+[↑ Retour au sommaire](#table-des-matières)
+
+## Data Catalog (dbt docs)
+
+Catalogue de données interactif généré par dbt, accessible sur le réseau local comme Metabase.
+Permet de naviguer les modèles, colonnes, tests et le lineage visuel (source → staging → marts).
+
+### Accès Data Catalog
+
+  ┌─────────────────────────────────┬──────────────────────────────────────────────────────────┐
+  │ Accès                           │ URL                                                      │
+  ├─────────────────────────────────┼──────────────────────────────────────────────────────────┤
+  │ Local (machine Docker)          │ http://localhost:8080                                    │
+  ├─────────────────────────────────┼──────────────────────────────────────────────────────────┤
+  │ Réseau local                    │ http://192.168.0.37:8080                                 │
+  └─────────────────────────────────┴──────────────────────────────────────────────────────────┘
+
+Le service `dbt_docs` est un serveur HTTP léger (Python, 128 Mo) qui sert les fichiers
+générés dans `dbt/target/` (index.html, catalog.json, manifest.json).
+
+### Régénérer le catalogue
+
+Après modification des modèles ou des descriptions YAML, régénérer le catalogue :
+
+```bash
+docker exec medicore_elt_batch bash -c "cd /app/dbt && dbt docs generate --target prod"
+```
+
+Le service `dbt_docs` sert le contenu de `dbt/target/` en lecture seule — la mise à jour
+est immédiate après régénération (pas besoin de redémarrer le service).
+
+### Pare-feu Windows
+
+Pour rendre le Data Catalog accessible depuis le réseau local, ouvrir le port 8080
+dans le pare-feu Windows (à exécuter une seule fois, en administrateur) :
+
+```cmd
+netsh advfirewall firewall add rule name="dbt-docs" dir=in action=allow protocol=TCP localport=8080
+```
+
+Sans cette règle, seul `http://localhost:8080` fonctionne (pas l'IP réseau).
+
+  ┌───────────────────────────┬──────────┬─────────────────────────────────────────────────────┐
+  │ Service                   │ Port     │ Pare-feu Windows                                    │
+  ├───────────────────────────┼──────────┼─────────────────────────────────────────────────────┤
+  │ Metabase (BI dashboards)  │ 3000     │ netsh ... name="Metabase" localport=3000            │
+  ├───────────────────────────┼──────────┼─────────────────────────────────────────────────────┤
+  │ Data Catalog (dbt docs)   │ 8080     │ netsh ... name="dbt-docs" localport=8080            │
+  ├───────────────────────────┼──────────┼─────────────────────────────────────────────────────┤
+  │ Kafdrop (Kafka UI)        │ 9000     │ Pas exposé réseau (127.0.0.1 uniquement)            │
+  └───────────────────────────┴──────────┴─────────────────────────────────────────────────────┘
 
 [↑ Retour au sommaire](#table-des-matières)
 
 ## Metabase (BI dashboards)
 
-Metabase est une application BI open-source qui se connecte en lecture seule a Snowflake MARTS pour visualiser les 15 KPIs, 8 faits et 3 dimensions sur des dashboards interactifs.
+Metabase est une application BI open-source qui se connecte en lecture seule à Snowflake MARTS pour visualiser les 21 KPIs, 8 faits et 3 dimensions sur des dashboards interactifs.
 
 ### Architecture
 
@@ -209,13 +265,13 @@ Metabase est une application BI open-source qui se connecte en lecture seule a S
 ┌─────────────────┐     ┌──────────────────────┐     ┌─────────────────────┐
 │  Navigateur web │────>│  Metabase (Java)     │────>│  Snowflake MARTS    │
 │  localhost:3000 │     │  conteneur Docker    │     │  lecture seule      │
-└─────────────────┘     │                      │     │  15 KPIs + 8 facts  │
-                        │  Metadata stockee    │     │  + 3 dimensions     │
+└─────────────────┘     │                      │     │  21 KPIs + 8 facts  │
+                        │  Metadata stockée    │     │  + 3 dimensions     │
                         │  dans PostgreSQL     │     └─────────────────────┘
                         └──────────────────────┘
 ```
 
-Metabase ne stocke aucune donnee metier — il fait des `SELECT` sur Snowflake a chaque requete. PostgreSQL stocke uniquement la config Metabase (dashboards, questions, comptes utilisateurs).
+Metabase ne stocke aucune donnée métier — il fait des `SELECT` sur Snowflake à chaque requête. PostgreSQL stocke uniquement la config Metabase (dashboards, questions, comptes utilisateurs).
 
 ### Acces
 
@@ -227,11 +283,11 @@ http://localhost:3000
 
 Au premier lancement, Metabase affiche un wizard de configuration :
 
-1. Creer un compte admin Metabase
-2. Ajouter la base de donnees Snowflake :
+1. Créer un compte admin Metabase
+2. Ajouter la base de données Snowflake :
 
   ┌──────────────────┬────────────────────────────────────┐
-  │ Parametre        │ Valeur                             │
+  │ Paramètre        │ Valeur                             │
   ├──────────────────┼────────────────────────────────────┤
   │ Type             │ Snowflake                          │
   ├──────────────────┼────────────────────────────────────┤
@@ -241,11 +297,11 @@ Au premier lancement, Metabase affiche un wizard de configuration :
   ├──────────────────┼────────────────────────────────────┤
   │ Password         │ Mot de passe de l'utilisateur      │
   ├──────────────────┼────────────────────────────────────┤
-  │ Database         │ MEDIcore                           │
+  │ Database         │ MEDICORE_PROD                      │
   ├──────────────────┼────────────────────────────────────┤
   │ Schema           │ MARTS                              │
   ├──────────────────┼────────────────────────────────────┤
-  │ Warehouse        │ MEDIcore_WH                        │
+  │ Warehouse        │ MEDICORE_WH                        │
   ├──────────────────┼────────────────────────────────────┤
   │ Role             │ MEDICORE_ANALYST                   │
   └──────────────────┴────────────────────────────────────┘
@@ -258,16 +314,16 @@ Au premier lancement, Metabase affiche un wizard de configuration :
 GRANT ROLE MEDICORE_ANALYST TO USER <nom_utilisateur>;
 ```
 
-### Ressources ajoutees
+### Ressources ajoutées
 
   ┌──────────────────┬────────┬────────┬──────────────────────────┐
-  │ Service          │ RAM    │ CPU    │ Role                     │
+  │ Service          │ RAM    │ CPU    │ Rôle                     │
   ├──────────────────┼────────┼────────┼──────────────────────────┤
   │ Metabase (Java)  │ 2 GB   │ 1 core │ Application BI           │
   ├──────────────────┼────────┼────────┼──────────────────────────┤
   │ PostgreSQL 16    │ 512 MB │ 0.5    │ Metadata Metabase        │
   ├──────────────────┼────────┼────────┼──────────────────────────┤
-  │ Total ajoute     │ 2.5 GB │ 1.5    │                          │
+  │ Total ajouté     │ 2.5 GB │ 1.5    │                          │
   └──────────────────┴────────┴────────┴──────────────────────────┘
 
 ### Variables d'environnement
@@ -276,22 +332,22 @@ GRANT ROLE MEDICORE_ANALYST TO USER <nom_utilisateur>;
   │ Variable                 │ Description                          │
   ├──────────────────────────┼──────────────────────────────────────┤
   │ `METABASE_DB_PASSWORD`   │ Mot de passe PostgreSQL Metabase     │
-  │                          │ (defaut: metabase_dev)               │
+  │                          │ (défaut: metabase_dev)               │
   └──────────────────────────┴──────────────────────────────────────┘
 
-### Verification
+### Vérification
 
 ```bash
-# Verifier que les conteneurs tournent
+# Vérifier que les conteneurs tournent
 docker ps | grep metabase
 
-# Verifier la connexion Snowflake dans Metabase
-# Admin > Databases > MEDIcore > Sync status = "done"
+# Vérifier la connexion Snowflake dans Metabase
+# Admin > Databases > MEDICORE_PROD > Sync status = "done"
 ```
 
 ### Plan dashboards — 16 dashboards, 26/26 tables, 95 cartes
 
-Les dashboards sont organises en 5 collections Metabase (dossiers avec permissions) :
+Les dashboards sont organisés en 5 collections Metabase (dossiers avec permissions) :
 
 ```
 MediCore BI
@@ -436,11 +492,11 @@ Le cash-flow est le nerf de la guerre. Ce dashboard repond a : "Comment rentre l
   │ TVA par taux                           │ `tva_taux1` a `tva_taux5` (tableau, fact_tresorerie)         │
   └────────────────────────────────────────┴──────────────────────────────────────────────────────────────┘
 
-#### D4 — Marge detaillee
+#### D4 — Marge détaillée
 
 **Collection** : Ventes & Performance | **Tables** : `mart_kpi_marge` + `dim_produit` + `dim_pharmacie` | **Filtres** : pharmacie, produit, date, univers
 
-La marge est la rentabilite reelle — le CA seul ne veut rien dire si on vend a perte. Ce dashboard identifie les produits "vaches a lait" (marge elevee + volume) et les "pieges" (marges negatives). Le responsable achats utilise ces donnees pour renegocier les prix d'achat.
+La marge est la rentabilité réelle — le CA seul ne veut rien dire si on vend à perte. Ce dashboard identifie les produits "vaches à lait" (marge élevée + volume) et les "pièges" (marges négatives). Le responsable achats utilise ces données pour renégocier les prix d'achat.
 
   ┌────────────────────────────────────────┬──────────────────────────────────────────────────────────────┐
   │ Carte                                  │ Colonnes                                                     │
@@ -453,7 +509,7 @@ La marge est la rentabilite reelle — le CA seul ne veut rien dire si on vend a
   ├────────────────────────────────────────┼──────────────────────────────────────────────────────────────┤
   │ Distribution taux de marge             │ `taux_marge` (histogramme)                                   │
   ├────────────────────────────────────────┼──────────────────────────────────────────────────────────────┤
-  │ Marges negatives (alertes)             │ `PRD_NOM`, `taux_marge`, `marge_brute` WHERE < 0 (tableau)   │
+  │ Marges négatives (alertes)             │ `PRD_NOM`, `taux_marge`, `marge_brute` WHERE < 0 (tableau)   │
   └────────────────────────────────────────┴──────────────────────────────────────────────────────────────┘
 
 #### D5 — Performance vendeurs
@@ -589,7 +645,7 @@ Les remises fournisseurs representent un levier de marge considerable. Ce dashbo
 
 **Collection** : Achats & Stock | **Tables** : `mart_kpi_dormant` + `dim_fournisseur` | **Filtres** : pharmacie, statut_dormant, univers, fournisseur
 
-Un produit dormant = du capital immobilise qui ne genere aucun revenu. Ce dashboard declenche un plan d'action concret : retourner au fournisseur, brader, ou passer en perte. Le top 20 par valeur priorise les actions a fort impact financier.
+Un produit dormant = du capital immobilisé qui ne génère aucun revenu. Ce dashboard déclenche un plan d'action concret : retourner au fournisseur, brader, ou passer en perte. Le top 20 par valeur priorise les actions à fort impact financier.
 
   ┌────────────────────────────────────────┬──────────────────────────────────────────────────────────────┐
   │ Question                               │ Colonnes                                                     │
@@ -701,7 +757,7 @@ Quand un chiffre semble anormal sur un dashboard strategique, le data analyst de
 
 **Collection** : Detail operationnel | **Tables** : `fact_prix_journalier` + `fact_stock_mouvement` + `dim_produit` | **Filtres** : pharmacie, produit, date
 
-L'inflation des prix d'achat grignote la marge sans que personne ne s'en rende compte. Ce dashboard traque l'evolution du prix d'achat produit par produit et les mouvements physiques du stock. Le responsable achats detecte les hausses silencieuses pour renegocier avant que la marge ne s'effondre.
+L'inflation des prix d'achat grignote la marge sans que personne ne s'en rende compte. Ce dashboard traque l'évolution du prix d'achat produit par produit et les mouvements physiques du stock. Le responsable achats détecte les hausses silencieuses pour renégocier avant que la marge ne s'effondre.
 
   ┌────────────────────────────────────────┬──────────────────────────────────────────────────────────────┐
   │ Carte                                  │ Colonnes                                                     │
@@ -776,12 +832,12 @@ L'inflation des prix d'achat grignote la marge sans que personne ne s'en rende c
   │ mart_kpi_qualite_donnees       │ D14                                          │
   └────────────────────────────────┴──────────────────────────────────────────────┘
 
-#### Creation dans Metabase
+#### Création dans Metabase
 
-1. Creer les 5 collections (menu `+` > Nouvelle collection)
+1. Créer les 5 collections (menu `+` > Nouvelle collection)
 2. Pour chaque dashboard : `+` > Nouveau dashboard > choisir la collection
 3. Pour chaque carte : `+` dans le dashboard > Nouvelle question > table > colonnes/filtres/visualisation > Sauvegarder
-4. Ajouter des filtres dashboard (date, pharmacie) qui s'appliquent a toutes les cartes
+4. Ajouter des filtres dashboard (date, pharmacie) qui s'appliquent à toutes les cartes
 5. Les dashboards persistent dans le volume PostgreSQL (`metabase_data`)
 
 [↑ Retour au sommaire](#table-des-matières)
