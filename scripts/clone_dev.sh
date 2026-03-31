@@ -16,7 +16,8 @@ set -euo pipefail
 #   1. DROP DATABASE MEDICORE_DEV (supprime l'ancien clone)
 #   2. CREATE DATABASE MEDICORE_DEV CLONE MEDICORE_PROD (zero-copy, instantané)
 #   3. Re-applique les GRANTs sur MEDICORE_DEV (perdus avec le DROP)
-#   4. Vérifie que le clone est fonctionnel (compte les schémas)
+#   4. Désactive Time Travel (inutile en dev, économie stockage)
+#   5. Vérifie que le clone est fonctionnel (compte les schémas)
 # ==========================================================================
 
 DRY_RUN=0
@@ -57,7 +58,10 @@ SQL_STATEMENTS=(
   "GRANT ALL ON DATABASE MEDICORE_DEV TO ROLE MEDICORE_DEV_EXECUTOR;"
   "GRANT ALL ON ALL SCHEMAS IN DATABASE MEDICORE_DEV TO ROLE MEDICORE_DEV_EXECUTOR;"
 
-  "-- 4. Vérification"
+  "-- 4. Désactiver Time Travel (inutile en dev, économie stockage)"
+  "ALTER DATABASE MEDICORE_DEV SET DATA_RETENTION_TIME_IN_DAYS = 0;"
+
+  "-- 5. Vérification"
   "SELECT SCHEMA_NAME FROM MEDICORE_DEV.INFORMATION_SCHEMA.SCHEMATA ORDER BY SCHEMA_NAME;"
 )
 
@@ -99,12 +103,16 @@ try:
     cur.execute('CREATE DATABASE MEDICORE_DEV CLONE MEDICORE_PROD')
     print('     OK (zero-copy, instantané)')
 
-    print('3/4 GRANTs sur MEDICORE_DEV...')
+    print('3/5 GRANTs sur MEDICORE_DEV...')
     cur.execute('GRANT ALL ON DATABASE MEDICORE_DEV TO ROLE MEDICORE_DEV_EXECUTOR')
     cur.execute('GRANT ALL ON ALL SCHEMAS IN DATABASE MEDICORE_DEV TO ROLE MEDICORE_DEV_EXECUTOR')
     print('     OK')
 
-    print('4/4 Vérification...')
+    print('4/5 Désactivation Time Travel (inutile en dev, économie stockage)...')
+    cur.execute('ALTER DATABASE MEDICORE_DEV SET DATA_RETENTION_TIME_IN_DAYS = 0')
+    print('     OK (DATA_RETENTION_TIME_IN_DAYS = 0)')
+
+    print('5/5 Vérification...')
     cur.execute('SELECT SCHEMA_NAME FROM MEDICORE_DEV.INFORMATION_SCHEMA.SCHEMATA ORDER BY SCHEMA_NAME')
     schemas = [r[0] for r in cur.fetchall()]
     print(f'     Schémas trouvés : {schemas}')
