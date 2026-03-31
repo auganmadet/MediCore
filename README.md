@@ -273,7 +273,8 @@ MediCore/
     ├── 07_guide_provisionnement_metabase.md # Setup et provisionnement Metabase
     ├── 08_procedure_rollback.md           # Procédure rollback prod (Time Travel)
     ├── 09_rotation_credentials.md         # Rotation trimestrielle des credentials
-    └── 10_guide-claude-code-rules.md      # Guide Claude Code (rules, memory-bank)
+    ├── 10_guide-claude-code-rules.md      # Guide Claude Code (rules, memory-bank)
+    └── 11_disaster_recovery.md            # Plan de reprise d'activité (DR)
 ```
 
 [↑ Retour au sommaire](#table-des-matières)

@@ -792,3 +792,4 @@ L'inflation des prix d'achat grignote la marge sans que personne ne s'en rende c
 
 - [Stratégie d'orchestration batch](04_strategie_orchestration_batch.md) — détail des fréquences, phases et mode nuit
 - [Procédure de rollback](08_procedure_rollback.md) — restauration prod via Time Travel
+- [Disaster Recovery](11_disaster_recovery.md) — plan de reprise complet (sinistres majeurs)

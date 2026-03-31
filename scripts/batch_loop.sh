@@ -388,6 +388,18 @@ print('Audit purge terminee')
     fi
     [ "$HOUR" = "02" ] && rm -f "/tmp/audit_purge_done_today"
 
+    # --- 00h : backup quotidien Metabase (pg_dump) ---
+    if [ "$HOUR" = "00" ] && [ ! -f "/tmp/metabase_backup_done_today" ]; then
+      echo "Phase backup-metabase: dump quotidien PostgreSQL"
+      if bash /app/scripts/backup_metabase.sh; then
+        echo "Backup Metabase termine"
+      else
+        echo "Backup Metabase echec (non bloquant)"
+      fi
+      touch "/tmp/metabase_backup_done_today"
+    fi
+    [ "$HOUR" = "02" ] && rm -f "/tmp/metabase_backup_done_today"
+
     # --- 01h00 : ref_reload 14 tables reference (~3h-3h30) ---
     if [ "$HOUR" = "$REF_RELOAD_HOUR" ] && [ ! -f "$REF_DONE_FLAG" ]; then
       echo "Phase ref-reload: 14 tables reference (truncate + bulk load)"

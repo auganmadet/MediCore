@@ -14,9 +14,10 @@ RUN pip install --no-cache-dir --user -r requirements.txt
 # Second stage : sans les fichiers de build
 FROM python:3.11-slim
 
-# Installer git + curl dans l'image finale (git: dbt deps, curl: alertes Teams webhook)
+# Installer git + curl + postgresql-client dans l'image finale
+# git: dbt deps, curl: alertes Teams webhook, postgresql-client: pg_dump backup Metabase
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends git curl && \
+    apt-get install -y --no-install-recommends git curl postgresql-client && \
     rm -rf /var/lib/apt/lists/*
 
 # Utilisateur non-root pour le runtime

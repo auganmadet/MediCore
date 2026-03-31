@@ -283,3 +283,4 @@ En cas d'incident, suivre dans l'ordre :
 ## Voir aussi
 
 - [Opérations](03_operations.md) — exploitation normale et monitoring
+- [Disaster Recovery](11_disaster_recovery.md) — plan de reprise complet (sinistres majeurs)

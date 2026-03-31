@@ -23,6 +23,7 @@ services:
       - ./pipelines:/app/pipelines
       - ./logs:/app/logs
       - ./tests:/app/tests
+      - ./backups:/app/backups
       - dbt_cache:/home/appuser/.dbt
     depends_on:
       # healthcheck Docker

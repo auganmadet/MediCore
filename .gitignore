@@ -5,6 +5,9 @@
 # Logs applicatifs
 logs/
 
+# Backups (dumps PostgreSQL Metabase)
+backups/
+
 # Artefacts dbt
 dbt/target/
 dbt/dbt_packages/
