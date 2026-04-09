@@ -13,8 +13,10 @@ clean-targets: ["target", "dbt_packages"]
 
 on-run-start: "{{ guard_seed_prod() }}"
 
-# NOTE: on-run-end désactivé car table AUDIT.DBT_MODEL_RUNS n'existe pas encore
-# Réactiver après création des tables audit: on-run-end: "{{ log_run_summary(results) }}"
+# NOTE: log_run_summary désactivé car table AUDIT.DBT_MODEL_RUNS n'existe pas encore
+# Réactiver après création des tables audit: "{{ log_run_summary(results) }}"
+# NOTE: reapply_rls_policies désactivé — Alternative A (1 connexion, pas de Row Access Policy)
+# Réactiver si migration vers Metabase Pro (multi-connexion + sandboxing)
 
 vars:
   run_id: 'manual'

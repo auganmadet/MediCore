@@ -40,6 +40,7 @@ LOCK_FILE="/tmp/bulk_load.lock"
 REF_DONE_FLAG="/tmp/ref_bulk_done_today"
 NIGHT_CDC_DONE_FLAG="/tmp/night_cdc_done"
 POST_RELOAD_DBT_DONE_FLAG="/tmp/post_reload_dbt_done"
+RLS_PROV_DONE_FLAG="/tmp/rls_provision_done_today"
 
 # Alerting Teams (optionnel : si TEAMS_WEBHOOK_URL est vide, les erreurs sont loguees sans alerte)
 ALERT_THRESHOLD=${ALERT_THRESHOLD:-3}
@@ -347,7 +348,7 @@ while true; do
 
   # Reset flags et compteurs quotidiens a minuit
   if [ "$HOUR" = "00" ]; then
-    rm -f "$REF_DONE_FLAG" "$NIGHT_CDC_DONE_FLAG" "$POST_RELOAD_DBT_DONE_FLAG"
+    rm -f "$REF_DONE_FLAG" "$NIGHT_CDC_DONE_FLAG" "$POST_RELOAD_DBT_DONE_FLAG" "$RLS_PROV_DONE_FLAG"
     REF_FAIL=0; CDC_FAIL=0; STG_FAIL=0; SNAP_FAIL=0; MARTS_FAIL=0
     TEST_FAIL=0; MARTS_TEST_FAIL=0; FRESH_FAIL=0; ZERO_VOL=0; LAG_HIGH=0
     REF_RELOAD_JUST_DONE=0; DBT_CYCLE_COUNT=0
@@ -427,6 +428,21 @@ print('Audit purge terminee')
       run_dbt
       touch "$POST_RELOAD_DBT_DONE_FLAG"
     fi
+
+    # --- 05h00 : provisionnement RLS pharmacies (1x/jour) ---
+    if [ "$HOUR" = "05" ] && [ ! -f "$RLS_PROV_DONE_FLAG" ]; then
+      echo "Phase rls-provision: detection nouvelles pharmacies"
+      python3 -c "from pipelines.utils.audit import log_step_start; log_step_start('$RUN_ID', 'rls_provision')" 2>/dev/null || true
+      if timeout "$PHASE_TIMEOUT_SEC" python /app/scripts/provision_rls.py --run-id "$RUN_ID"; then
+        python3 -c "from pipelines.utils.audit import log_step_end; log_step_end('$RUN_ID', 'rls_provision', 'SUCCESS')" 2>/dev/null || true
+        echo "RLS provision termine"
+      else
+        python3 -c "from pipelines.utils.audit import log_step_end; log_step_end('$RUN_ID', 'rls_provision', 'FAILED', error='RLS provision failed')" 2>/dev/null || true
+        echo "RLS provision echec (non bloquant)"
+      fi
+      touch "$RLS_PROV_DONE_FLAG"
+    fi
+    [ "$HOUR" = "07" ] && rm -f "$RLS_PROV_DONE_FLAG"
 
     # Statut global du run
     if [ $CDC_FAIL -gt 0 ] || [ $STG_FAIL -gt 0 ] || [ $MARTS_FAIL -gt 0 ]; then

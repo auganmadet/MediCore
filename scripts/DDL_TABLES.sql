@@ -433,6 +433,46 @@ CREATE TABLE IF NOT EXISTS MEDICORE_PROD.AUDIT.CDC_LAG_METRICS (
 );
 
 -- ============================================================
+-- TABLES AUDIT : RLS (Row-Level Security) pharmacies
+-- ============================================================
+
+-- Source de vérité pour le provisionnement RLS pharmacies.
+-- Chaque pharmacie = 1 user Snowflake + 1 connexion Metabase + 1 collection.
+-- Le script provision_rls.py lit cette table pour détecter les nouvelles pharmacies.
+CREATE TABLE IF NOT EXISTS MEDICORE_PROD.AUDIT.RLS_PHARMACY_ACCESS (
+    PHA_ID            INTEGER       NOT NULL,
+    PHA_NOM           VARCHAR(200)  NOT NULL,
+    PHARMACIE_SK      VARCHAR(32)   NOT NULL,
+    SF_USERNAME       VARCHAR(50)   NOT NULL,
+    PROFIL            VARCHAR(20)   NOT NULL DEFAULT 'STANDARD',
+    DASHBOARDS        VARCHAR(500)  NULL,
+    IS_ACTIVE         BOOLEAN       NOT NULL DEFAULT TRUE,
+    MB_DATABASE_ID    INTEGER       NULL,
+    MB_GROUP_ID       INTEGER       NULL,
+    MB_COLLECTION_ID  INTEGER       NULL,
+    CREATED_AT        TIMESTAMP_NTZ NOT NULL DEFAULT CURRENT_TIMESTAMP(),
+    UPDATED_AT        TIMESTAMP_NTZ NOT NULL DEFAULT CURRENT_TIMESTAMP(),
+    PRIMARY KEY (PHA_ID)
+);
+
+COMMENT ON TABLE MEDICORE_PROD.AUDIT.RLS_PHARMACY_ACCESS IS
+    'Mapping pharmacie → user Snowflake + IDs Metabase pour le RLS. PROFIL=STANDARD (tous dashboards) ou RESTREINT (liste DASHBOARDS). PHARMACIE_SK = MD5(PHA_ID::STRING).';
+
+-- Traçabilité de chaque action du script de provisionnement RLS.
+CREATE TABLE IF NOT EXISTS MEDICORE_PROD.AUDIT.RLS_PROVISION_LOG (
+    LOG_ID            INTEGER       AUTOINCREMENT,
+    RUN_ID            VARCHAR(36)   NOT NULL,
+    PHA_ID            INTEGER       NOT NULL,
+    ACTION            VARCHAR(50)   NOT NULL,
+    DETAILS           VARCHAR(2000) NULL,
+    CREATED_AT        TIMESTAMP_NTZ NOT NULL DEFAULT CURRENT_TIMESTAMP(),
+    PRIMARY KEY (LOG_ID)
+);
+
+COMMENT ON TABLE MEDICORE_PROD.AUDIT.RLS_PROVISION_LOG IS
+    'Journal des actions provision_rls.py : NEW_PHARMACY_DETECTED, SF_USER_CREATED, MB_DATABASE_CREATED, etc.';
+
+-- ============================================================
 -- OWNERSHIP TRANSFER : Tables RAW → MEDICORE_RAW_WRITER
 -- ============================================================
 -- Les tables sont créées par ACCOUNTADMIN, on transfère l'ownership
