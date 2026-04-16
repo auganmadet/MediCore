@@ -79,13 +79,13 @@ def run_phase(phase_key, fix_level, dry_run):
     if not script_path.exists():
         return 'SKIP', f'Script {phase["script"]} non trouve'
 
-    # Determiner quel flag --fix passer selon le niveau et la phase
-    # --fix-safe : passe --fix-safe a tous les scripts (fix surs uniquement)
-    # --fix      : passe --fix a tous les scripts (tous les fix)
+    # --fix-safe et --fix passent maintenant --fix-safe a tous les scripts
+    # car les garde-fous sont integres dans chaque script individuel.
+    # --fix passe --fix (force sans garde-fous sur certaines operations).
     cmd = [PYTHON, str(script_path)]
 
     if phase_key == 'metabase':
-        # metabase_maintenance.py n'a pas --fix-safe, il est toujours safe
+        # metabase_maintenance.py est toujours safe
         pass
     elif fix_level == 'all':
         cmd.append('--fix')

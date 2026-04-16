@@ -205,8 +205,26 @@ def check_h7_permissions():
 
 
 def fix_h2_kafka():
-    """Corrige H2 : redemarrage Kafka via docker compose."""
+    """Corrige H2 : redemarrage Kafka via docker compose.
+
+    Garde-fou : verifie les logs Kafka avant restart.
+    Si l'erreur contient "corrupt" ou "unrecoverable" → ne pas restart, alerter.
+    """
     import subprocess
+    import time
+
+    # Garde-fou : verifier les logs pour corruption
+    try:
+        logs_result = subprocess.run(
+            ['docker', 'logs', '--since', '10m', 'kafka'],
+            capture_output=True, text=True, timeout=10,
+        )
+        logs_lower = logs_result.stdout.lower() + logs_result.stderr.lower()
+        if 'corrupt' in logs_lower or 'unrecoverable' in logs_lower:
+            return False, 'ABANDON: logs Kafka contiennent "corrupt/unrecoverable" — intervention manuelle requise'
+    except Exception:
+        pass  # Si on ne peut pas lire les logs, on tente quand meme le restart
+
     try:
         logger.info('Restart Kafka...')
         result = subprocess.run(
@@ -214,10 +232,7 @@ def fix_h2_kafka():
             capture_output=True, text=True, timeout=120,
         )
         if result.returncode == 0:
-            # Attendre que Kafka soit healthy
-            import time
             time.sleep(15)
-            # Verifier
             ok, msg = check_h2_kafka()
             if ok:
                 return True, 'Kafka redemarre et accessible'
@@ -244,9 +259,12 @@ def fix_h2_kafka():
 
 
 def fix_h3_snowflake():
-    """Corrige H3 : verifie le compte Snowflake et tente de se reconnecter."""
+    """Corrige H3 : verifie le compte Snowflake et tente de se reconnecter.
+
+    Garde-fou : si le compte est suspendu (credits epuises), alerte sans fix.
+    Si c'est un probleme reseau transitoire, le fix resume le warehouse.
+    """
     try:
-        # Verifier si le probleme est le warehouse
         conn = snowflake.connector.connect(
             account=os.getenv('SNOWFLAKE_ACCOUNT'),
             user=os.getenv('SNOWFLAKE_USER'),
@@ -264,19 +282,27 @@ def fix_h3_snowflake():
 
         # Verifier la database
         db_name = os.getenv('SNOWFLAKE_DATABASE', 'MEDICORE_PROD')
-        cursor.execute(f'SHOW DATABASES LIKE \'{db_name}\'')
+        cursor.execute(f"SHOW DATABASES LIKE '{db_name}'")
         dbs = cursor.fetchall()
         if not dbs:
             cursor.close()
             conn.close()
             return False, f'Database {db_name} inexistante — verifier le compte Snowflake'
 
-        # Verifier les credits
+        # Verifier les credits restants
         try:
-            cursor.execute('SELECT CURRENT_ACCOUNT()')
-            account = cursor.fetchone()[0]
+            cursor.execute(
+                "SELECT CREDITS_USED, CREDITS_REMAINING "
+                "FROM SNOWFLAKE.ORGANIZATION_USAGE.REMAINING_BALANCE_DAILY "
+                "ORDER BY DATE DESC LIMIT 1"
+            )
+            row = cursor.fetchone()
+            if row and row[1] is not None and row[1] <= 0:
+                cursor.close()
+                conn.close()
+                return False, f'ABANDON: credits Snowflake epuises (remaining={row[1]}) — intervention manuelle'
         except Exception:
-            account = '?'
+            pass  # Table pas accessible = pas de probleme de credits
 
         cursor.close()
         conn.close()
@@ -284,8 +310,8 @@ def fix_h3_snowflake():
         # Re-tester
         ok, msg = check_h3_snowflake()
         if ok:
-            return True, f'Snowflake reconnecte (account={account})'
-        return False, f'Snowflake toujours inaccessible (account={account}) — verifier credits/maintenance'
+            return True, 'Snowflake reconnecte'
+        return False, 'Snowflake toujours inaccessible — verifier credits/maintenance'
     except Exception as e:
         return False, f'Connexion impossible: {str(e)[:80]} — verifier credentials/network'
 
@@ -367,7 +393,15 @@ def main():
     if args.fix or args.fix_safe:
         print('\n--- Corrections ---')
 
-        # Fix surs (--fix-safe et --fix)
+        # Tous les fix (--fix-safe et --fix) — avec garde-fous integres
+        if not results['H2']['ok']:
+            ok, msg = fix_h2_kafka()
+            print(f'  H2 restart Kafka: {"OK" if ok else "FAIL"} ({msg})')
+
+        if not results['H3']['ok']:
+            ok, msg = fix_h3_snowflake()
+            print(f'  H3 reconnexion Snowflake: {"OK" if ok else "FAIL"} ({msg})')
+
         if not results['H4']['ok']:
             ok, msg = fix_h4_warehouse()
             print(f'  H4 resume warehouse: {"OK" if ok else "FAIL"} ({msg})')
@@ -375,16 +409,6 @@ def main():
         if not results['H6']['ok']:
             ok, msg = fix_h6_debezium()
             print(f'  H6 restart Debezium: {"OK" if ok else "FAIL"} ({msg})')
-
-        # Fix risques (--fix uniquement)
-        if args.fix:
-            if not results['H2']['ok']:
-                ok, msg = fix_h2_kafka()
-                print(f'  H2 restart Kafka: {"OK" if ok else "FAIL"} ({msg})')
-
-            if not results['H3']['ok']:
-                ok, msg = fix_h3_snowflake()
-                print(f'  H3 reconnexion Snowflake: {"OK" if ok else "FAIL"} ({msg})')
 
     # Resume
     nb_ok = sum(1 for r in results.values() if r['ok'])

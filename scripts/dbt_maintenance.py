@@ -208,35 +208,76 @@ def check_d6_policies():
         return True, {'status': f'non verifiable: {str(e)[:80]}'}
 
 
+DBT_RETRY_FLAG = '/tmp/dbt_maintenance_retry_done'
+
+
 def fix_d1_d2_rerun_dbt():
     """Relance dbt run + dbt test pour corriger les modeles/tests en erreur.
 
-    Garde-fou : timeout 30 min, 1 seul retry.
+    Garde-fous :
+    - 1 seul retry par jour (flag /tmp/dbt_maintenance_retry_done)
+    - Timeout 30 min
+    - Compare les erreurs avant/apres : si meme nombre → probleme non transitoire, stop
     """
     import subprocess
+
+    # Garde-fou : 1 seul retry par jour
+    if os.path.exists(DBT_RETRY_FLAG):
+        return False, 'SKIP: dbt deja relance aujourd\'hui (flag anti-boucle)'
+
     env = os.getenv('ENV', 'prod')
+    dbt_dir = str(Path(__file__).resolve().parent.parent / 'dbt')
+
+    # Sauvegarder le nombre d'erreurs avant relance
+    pre_results = load_run_results(os.path.join(dbt_dir, 'target', 'run_results.json'))
+    pre_errors = 0
+    if pre_results:
+        for r in pre_results.get('results', []):
+            if r.get('status') in ('error', 'fail'):
+                pre_errors += 1
 
     try:
         logger.info('Relance dbt run (staging + marts)...')
         result = subprocess.run(
             ['dbt', 'run', '--select', 'tag:staging', 'tag:marts', '--target', env],
             capture_output=True, text=True, timeout=1800,
-            cwd=str(Path(__file__).resolve().parent.parent / 'dbt'),
+            cwd=dbt_dir,
         )
         if result.returncode != 0:
+            # Poser le flag pour ne pas reboucler
+            with open(DBT_RETRY_FLAG, 'w') as f:
+                f.write('done')
             return False, f'dbt run echoue: {result.stderr[:100]}'
 
         logger.info('Relance dbt test...')
         result = subprocess.run(
             ['dbt', 'test', '--target', env],
             capture_output=True, text=True, timeout=1800,
-            cwd=str(Path(__file__).resolve().parent.parent / 'dbt'),
+            cwd=dbt_dir,
         )
+
+        # Poser le flag dans tous les cas
+        with open(DBT_RETRY_FLAG, 'w') as f:
+            f.write('done')
+
+        # Comparer les erreurs avant/apres
+        post_results = load_run_results(os.path.join(dbt_dir, 'target', 'run_results.json'))
+        post_errors = 0
+        if post_results:
+            for r in post_results.get('results', []):
+                if r.get('status') in ('error', 'fail'):
+                    post_errors += 1
+
+        if post_errors >= pre_errors and pre_errors > 0:
+            return False, f'Meme nombre d\'erreurs apres relance ({pre_errors} -> {post_errors}) — probleme non transitoire'
+
         if result.returncode != 0:
-            return False, f'dbt test echoue: {result.stderr[:100]}'
+            return False, f'dbt test: {post_errors} erreurs restantes'
 
         return True, 'dbt run + test termines avec succes'
     except subprocess.TimeoutExpired:
+        with open(DBT_RETRY_FLAG, 'w') as f:
+            f.write('done')
         return False, 'dbt timeout apres 30 min'
     except Exception as e:
         return False, str(e)[:100]
@@ -308,18 +349,16 @@ def main():
     if (args.fix or args.fix_safe) and not args.dry_run:
         print('\n--- Corrections ---')
 
-        # Fix surs (--fix-safe et --fix)
+        # Tous les fix (--fix-safe et --fix) — avec garde-fous integres
+        if not results.get('D1', {}).get('ok', True) or not results.get('D2', {}).get('ok', True):
+            print('  D1/D2 relance dbt run + test (1 seul retry/jour)...')
+            ok, msg = fix_d1_d2_rerun_dbt()
+            print(f'  D1/D2: {"OK" if ok else "FAIL"} ({msg})')
+
         if not results.get('D3', {}).get('ok', True):
             print('  D3 relance freshness...')
             ok, msg = fix_d3_freshness()
             print(f'  D3: {"OK" if ok else "FAIL"} ({msg})')
-
-        # Fix risques (--fix uniquement)
-        if args.fix:
-            if not results.get('D1', {}).get('ok', True) or not results.get('D2', {}).get('ok', True):
-                print('  D1/D2 relance dbt run + test...')
-                ok, msg = fix_d1_d2_rerun_dbt()
-                print(f'  D1/D2: {"OK" if ok else "FAIL"} ({msg})')
 
     # Resume
     nb_ok = sum(1 for r in results.values() if r['ok'])

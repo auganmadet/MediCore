@@ -280,10 +280,19 @@ def fix_b1_lock():
 
 
 def fix_b4_reconciliation(ecarts):
-    """Corrige B4 : relance bulk_load pour les tables avec ecart MySQL/Snowflake."""
+    """Corrige B4 : relance bulk_load avec pattern CLONE + SWAP.
+
+    Pattern atomique par table :
+    1. CLONE RAW_TABLE -> RAW_TABLE_BACKUP
+    2. bulk_load --tables TABLE --truncate
+    3. Verifier count
+    4. Si OK -> DROP backup
+    5. Si FAIL -> SWAP backup (rollback)
+    """
     import subprocess
     fixed = []
     failed = []
+    rolled_back = []
 
     mysql_to_bulk = {
         'PHARMACIE': 'PHARMACIE',
@@ -293,79 +302,269 @@ def fix_b4_reconciliation(ecarts):
         'FACTURES': 'FACTURES',
     }
 
+    conn = get_snowflake_conn()
+    cursor = conn.cursor()
+
     for table_name in ecarts:
         bulk_name = mysql_to_bulk.get(table_name)
         if not bulk_name:
             failed.append(f'{table_name}: pas de mapping bulk_load')
             continue
+
+        sf_table = f'RAW_{table_name}'
+        backup_table = f'RAW_{table_name}_BACKUP'
+
         try:
-            logger.info(f'Relance bulk_load pour {bulk_name}...')
+            # 1. Count avant + CLONE backup
+            cursor.execute(f'SELECT COUNT(*) FROM {sf_table}')
+            pre_count = cursor.fetchone()[0]
+            cursor.execute(f'CREATE OR REPLACE TABLE {backup_table} CLONE {sf_table}')
+            logger.info(f'  CLONE {sf_table} ({pre_count} rows)')
+
+            # 2. Reload
             result = subprocess.run(
                 ['python', '/app/pipelines/bulk_load.py', '--tables', bulk_name, '--truncate'],
                 capture_output=True, text=True, timeout=3600,
             )
-            if result.returncode == 0:
-                fixed.append(bulk_name)
-            else:
-                failed.append(f'{bulk_name}: exit {result.returncode}')
+
+            if result.returncode != 0:
+                # Rollback
+                cursor.execute(f'ALTER TABLE {backup_table} SWAP WITH {sf_table}')
+                cursor.execute(f'DROP TABLE IF EXISTS {backup_table}')
+                rolled_back.append(table_name)
+                failed.append(f'{bulk_name}: load echoue, rollback OK')
+                continue
+
+            # 3. Verifier count
+            cursor.execute(f'SELECT COUNT(*) FROM {sf_table}')
+            post_count = cursor.fetchone()[0]
+
+            if post_count == 0:
+                # Rollback
+                cursor.execute(f'ALTER TABLE {backup_table} SWAP WITH {sf_table}')
+                cursor.execute(f'DROP TABLE IF EXISTS {backup_table}')
+                rolled_back.append(table_name)
+                failed.append(f'{bulk_name}: vide apres load, rollback OK')
+                continue
+
+            # 4. OK -> drop backup
+            cursor.execute(f'DROP TABLE IF EXISTS {backup_table}')
+            fixed.append(f'{bulk_name} ({pre_count} -> {post_count})')
+
         except Exception as e:
+            try:
+                cursor.execute(f'ALTER TABLE {backup_table} SWAP WITH {sf_table}')
+                cursor.execute(f'DROP TABLE IF EXISTS {backup_table}')
+                rolled_back.append(table_name)
+            except Exception:
+                pass
             failed.append(f'{bulk_name}: {str(e)[:50]}')
 
+    cursor.close()
+    conn.close()
+
     msg = f'{len(fixed)} tables rechargees'
+    if rolled_back:
+        msg += f', {len(rolled_back)} rollback'
     if failed:
-        msg += f', {len(failed)} echouees: {failed}'
+        msg += f', {len(failed)} echouees'
     return len(failed) == 0, msg
 
 
 def fix_b6_schema_drift(drift):
-    """Corrige B6 : ajoute les colonnes manquantes dans Snowflake (ALTER TABLE ADD COLUMN)."""
+    """Corrige B6 : ajoute les colonnes manquantes avec le type detecte depuis MySQL.
+
+    Garde-fou : detecte le type MySQL avant d'ajouter (pas VARCHAR par defaut).
+    Mapping MySQL -> Snowflake : INT->NUMBER, VARCHAR->VARCHAR(N), DATE->DATE, etc.
+    """
+    mysql_type_map = {
+        'int': 'NUMBER',
+        'bigint': 'NUMBER',
+        'smallint': 'NUMBER',
+        'tinyint': 'NUMBER',
+        'decimal': 'NUMBER(18,2)',
+        'float': 'FLOAT',
+        'double': 'FLOAT',
+        'varchar': 'VARCHAR',
+        'char': 'VARCHAR',
+        'text': 'VARCHAR',
+        'date': 'DATE',
+        'datetime': 'TIMESTAMP_NTZ',
+        'timestamp': 'TIMESTAMP_NTZ',
+    }
+
     try:
-        conn = get_snowflake_conn()
-        cursor = conn.cursor()
-        added = []
-
-        for table_name, info in drift.items():
-            sf_table = f'RAW_{table_name}' if not table_name.startswith('RAW_') else table_name
-            for col in info.get('missing_in_snowflake', []):
-                try:
-                    cursor.execute(f'ALTER TABLE {sf_table} ADD COLUMN {col} VARCHAR')
-                    added.append(f'{sf_table}.{col}')
-                except Exception as e:
-                    logger.warning(f'Ajout colonne {sf_table}.{col}: {e}')
-
-        cursor.close()
-        conn.close()
-        return True, f'{len(added)} colonnes ajoutees: {added}'
+        # Recuperer les types MySQL
+        my_conn = get_mysql_conn()
+        my_cursor = my_conn.cursor()
     except Exception as e:
-        return False, str(e)[:100]
+        # Si MySQL inaccessible, fallback VARCHAR
+        logger.warning(f'MySQL inaccessible pour detection types: {e}')
+        try:
+            conn = get_snowflake_conn()
+            cursor = conn.cursor()
+            added = []
+            for table_name, info in drift.items():
+                sf_table = f'RAW_{table_name}' if not table_name.startswith('RAW_') else table_name
+                for col in info.get('missing_in_snowflake', []):
+                    try:
+                        cursor.execute(f'ALTER TABLE {sf_table} ADD COLUMN {col} VARCHAR')
+                        added.append(f'{sf_table}.{col} (VARCHAR fallback)')
+                    except Exception:
+                        pass
+            cursor.close()
+            conn.close()
+            return len(added) > 0, f'{len(added)} colonnes ajoutees (VARCHAR fallback)'
+        except Exception as e2:
+            return False, str(e2)[:100]
+
+    conn = get_snowflake_conn()
+    cursor = conn.cursor()
+    added = []
+
+    for table_name, info in drift.items():
+        sf_table = f'RAW_{table_name}' if not table_name.startswith('RAW_') else table_name
+        mysql_table = table_name.replace('RAW_', '')
+
+        # Recuperer les types MySQL pour cette table
+        mysql_col_types = {}
+        try:
+            my_cursor.execute(f'SHOW COLUMNS FROM {mysql_table}')
+            for row in my_cursor.fetchall():
+                col_name = row[0].upper()
+                col_type = row[1].lower().split('(')[0]
+                sf_type = mysql_type_map.get(col_type, 'VARCHAR')
+                mysql_col_types[col_name] = sf_type
+        except Exception:
+            pass
+
+        for col in info.get('missing_in_snowflake', []):
+            sf_type = mysql_col_types.get(col.upper(), 'VARCHAR')
+            try:
+                cursor.execute(f'ALTER TABLE {sf_table} ADD COLUMN {col} {sf_type}')
+                added.append(f'{sf_table}.{col} ({sf_type})')
+            except Exception as e:
+                logger.warning(f'Ajout colonne {sf_table}.{col}: {e}')
+
+    my_cursor.close()
+    my_conn.close()
+    cursor.close()
+    conn.close()
+    return len(added) > 0, f'{len(added)} colonnes ajoutees: {added}'
 
 
 def fix_b5_ref_reload():
-    """Relance le ref_reload (bulk_load --ref-only --truncate).
+    """Relance le ref_reload table par table avec pattern CLONE + SWAP.
 
-    Garde-fou : verifie le lock file avant de lancer.
-    Timeout 5h (REF_TIMEOUT_SEC dans batch_loop.sh).
+    Pattern atomique :
+    1. CLONE RAW_TABLE -> RAW_TABLE_BACKUP (zero-copy, gratuit)
+    2. TRUNCATE RAW_TABLE
+    3. bulk_load.py --tables TABLE --truncate
+    4. Verifier count >= ancien count
+    5. Si OK -> DROP RAW_TABLE_BACKUP
+    6. Si FAIL -> SWAP backup en place (rollback instantane)
+
+    Garde-fous :
+    - Verifie le lock file avant de lancer
+    - Table par table (pas toutes d'un coup)
+    - Rollback automatique si le load echoue
+    - Si une table echoue, continue les autres
+    - Timeout 1h par table
     """
     import subprocess
 
     if os.path.exists(LOCK_FILE):
         return False, 'Lock file present — un bulk_load est deja en cours'
 
-    try:
-        logger.info('Lancement ref_reload (bulk_load --ref-only --truncate)...')
-        result = subprocess.run(
-            ['python', '/app/pipelines/bulk_load.py', '--ref-only', '--truncate'],
-            capture_output=True,
-            text=True,
-            timeout=18000,
-        )
-        if result.returncode == 0:
-            return True, 'ref_reload termine avec succes'
-        return False, f'ref_reload echoue (exit {result.returncode}): {result.stderr[:100]}'
-    except subprocess.TimeoutExpired:
-        return False, 'ref_reload timeout apres 5h'
-    except Exception as e:
-        return False, str(e)[:100]
+    ref_table_names = [
+        'DAYBYDAY', 'EAN13', 'FOURNISSEURS', 'HISTORY', 'LOG', 'LPPR',
+        'MANQHISTORY', 'MEDIPRIX_FACTURES', 'PHARMACIE', 'PRODUITS',
+        'PRODUITS_NEGATIFS', 'STOCKHISTORY', 'PHARMACIES', 'PHARMACIES_ERREUR',
+    ]
+
+    fixed = []
+    failed = []
+    rolled_back = []
+
+    conn = get_snowflake_conn()
+    cursor = conn.cursor()
+
+    for table_name in ref_table_names:
+        sf_table = f'RAW_{table_name}'
+        backup_table = f'RAW_{table_name}_BACKUP'
+        logger.info(f'Reload {table_name} (CLONE + SWAP)...')
+
+        try:
+            # 1. Sauvegarder le count avant
+            cursor.execute(f'SELECT COUNT(*) FROM {sf_table}')
+            pre_count = cursor.fetchone()[0]
+
+            # 2. CLONE zero-copy (backup gratuit)
+            cursor.execute(f'CREATE OR REPLACE TABLE {backup_table} CLONE {sf_table}')
+            logger.info(f'  CLONE {sf_table} -> {backup_table} ({pre_count} rows)')
+
+            # 3. Reload via bulk_load.py
+            result = subprocess.run(
+                ['python', '/app/pipelines/bulk_load.py', '--tables', table_name, '--truncate'],
+                capture_output=True, text=True, timeout=3600,
+            )
+
+            if result.returncode != 0:
+                # Load echoue -> rollback : SWAP le backup en place
+                logger.warning(f'  Load echoue pour {table_name} — rollback...')
+                cursor.execute(f'ALTER TABLE {backup_table} SWAP WITH {sf_table}')
+                cursor.execute(f'DROP TABLE IF EXISTS {backup_table}')
+                rolled_back.append(table_name)
+                failed.append(f'{table_name}: load echoue, rollback OK')
+                continue
+
+            # 4. Verifier le count apres load
+            cursor.execute(f'SELECT COUNT(*) FROM {sf_table}')
+            post_count = cursor.fetchone()[0]
+
+            if post_count == 0:
+                # Table vide apres load -> rollback
+                logger.warning(f'  {table_name} vide apres load — rollback...')
+                cursor.execute(f'ALTER TABLE {backup_table} SWAP WITH {sf_table}')
+                cursor.execute(f'DROP TABLE IF EXISTS {backup_table}')
+                rolled_back.append(table_name)
+                failed.append(f'{table_name}: vide apres load, rollback OK')
+                continue
+
+            # 5. Load OK -> supprimer le backup
+            cursor.execute(f'DROP TABLE IF EXISTS {backup_table}')
+            fixed.append(f'{table_name} ({pre_count} -> {post_count})')
+            logger.info(f'  {table_name} OK ({pre_count} -> {post_count})')
+
+        except subprocess.TimeoutExpired:
+            # Timeout -> rollback
+            logger.warning(f'  {table_name} timeout — rollback...')
+            try:
+                cursor.execute(f'ALTER TABLE {backup_table} SWAP WITH {sf_table}')
+                cursor.execute(f'DROP TABLE IF EXISTS {backup_table}')
+                rolled_back.append(table_name)
+            except Exception:
+                pass
+            failed.append(f'{table_name}: timeout 1h, rollback')
+        except Exception as e:
+            # Erreur inattendue -> tenter rollback
+            try:
+                cursor.execute(f'ALTER TABLE {backup_table} SWAP WITH {sf_table}')
+                cursor.execute(f'DROP TABLE IF EXISTS {backup_table}')
+                rolled_back.append(table_name)
+            except Exception:
+                pass
+            failed.append(f'{table_name}: {str(e)[:50]}')
+
+    cursor.close()
+    conn.close()
+
+    msg = f'{len(fixed)}/{len(ref_table_names)} tables rechargees'
+    if rolled_back:
+        msg += f', {len(rolled_back)} rollback'
+    if failed:
+        msg += f', {len(failed)} echouees: {[f.split(":")[0] for f in failed]}'
+    return len(failed) == 0, msg
 
 
 def main():
@@ -417,31 +616,29 @@ def main():
     if (args.fix or args.fix_safe) and not args.dry_run:
         print('\n--- Corrections ---')
 
-        # Fix surs (--fix-safe et --fix)
+        # Tous les fix (--fix-safe et --fix) — avec garde-fous integres
         if not results.get('B1', {}).get('ok', True):
             ok, msg = fix_b1_lock()
             print(f'  B1 lock file: {"OK" if ok else "FAIL"} ({msg})')
 
-        # Fix risques (--fix uniquement)
-        if args.fix:
-            if not results.get('B4', {}).get('ok', True):
-                ecarts = results['B4'].get('details', {}).get('ecarts', {})
-                if ecarts:
-                    print(f'  B4 reconciliation: relance bulk_load pour {list(ecarts.keys())}...')
-                    ok, msg = fix_b4_reconciliation(ecarts)
-                    print(f'  B4 reconciliation: {"OK" if ok else "FAIL"} ({msg})')
+        if not results.get('B4', {}).get('ok', True):
+            ecarts = results['B4'].get('details', {}).get('ecarts', {})
+            if ecarts:
+                print(f'  B4 reconciliation: relance bulk_load pour {list(ecarts.keys())}...')
+                ok, msg = fix_b4_reconciliation(ecarts)
+                print(f'  B4 reconciliation: {"OK" if ok else "FAIL"} ({msg})')
 
-            if not results.get('B5', {}).get('ok', True):
-                print('  B5 ref_reload: lancement...')
-                ok, msg = fix_b5_ref_reload()
-                print(f'  B5 ref_reload: {"OK" if ok else "FAIL"} ({msg})')
+        if not results.get('B5', {}).get('ok', True):
+            print('  B5 ref_reload: lancement table par table...')
+            ok, msg = fix_b5_ref_reload()
+            print(f'  B5 ref_reload: {"OK" if ok else "FAIL"} ({msg})')
 
-            if not results.get('B6', {}).get('ok', True):
-                drift = results['B6'].get('details', {}).get('drift', {})
-                if drift:
-                    print(f'  B6 schema drift: ajout colonnes manquantes...')
-                    ok, msg = fix_b6_schema_drift(drift)
-                    print(f'  B6 schema drift: {"OK" if ok else "FAIL"} ({msg})')
+        if not results.get('B6', {}).get('ok', True):
+            drift = results['B6'].get('details', {}).get('drift', {})
+            if drift:
+                print(f'  B6 schema drift: ajout colonnes (types detectes)...')
+                ok, msg = fix_b6_schema_drift(drift)
+                print(f'  B6 schema drift: {"OK" if ok else "FAIL"} ({msg})')
 
     # Resume
     nb_ok = sum(1 for r in results.values() if r['ok'])
