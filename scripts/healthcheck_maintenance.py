@@ -37,8 +37,9 @@ import snowflake.connector
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
 
-METABASE_URL = os.getenv('MB_SITE_URL', os.getenv('METABASE_URL', os.getenv('METABASE_SITE_URL', 'http://localhost:3000')))
-KAFKA_CONNECT_URL = os.getenv('KAFKA_CONNECT_URL', 'http://localhost:8083')
+# URLs : utiliser les noms Docker internes si disponibles, sinon localhost
+METABASE_URL = os.getenv('METABASE_URL', os.getenv('MB_SITE_URL', os.getenv('METABASE_SITE_URL', 'http://localhost:3000')))
+KAFKA_CONNECT_URL = os.getenv('KAFKA_CONNECT_URL', 'http://kafka_connect:8083')
 
 
 def check_h1_mysql():
@@ -120,8 +121,15 @@ def check_h4_warehouse():
         cursor.close()
         conn.close()
         if row:
-            state = row[4] if len(row) > 4 else 'UNKNOWN'
-            if state in ('STARTED', 'RESUMING', 'SUSPENDED'):
+            # SHOW WAREHOUSES retourne un nombre variable de colonnes selon la version.
+            # Chercher l'etat dans toutes les colonnes (c'est une string parmi les valeurs)
+            state = 'UNKNOWN'
+            valid_states = ('STARTED', 'RESUMING', 'SUSPENDED', 'SUSPENDING')
+            for col in row:
+                if isinstance(col, str) and col.upper() in valid_states:
+                    state = col.upper()
+                    break
+            if state in ('STARTED', 'RESUMING', 'SUSPENDED', 'SUSPENDING'):
                 return True, f'OK (state={state}, auto-resume actif)'
             return False, f'state={state} (arrete)'
         return False, f'warehouse {wh_name} non trouve'

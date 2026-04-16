@@ -96,11 +96,21 @@ def run_phase(phase_key, fix_level, dry_run):
         cmd.append('--dry-run')
 
     try:
+        # Timeout par phase : healthcheck/cdc rapides, bulk/dbt/metabase lents
+        phase_timeouts = {
+            'healthcheck': 120,
+            'cdc': 300,
+            'bulk': 1800,
+            'dbt': 1800,
+            'metabase': 600,
+        }
+        timeout = phase_timeouts.get(phase_key, 600)
+
         result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
-            timeout=300,
+            timeout=timeout,
         )
 
         # Afficher la sortie
