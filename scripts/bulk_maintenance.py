@@ -616,22 +616,10 @@ def main():
     if (args.fix or args.fix_safe) and not args.dry_run:
         print('\n--- Corrections ---')
 
-        # Tous les fix (--fix-safe et --fix) — avec garde-fous integres
+        # Fix surs (--fix-safe et --fix)
         if not results.get('B1', {}).get('ok', True):
             ok, msg = fix_b1_lock()
             print(f'  B1 lock file: {"OK" if ok else "FAIL"} ({msg})')
-
-        if not results.get('B4', {}).get('ok', True):
-            ecarts = results['B4'].get('details', {}).get('ecarts', {})
-            if ecarts:
-                print(f'  B4 reconciliation: relance bulk_load pour {list(ecarts.keys())}...')
-                ok, msg = fix_b4_reconciliation(ecarts)
-                print(f'  B4 reconciliation: {"OK" if ok else "FAIL"} ({msg})')
-
-        if not results.get('B5', {}).get('ok', True):
-            print('  B5 ref_reload: lancement table par table...')
-            ok, msg = fix_b5_ref_reload()
-            print(f'  B5 ref_reload: {"OK" if ok else "FAIL"} ({msg})')
 
         if not results.get('B6', {}).get('ok', True):
             drift = results['B6'].get('details', {}).get('drift', {})
@@ -639,6 +627,24 @@ def main():
                 print(f'  B6 schema drift: ajout colonnes (types detectes)...')
                 ok, msg = fix_b6_schema_drift(drift)
                 print(f'  B6 schema drift: {"OK" if ok else "FAIL"} ({msg})')
+
+        # Fix lourds (--fix uniquement) — B4/B5 declenchent des reloads longs
+        # En --fix-safe : detection + rapport, rechargement laisse a batch_loop.sh (01h00)
+        if args.fix:
+            if not results.get('B4', {}).get('ok', True):
+                ecarts = results['B4'].get('details', {}).get('ecarts', {})
+                if ecarts:
+                    print(f'  B4 reconciliation: relance bulk_load pour {list(ecarts.keys())}...')
+                    ok, msg = fix_b4_reconciliation(ecarts)
+                    print(f'  B4 reconciliation: {"OK" if ok else "FAIL"} ({msg})')
+
+            if not results.get('B5', {}).get('ok', True):
+                print('  B5 ref_reload: lancement table par table (CLONE+SWAP)...')
+                ok, msg = fix_b5_ref_reload()
+                print(f'  B5 ref_reload: {"OK" if ok else "FAIL"} ({msg})')
+        elif not results.get('B5', {}).get('ok', True):
+            stale = results['B5'].get('details', {}).get('stale_tables', {})
+            print(f'  B5 donnees perimees: {len(stale)} tables detectees — rechargement par batch_loop.sh (01h00)')
 
     # Resume
     nb_ok = sum(1 for r in results.values() if r['ok'])

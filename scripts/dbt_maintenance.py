@@ -349,16 +349,22 @@ def main():
     if (args.fix or args.fix_safe) and not args.dry_run:
         print('\n--- Corrections ---')
 
-        # Tous les fix (--fix-safe et --fix) — avec garde-fous integres
-        if not results.get('D1', {}).get('ok', True) or not results.get('D2', {}).get('ok', True):
-            print('  D1/D2 relance dbt run + test (1 seul retry/jour)...')
-            ok, msg = fix_d1_d2_rerun_dbt()
-            print(f'  D1/D2: {"OK" if ok else "FAIL"} ({msg})')
-
+        # Fix surs (--fix-safe et --fix)
         if not results.get('D3', {}).get('ok', True):
             print('  D3 relance freshness...')
             ok, msg = fix_d3_freshness()
             print(f'  D3: {"OK" if ok else "FAIL"} ({msg})')
+
+        # Fix lourds (--fix uniquement) — D1/D2 relance dbt run+test (~15 min compute)
+        # En --fix-safe : detection + rapport, relance dbt laissee a batch_loop.sh
+        if args.fix:
+            if not results.get('D1', {}).get('ok', True) or not results.get('D2', {}).get('ok', True):
+                print('  D1/D2 relance dbt run + test (1 seul retry/jour)...')
+                ok, msg = fix_d1_d2_rerun_dbt()
+                print(f'  D1/D2: {"OK" if ok else "FAIL"} ({msg})')
+        elif not results.get('D1', {}).get('ok', True) or not results.get('D2', {}).get('ok', True):
+            nb_errors = results.get('D1', {}).get('details', {}).get('errors', [])
+            print(f'  D1/D2 : {len(nb_errors)} tests echoues — relance par batch_loop.sh')
 
     # Resume
     nb_ok = sum(1 for r in results.values() if r['ok'])
