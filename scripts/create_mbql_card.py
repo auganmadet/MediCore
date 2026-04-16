@@ -164,6 +164,84 @@ KNOWN_CARDS = {
         },
         'filter_columns': {'pharmacie': 'PHARMACIE_SK', 'univers': 'UNIVERS'},
     },
+    49: {
+        'name': 'Repartition modes de paiement',
+        'display': 'pie',
+        'table': 'MART_KPI_TRESORERIE',
+        'build': lambda fields: {
+            'source-table': None,
+            'aggregation': [
+                ['sum', ['field', fields['PCT_CB'], None]],
+                ['sum', ['field', fields['PCT_ESPECES'], None]],
+                ['sum', ['field', fields['PCT_CHEQUES'], None]],
+                ['sum', ['field', fields['PCT_TIERS_PAYANT'], None]],
+                ['sum', ['field', fields['PCT_VIREMENT'], None]],
+            ],
+        },
+        'filter_columns': {'pharmacie': 'PHARMACIE_SK', 'mois': 'MOIS'},
+    },
+    366: {
+        'name': 'TVA par taux',
+        'display': 'bar',
+        'table': 'FACT_TRESORERIE',
+        'build': lambda fields: {
+            'source-table': None,
+            'aggregation': [
+                ['sum', ['field', fields['TVA_TAUX1'], None]],
+                ['sum', ['field', fields['TVA_TAUX2'], None]],
+                ['sum', ['field', fields['TVA_TAUX3'], None]],
+                ['sum', ['field', fields['TVA_TAUX4'], None]],
+                ['sum', ['field', fields['TVA_TAUX5'], None]],
+            ],
+            'breakout': [
+                ['field', fields['DATE_JOUR'], {'temporal-unit': 'month'}],
+            ],
+        },
+        'filter_columns': {'pharmacie': 'PHARMACIE_SK', 'mois': 'DATE_JOUR'},
+    },
+    373: {
+        'name': 'Top 10 produits en rupture',
+        'display': 'bar',
+        'table': 'MART_KPI_RUPTURES_PAR_PRODUIT',
+        'build': lambda fields: {
+            'source-table': None,
+            'aggregation': [['sum', ['field', fields['NB_BOITES_MANQUANTES'], None]]],
+            'breakout': [['field', fields['PRD_NOM'], None]],
+            'order-by': [['desc', ['aggregation', 0]]],
+            'limit': 10,
+        },
+        'filter_columns': {'pharmacie': 'PHARMACIE_SK', 'mois': 'MOIS'},
+    },
+    374: {
+        'name': 'Jours de rupture par produit',
+        'display': 'bar',
+        'table': 'MART_KPI_RUPTURES_PAR_PRODUIT',
+        'build': lambda fields: {
+            'source-table': None,
+            'aggregation': [['sum', ['field', fields['NB_JOURS_RUPTURE'], None]]],
+            'breakout': [
+                ['field', fields['PRD_NOM'], None],
+                ['field', fields['MOIS'], None],
+            ],
+            'order-by': [['desc', ['aggregation', 0]]],
+            'limit': 20,
+        },
+        'filter_columns': {'pharmacie': 'PHARMACIE_SK', 'mois': 'MOIS'},
+    },
+    384: {
+        'name': 'Ecoulement par fournisseur',
+        'display': 'bar',
+        'table': 'MART_KPI_ECOULEMENT_PAR_FOURNISSEUR',
+        'build': lambda fields: {
+            'source-table': None,
+            'aggregation': [['avg', ['field', fields['TAUX_ECOULEMENT'], None]]],
+            'breakout': [['field', fields['FOU_NOM'], None]],
+            'filter': ['not-null', ['field', fields['TAUX_ECOULEMENT'], None]],
+            'order-by': [['desc', ['aggregation', 0]]],
+            'limit': 15,
+        },
+        'filter_columns': {'pharmacie': 'PHARMACIE_SK', 'mois': 'MOIS'},
+    },
 }
 
 
