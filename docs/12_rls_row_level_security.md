@@ -173,20 +173,64 @@ Apache Superset inclut le Row-Level Security dans sa version open source. Pour c
 
 Superset ajoute automatiquement ce `WHERE` à chaque requête du pharmacien. Le pharmacien ne peut pas le contourner.
 
-### Workflow automatisé
+### Workflow provisionnement (Metabase -- a la demande)
+
+Le provisionnement est **automatique** : `batch_loop.sh` exécute `metabase_maintenance.py` chaque nuit à 05h00 (après le cycle dbt post-reload qui garantit que `dim_pharmacie` est à jour).
+
+Le script est **léger** si rien à faire (~2 secondes : 1 SELECT Snowflake + 1 authentification Metabase) et **autonome** (s'auto-authentifie via `.env`, ne dépend d'aucun autre script).
 
 ```
-dim_pharmacie (nouvelle pharmacie détectée)
-       │
-       ▼
-provision_rls.py (05h00 via batch_loop.sh)
-       │
-       ├── 1. Détecte PHA_ID=217 dans dim_pharmacie
-       ├── 2. INSERT dans AUDIT.RLS_PHARMACY_ACCESS
-       ├── 3. Crée un rôle Superset "Pharmacie du Soleil"
-       ├── 4. Ajoute la règle RLS (clause WHERE pharmacie_sk = ...)
-       └── 5. Crée un user Superset pour le pharmacien
+NUIT (21h → 07h)
+━━━━━━━━━━━━━━━━
+00h30  CDC pré-reload
+01h00  ref_reload 14 tables référence
+04h30  CDC + dbt post-reload → dim_pharmacie à jour
+05h00  ★ metabase_maintenance.py ★
+         → Détecte les nouvelles pharmacies dans dim_pharmacie
+         → Ne fait rien si aucune nouvelle (idempotent)
+         → Provisionne automatiquement si détection
 ```
+
+```
+metabase_maintenance.py
+       │
+       ├── S'authentifie à Metabase (lit .env, pas de token manuel)
+       ├── S'authentifie à Snowflake (lit .env)
+       ├── Détecte les nouvelles pharmacies dans dim_pharmacie
+       │   (LEFT JOIN sur AUDIT.RLS_PHARMACY_ACCESS)
+       ├── Pour chaque nouvelle pharmacie :
+       │   ├── Crée le groupe Metabase
+       │   ├── Crée la collection sous Pharmacies/
+       │   ├── Configure les permissions (query-builder, curate)
+       │   └── INSERT dans AUDIT.RLS_PHARMACY_ACCESS + LOG
+       └── Affiche le rapport
+```
+
+Lancement manuel possible à tout moment :
+
+```bash
+python scripts/metabase_maintenance.py              # toutes les nouvelles
+python scripts/metabase_maintenance.py --dry-run     # simulation
+python scripts/metabase_maintenance.py --pha-id 217  # une seule pharmacie
+```
+
+### Scripts utilitaires (depannage ponctuel)
+
+  ┌─────────────────────────────────────┬──────────────────────────────────────────────────┐
+  │ Script                              │ Quand l'utiliser                                 │
+  ├─────────────────────────────────────┼──────────────────────────────────────────────────┤
+  │ `scripts/fix_cards_db.py`           │ Cartes en erreur (mauvais database_id)           │
+  │                                     │ Usage : `python scripts/get_token.py` puis       │
+  │                                     │ `python scripts/fix_cards_db.py <token>`         │
+  ├─────────────────────────────────────┼──────────────────────────────────────────────────┤
+  │ `scripts/enable_embedding.py`       │ Nouveau dashboard a rendre embeddable            │
+  │                                     │ Usage : `python scripts/get_token.py` puis       │
+  │                                     │ `python scripts/enable_embedding.py <token>`     │
+  ├─────────────────────────────────────┼──────────────────────────────────────────────────┤
+  │ `scripts/check_permissions.py`      │ Verifier les permissions d'un user test          │
+  │                                     │ Usage : `python scripts/check_permissions.py`    │
+  │                                     │ `<email> <password>`                             │
+  └─────────────────────────────────────┴──────────────────────────────────────────────────┘
 
 [↑ Retour au sommaire](#table-des-matières)
 
@@ -269,9 +313,9 @@ Les Row Access Policies Snowflake et les secure functions créées lors des test
   ┌────────────────────────────────────────────┬────────────────────────────────────────────────────────┐
   │ Fichier                                    │ Rôle                                                   │
   ├────────────────────────────────────────────┼────────────────────────────────────────────────────────┤
-  │ `scripts/provision_rls.py`                 │ Provisionnement groupes/collections Metabase           │
+  │ `scripts/metabase_maintenance.py`          │ Provisionnement a la demande (auto-auth, autonome)     │
   ├────────────────────────────────────────────┼────────────────────────────────────────────────────────┤
-  │ `scripts/batch_loop.sh`                    │ Phase rls_provision à 05h00 (nuit)                     │
+  │ `scripts/provision_rls.py`                 │ Ancien script (conserve, remplace par maintenance.py)  │
   ├────────────────────────────────────────────┼────────────────────────────────────────────────────────┤
   │ `scripts/DDL_TABLES.sql`                   │ Tables AUDIT (RLS_PHARMACY_ACCESS + RLS_PROVISION_LOG) │
   ├────────────────────────────────────────────┼────────────────────────────────────────────────────────┤
@@ -299,13 +343,13 @@ Les Row Access Policies Snowflake et les secure functions créées lors des test
   │ Cartes affichent "Champ inconnu"     │ Les cartes ont un mauvais database_id. Lancer :          │
   │ ou triangles jaunes                  │ `python scripts/fix_cards_db.py <token>`                 │
   ├──────────────────────────────────────┼──────────────────────────────────────────────────────────┤
-  │ provision_rls.py échoue à 05h00      │ Non bloquant. Vérifier les logs. Causes fréquentes :     │
-  │                                      │ Metabase down, credentials expirés.                      │
-  │                                      │ Relancer : `python scripts/provision_rls.py --run-id x`  │
-  ├──────────────────────────────────────┼──────────────────────────────────────────────────────────┤
-  │ Nouvelle pharmacie non provisionnée  │ Vérifier dim_pharmacie :                                 │
-  │                                      │ `SELECT * FROM MARTS.DIM_PHARMACIE WHERE PHA_ID = XXX`   │
-  │                                      │ Si absente : le CDC ou dbt n'a pas encore traité.        │
+  │ Nouvelle pharmacie a provisionner     │ 1. Verifier que la pharmacie est dans dim_pharmacie :     │
+  │                                      │    `SELECT * FROM MARTS.DIM_PHARMACIE WHERE PHA_ID=XXX`  │
+  │                                      │ 2. Si presente, lancer :                                  │
+  │                                      │    `python scripts/metabase_maintenance.py`               │
+  │                                      │    (auto-auth, detecte et provisionne automatiquement)    │
+  │                                      │ 3. Si absente : le CDC ou dbt n'a pas encore traite.      │
+  │                                      │    Attendre le prochain cycle batch_loop.                  │
   └──────────────────────────────────────┴──────────────────────────────────────────────────────────┘
 
 [↑ Retour au sommaire](#table-des-matières)

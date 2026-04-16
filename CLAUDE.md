@@ -63,6 +63,19 @@ Répertoire : `.claude/dev-memories/`
   │ `scripts/setup.sh`                │ Setup initial (Docker + DDL + Debezium)               │
   └───────────────────────────────────┴───────────────────────────────────────────────────────┘
 
+### Metabase BI & Embedding
+
+- **Metabase v0.58.7** + PostgreSQL 16, accès `http://localhost:3000`
+- 16 dashboards (D1-D16), 98 cartes, embedding signé (JWT) pour les pharmaciens
+- **Siège** (IT, Marketing, RH, Achats) : accès direct Metabase, filtrage par collections
+- **Pharmaciens** : dashboards via iframes (signed embedding), filtre pharmacie verrouillé par JWT
+- **Mini-app test** : `embed_app/` (Flask, port 5000) — simule l'intégration Mediprix
+- **Maintenance automatique** : `scripts/metabase_maintenance.py` (orchestrateur P1-P10, 05h00 dans batch_loop.sh)
+- **Provisionnement pharmacies** : `scripts/provision_rls.py` (groupe + collection + permissions, détection auto)
+- **10 problèmes identifiés** (P1-P10) : voir `docs/15_metabase_checklist_depannage.md`
+- **Guide embedding Mediprix** : voir `docs/14_embedding_metabase.md`
+- **Bilan RLS et options** : voir `docs/13_rls_bilan_et_options.md`
+
 ### Sécurité critique
 
 - PII masquées par MD5 dans staging : seule `FOU_ADRESSE` reste masquée

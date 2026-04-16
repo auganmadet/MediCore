@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ pha_nom }} - MediCore BI</title>
+    <script defer src="{{ metabase_url }}/app/embed.js"></script>
+    <script>
+    function defineMetabaseConfig(config) {
+      window.metabaseConfig = config;
+    }
+    defineMetabaseConfig({
+      "theme": {"preset": "light"},
+      "isGuest": true,
+      "instanceUrl": "{{ metabase_url }}"
+    });
+    </script>
+    <style>
+        body { font-family: Arial, sans-serif; background: #1a1a2e; color: #eee; margin: 0; }
+        .header { background: #16213e; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; }
+        .header h2 { margin: 0; color: #4dabf7; font-size: 16px; }
+        .header a.back { color: #aaa; text-decoration: none; font-size: 14px; }
+        .header a.back:hover { color: #fff; }
+        .tabs { background: #0f3460; padding: 8px 20px; display: flex; flex-wrap: wrap; gap: 4px; }
+        .tabs a { color: #aaa; text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 13px; white-space: nowrap; }
+        .tabs a:hover { background: #1a1a2e; color: #fff; }
+        .tabs a.active { background: #4dabf7; color: #fff; }
+        .embed-container { width: 100%; padding: 0; box-sizing: border-box; }
+        metabase-dashboard { display: block; width: 100%; height: calc(100vh - 80px); }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2>{{ pha_nom }}</h2>
+        <a href="/" class="back">Changer de pharmacie</a>
+    </div>
+    <div class="tabs">
+        {% for d in dashboards %}
+        <a href="/dashboard/{{ d.id }}" class="{% if d.id == dash_id %}active{% endif %}">{{ d.name }}</a>
+        {% endfor %}
+    </div>
+    <div class="embed-container">
+        <metabase-dashboard
+            token="{{ jwt_token }}"
+            with-title="true"
+            with-downloads="true"
+        ></metabase-dashboard>
+    </div>
+</body>
+</html>

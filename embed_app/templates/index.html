@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>MediCore BI - Selection pharmacie</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #1a1a2e; color: #eee; margin: 0; padding: 40px; }
+        h1 { color: #4dabf7; }
+        select { width: 400px; padding: 10px; font-size: 16px; border-radius: 4px; }
+        button { padding: 10px 30px; font-size: 16px; background: #4dabf7; color: #fff; border: none; border-radius: 4px; cursor: pointer; margin-top: 15px; }
+        button:hover { background: #339af0; }
+        .container { max-width: 600px; margin: 100px auto; text-align: center; }
+        p { color: #aaa; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>MediCore BI</h1>
+        <p>Selectionnez votre pharmacie pour acceder aux dashboards</p>
+        <form action="/select" method="POST">
+            <select name="pha_id" id="pha_select" required>
+                <option value="">-- Choisir une pharmacie --</option>
+                {% for p in pharmacies %}
+                <option value="{{ p.pha_id }}" data-nom="{{ p.pha_nom }}">{{ p.pha_nom }} (PHA_ID={{ p.pha_id }})</option>
+                {% endfor %}
+            </select>
+            <input type="hidden" name="pha_nom" id="pha_nom_hidden">
+            <br>
+            <button type="submit">Acceder aux dashboards</button>
+        </form>
+    </div>
+    <script>
+        document.getElementById('pha_select').addEventListener('change', function() {
+            var selected = this.options[this.selectedIndex];
+            document.getElementById('pha_nom_hidden').value = selected.getAttribute('data-nom') || '';
+        });
+    </script>
+</body>
+</html>

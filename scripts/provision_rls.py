@@ -22,6 +22,7 @@ import argparse
 import json
 import logging
 import os
+import time
 import urllib.request
 import urllib.error
 from typing import Any, Dict, List, Optional
@@ -70,38 +71,62 @@ def mb_authenticate() -> str:
 
 
 def mb_get(token: str, path: str) -> Any:
-    """GET sur l'API Metabase."""
-    req = urllib.request.Request(
-        f'{MB_BASE}/{path}',
-        headers={'X-Metabase-Session': token},
-    )
-    return json.loads(urllib.request.urlopen(req, timeout=60).read())
+    """GET sur l'API Metabase avec retry."""
+    for attempt in range(3):
+        try:
+            req = urllib.request.Request(
+                f'{MB_BASE}/{path}',
+                headers={'X-Metabase-Session': token},
+            )
+            return json.loads(urllib.request.urlopen(req, timeout=120).read())
+        except (urllib.error.URLError, TimeoutError) as e:
+            if attempt < 2:
+                logger.warning(f"Retry {attempt+1}/3 GET {path}: {e}")
+                time.sleep(5)
+            else:
+                raise
 
 
 def mb_post(token: str, path: str, data: Dict) -> Any:
-    """POST sur l'API Metabase."""
-    body = json.dumps(data).encode('utf-8')
-    req = urllib.request.Request(
-        f'{MB_BASE}/{path}', data=body, method='POST',
-        headers={
-            'X-Metabase-Session': token,
-            'Content-Type': 'application/json; charset=utf-8',
-        },
-    )
-    return json.loads(urllib.request.urlopen(req, timeout=60).read())
+    """POST sur l'API Metabase avec retry."""
+    for attempt in range(3):
+        try:
+            body = json.dumps(data).encode('utf-8')
+            req = urllib.request.Request(
+                f'{MB_BASE}/{path}', data=body, method='POST',
+                headers={
+                    'X-Metabase-Session': token,
+                    'Content-Type': 'application/json; charset=utf-8',
+                },
+            )
+            return json.loads(urllib.request.urlopen(req, timeout=120).read())
+        except (urllib.error.URLError, TimeoutError) as e:
+            if attempt < 2:
+                logger.warning(f"Retry {attempt+1}/3 POST {path}: {e}")
+                time.sleep(5)
+            else:
+                raise
 
 
 def mb_put(token: str, path: str, data: Dict) -> Any:
-    """PUT sur l'API Metabase."""
-    body = json.dumps(data).encode('utf-8')
-    req = urllib.request.Request(
-        f'{MB_BASE}/{path}', data=body, method='PUT',
-        headers={
-            'X-Metabase-Session': token,
-            'Content-Type': 'application/json; charset=utf-8',
-        },
-    )
-    return json.loads(urllib.request.urlopen(req, timeout=60).read())
+    """PUT sur l'API Metabase avec retry."""
+    for attempt in range(3):
+        try:
+            body = json.dumps(data).encode('utf-8')
+            req = urllib.request.Request(
+                f'{MB_BASE}/{path}', data=body, method='PUT',
+                headers={
+                    'X-Metabase-Session': token,
+                    'Content-Type': 'application/json; charset=utf-8',
+                },
+            )
+            return json.loads(urllib.request.urlopen(req, timeout=120).read())
+        except (urllib.error.URLError, TimeoutError) as e:
+            if attempt < 2:
+                logger.warning(f"Retry {attempt+1}/3 PUT {path}: {e}")
+                time.sleep(5)
+            else:
+                raise
 
 
 # --- Fonctions métier ---------------------------------------------------------
@@ -292,6 +317,11 @@ def provision_new_pharmacies(
 
         update_metabase_ids(audit_cursor, pha_id, grp_id, coll_id)
         provisioned += 1
+        logger.info("Provisionne %d/%d : %s", provisioned, len(new_pharmacies), pha_nom)
+
+        # Pause entre chaque pharmacie pour eviter le timeout Metabase
+        if provisioned < len(new_pharmacies):
+            time.sleep(3)
 
     return provisioned
 
