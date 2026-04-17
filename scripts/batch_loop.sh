@@ -363,8 +363,9 @@ while true; do
     # Le dernier cycle dbt de la journee est celui juste avant 21h.
     # Apres 21h, on entre en mode nuit.
 
-    # --- 00h30 : 1 CDC seul (vider backlog Kafka avant ref_reload) ---
-    if [ "$HOUR" = "$NIGHT_CDC_HOUR" ] && [ "$(date +%M)" -ge "${NIGHT_CDC_MIN}" ] && [ ! -f "$NIGHT_CDC_DONE_FLAG" ]; then
+    # --- CDC pre-reload (vider backlog Kafka avant ref_reload) ---
+    # Utilise >= pour ne pas rater la fenetre avec le sleep 10 min
+    if [ "$HOUR" -ge "$NIGHT_CDC_HOUR" ] && [ ! -f "$NIGHT_CDC_DONE_FLAG" ] && [ ! -f "$REF_DONE_FLAG" ]; then
       echo "Mode nuit: CDC pre-reload (vider backlog Kafka)"
       run_cdc
       touch "$NIGHT_CDC_DONE_FLAG"
@@ -401,8 +402,9 @@ print('Audit purge terminee')
     fi
     [ "$HOUR" = "02" ] && rm -f "/tmp/metabase_backup_done_today"
 
-    # --- 01h00 : ref_reload 14 tables reference (~3h-3h30) ---
-    if [ "$HOUR" = "$REF_RELOAD_HOUR" ] && [ ! -f "$REF_DONE_FLAG" ]; then
+    # --- ref_reload 14 tables reference (~3h-3h30) ---
+    # Utilise >= au lieu de == pour ne pas rater la fenetre si le cycle tombe entre deux heures
+    if [ "$HOUR" -ge "$REF_RELOAD_HOUR" ] && [ "$HOUR" -lt "$POST_RELOAD_DBT_HOUR" ] && [ ! -f "$REF_DONE_FLAG" ]; then
       echo "Phase ref-reload: 14 tables reference (truncate + bulk load)"
       python3 -c "from pipelines.utils.audit import log_step_start; log_step_start('$RUN_ID', 'ref_reload')" 2>/dev/null || true
       if timeout "$REF_TIMEOUT_SEC" python /app/pipelines/bulk_load.py --ref-only --truncate --run-id "$RUN_ID"; then
