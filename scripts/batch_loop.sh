@@ -431,15 +431,15 @@ print('Audit purge terminee')
       touch "$POST_RELOAD_DBT_DONE_FLAG"
     fi
 
-    # --- 05h00 : détection et provisionnement nouvelles pharmacies (1x/jour) ---
-    # Léger si rien à faire (~2s : 1 SELECT Snowflake + 1 auth Metabase)
-    # Provisionne automatiquement : groupe + collection + permissions Metabase
+    # --- 05h00 : maintenance pipeline complète (1x/jour) ---
+    # 5 phases : healthcheck, CDC, bulk, dbt, Metabase (P1-P10 + provisionnement)
+    # --fix-safe : corrections sures uniquement (pas de reload lourd)
     if ([ "$HOUR" = "05" ] || [ "$HOUR" = "06" ]) && [ ! -f "$MB_PROV_DONE_FLAG" ]; then
-      echo "Phase metabase-provision: détection nouvelles pharmacies"
-      if timeout "$PHASE_TIMEOUT_SEC" python /app/scripts/metabase_maintenance.py; then
-        echo "Metabase provision terminé"
+      echo "Phase pipeline-maintenance: 5 phases (healthcheck, CDC, bulk, dbt, Metabase)"
+      if timeout "$PHASE_TIMEOUT_SEC" python /app/scripts/pipeline_maintenance.py --fix-safe; then
+        echo "Pipeline maintenance termine"
       else
-        echo "Metabase provision échec (non bloquant)"
+        echo "Pipeline maintenance echec (non bloquant)"
       fi
       touch "$MB_PROV_DONE_FLAG"
     fi
