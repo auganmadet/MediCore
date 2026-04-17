@@ -157,12 +157,15 @@ def insert_pharmacy_access(
     pha_nom: str,
     pharmacie_sk: str,
 ) -> None:
-    """Insère une nouvelle pharmacie dans RLS_PHARMACY_ACCESS."""
+    """Insère une nouvelle pharmacie dans RLS_PHARMACY_ACCESS (idempotent)."""
     cursor.execute(
-        "INSERT INTO AUDIT.RLS_PHARMACY_ACCESS "
-        "(PHA_ID, PHA_NOM, PHARMACIE_SK, SF_USERNAME) "
-        "VALUES (%s, %s, %s, %s)",
-        (pha_id, pha_nom, pharmacie_sk, 'MEDICORE_ANALYST'),
+        "MERGE INTO AUDIT.RLS_PHARMACY_ACCESS t "
+        "USING (SELECT %s AS PHA_ID, %s AS PHA_NOM, %s AS PHARMACIE_SK, "
+        "'MEDICORE_ANALYST' AS SF_USERNAME) s "
+        "ON t.PHA_ID = s.PHA_ID "
+        "WHEN NOT MATCHED THEN INSERT (PHA_ID, PHA_NOM, PHARMACIE_SK, SF_USERNAME) "
+        "VALUES (s.PHA_ID, s.PHA_NOM, s.PHARMACIE_SK, s.SF_USERNAME)",
+        (pha_id, pha_nom, pharmacie_sk),
     )
 
 
@@ -185,7 +188,12 @@ def get_or_create_pharmacies_collection(token: str) -> int:
 
 
 def create_metabase_group(token: str, group_name: str) -> int:
-    """Crée un groupe Metabase, retourne l'ID."""
+    """Trouve ou crée un groupe Metabase, retourne l'ID."""
+    groups = mb_get(token, 'permissions/group')
+    for grp in groups:
+        if grp.get('name') == group_name:
+            logger.info("Groupe existant: '%s' id=%d", group_name, grp['id'])
+            return grp['id']
     resp = mb_post(token, 'permissions/group', {'name': group_name})
     return resp['id']
 
@@ -195,7 +203,14 @@ def create_metabase_collection(
     name: str,
     parent_id: int,
 ) -> int:
-    """Crée une collection Metabase, retourne l'ID."""
+    """Trouve ou crée une collection Metabase, retourne l'ID."""
+    collections = mb_get(token, 'collection')
+    for coll in collections:
+        if (coll.get('name') == name
+                and coll.get('parent_id') == parent_id
+                and not coll.get('archived')):
+            logger.info("Collection existante: '%s' id=%d", name, coll['id'])
+            return coll['id']
     resp = mb_post(token, 'collection', {
         'name': name,
         'parent_id': parent_id,

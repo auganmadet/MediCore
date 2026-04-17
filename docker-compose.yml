@@ -202,7 +202,7 @@ services:
       MB_DB_PASS: ${METABASE_DB_PASSWORD:-metabase_dev}
       MB_JETTY_PORT: 3000
       # SMTP pour emails d'invitation et alertes
-      MB_EMAIL_SMTP_HOST: ${MB_EMAIL_SMTP_HOST:-smtp.office365.com}
+      MB_EMAIL_SMTP_HOST: ${MB_EMAIL_SMTP_HOST:-smtp.gmail.com}
       MB_EMAIL_SMTP_PORT: ${MB_EMAIL_SMTP_PORT:-587}
       MB_EMAIL_SMTP_SECURITY: ${MB_EMAIL_SMTP_SECURITY:-tls}
       MB_EMAIL_SMTP_USERNAME: ${MB_EMAIL_SMTP_USERNAME:-}
