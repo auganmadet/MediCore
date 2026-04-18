@@ -220,7 +220,16 @@ def bulk_load_table(mysql_conn: Any, sf_conn: Any, mysql_table: str, sf_table: s
     # Curseur Snowflake réutilisé (évite fuite mémoire : 1 cursor par chunk = OOM)
     sf_cursor = sf_conn.cursor()
 
+    # Pattern CLONE+SWAP : backup zero-copy avant TRUNCATE, rollback si echec
+    backup_table = f"{sf_table}_BACKUP"
+    has_backup = False
     if truncate:
+        try:
+            sf_cursor.execute(f"CREATE OR REPLACE TABLE {backup_table} CLONE {sf_table}")
+            has_backup = True
+            logger.info(f"  CLONE {sf_table} -> {backup_table}")
+        except Exception as e:
+            logger.warning(f"  CLONE echoue (premiere execution?) : {e}")
         sf_cursor.execute(f"TRUNCATE TABLE {sf_table}")
         logger.info(f"  TRUNCATE {sf_table}")
 
@@ -347,6 +356,26 @@ def bulk_load_table(mysql_conn: Any, sf_conn: Any, mysql_table: str, sf_table: s
     logger.info(f"  COPY INTO {sf_table} depuis {stage_path} ({chunk_num} fichiers)...")
     copy_time = _copy_into_and_cleanup(sf_cursor, sf_table, stage_path, chunk_num, force)
     logger.info(f"  COPY INTO termine en {copy_time:.1f}s")
+
+    # Pattern CLONE+SWAP : verification post-load + cleanup ou rollback
+    if has_backup and truncate:
+        if total_rows > 0:
+            # Load OK -> supprimer le backup
+            try:
+                sf_cursor.execute(f"DROP TABLE IF EXISTS {backup_table}")
+                logger.info(f"  Backup {backup_table} supprime (load OK)")
+            except Exception:
+                pass
+        else:
+            # Load vide -> rollback : SWAP le backup en place
+            logger.warning(f"  {sf_table} vide apres load — rollback depuis {backup_table}")
+            try:
+                sf_cursor.execute(f"ALTER TABLE {backup_table} SWAP WITH {sf_table}")
+                sf_cursor.execute(f"DROP TABLE IF EXISTS {backup_table}")
+                logger.info(f"  Rollback OK — {sf_table} restaure depuis le backup")
+            except Exception as e:
+                logger.error(f"  Rollback echoue : {e}")
+
     sf_cursor.close()
 
     elapsed = time.time() - start

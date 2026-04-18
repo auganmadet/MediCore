@@ -25,16 +25,19 @@ else
 fi
 
 # --- Mode nuit (WH dort, cycles reduits) ---
-NIGHT_START=${NIGHT_START:-21}
-NIGHT_END=${NIGHT_END:-7}
-# Heure du CDC pre-reload (vider backlog Kafka avant TRUNCATE)
-NIGHT_CDC_HOUR=${NIGHT_CDC_HOUR:-00}
+# Toutes les heures sont en UTC. Heure francaise = UTC + 2 (ete) / UTC + 1 (hiver)
+# Mode nuit : 21h FR (19h UTC) -> 07h FR (05h UTC)
+NIGHT_START=${NIGHT_START:-19}
+NIGHT_END=${NIGHT_END:-5}
+# CDC pre-reload : 21h30 FR (19h30 UTC) — vider backlog Kafka avant reload
+NIGHT_CDC_HOUR=${NIGHT_CDC_HOUR:-19}
 NIGHT_CDC_MIN=${NIGHT_CDC_MIN:-30}
-# Heure du ref_reload (avance a 01h pour finir avant 05h)
-REF_RELOAD_HOUR=${REF_RELOAD_HOUR:-01}
-# Heure du cycle dbt post-reload (apres fin ref_reload)
-POST_RELOAD_DBT_HOUR=${POST_RELOAD_DBT_HOUR:-04}
-POST_RELOAD_DBT_MIN=${POST_RELOAD_DBT_MIN:-30}
+# ref_reload : 23h FR (21h UTC) — 14 tables reference (~4h30)
+REF_RELOAD_HOUR=${REF_RELOAD_HOUR:-21}
+# dbt post-reload : 04h FR (02h UTC) — staging + marts + tests + freshness
+# Conditionne au flag REF_DONE_FLAG (ne demarre que quand ref_reload est termine)
+POST_RELOAD_DBT_HOUR=${POST_RELOAD_DBT_HOUR:-02}
+POST_RELOAD_DBT_MIN=${POST_RELOAD_DBT_MIN:-00}
 
 LOCK_FILE="/tmp/bulk_load.lock"
 REF_DONE_FLAG="/tmp/ref_bulk_done_today"
@@ -308,7 +311,8 @@ run_dbt() {
 # ==========================================================================
 
 echo "MediCore Batch Loop - CDC ${CDC_INTERVAL_MIN}min, dbt every ${DBT_EVERY_N} cycles - ENV: ${ENV}"
-echo "  Mode nuit: ${NIGHT_START}h-${NIGHT_END}h (CDC ${NIGHT_CDC_HOUR}:${NIGHT_CDC_MIN}, ref_reload ${REF_RELOAD_HOUR}h, dbt post-reload ${POST_RELOAD_DBT_HOUR}:${POST_RELOAD_DBT_MIN})"
+echo "  Mode nuit: ${NIGHT_START}h-${NIGHT_END}h UTC (CDC ${NIGHT_CDC_HOUR}:${NIGHT_CDC_MIN}, ref_reload ${REF_RELOAD_HOUR}h, dbt post-reload ${POST_RELOAD_DBT_HOUR}:${POST_RELOAD_DBT_MIN})"
+echo "  Heures FR (UTC+2): nuit 21h-07h, CDC 21h30, ref_reload 23h, dbt 04h, maintenance 04h30"
 
 # En dev : mode single-run (pas de boucle infinie)
 if [ "${ENV}" = "dev" ] && [ "${BATCH_LOOP:-true}" = "false" ]; then
@@ -346,8 +350,8 @@ while true; do
     fi
   fi
 
-  # Reset flags et compteurs quotidiens a minuit
-  if [ "$HOUR" = "00" ]; then
+  # Reset flags et compteurs quotidiens au debut du mode nuit (19h UTC = 21h FR)
+  if [ "$HOUR" = "19" ] && [ "$(date +%M)" -lt "10" ]; then
     rm -f "$REF_DONE_FLAG" "$NIGHT_CDC_DONE_FLAG" "$POST_RELOAD_DBT_DONE_FLAG" "$MB_PROV_DONE_FLAG"
     REF_FAIL=0; CDC_FAIL=0; STG_FAIL=0; SNAP_FAIL=0; MARTS_FAIL=0
     TEST_FAIL=0; MARTS_TEST_FAIL=0; FRESH_FAIL=0; ZERO_VOL=0; LAG_HIGH=0
@@ -371,8 +375,8 @@ while true; do
       touch "$NIGHT_CDC_DONE_FLAG"
     fi
 
-    # --- Retention audit : purge donnees > 90 jours (1x/jour a 00h) ---
-    if [ "$HOUR" = "00" ] && [ ! -f "/tmp/audit_purge_done_today" ]; then
+    # --- Retention audit : purge donnees > 90 jours (22h FR = 20h UTC) ---
+    if [ "$HOUR" = "20" ] && [ ! -f "/tmp/audit_purge_done_today" ]; then
       echo "Phase audit-purge: retention 90 jours"
       python3 -c "
 from pipelines.utils.audit import _get_audit_conn
@@ -388,10 +392,10 @@ print('Audit purge terminee')
 " 2>/dev/null || echo "Audit purge failed (non bloquant)"
       touch "/tmp/audit_purge_done_today"
     fi
-    [ "$HOUR" = "02" ] && rm -f "/tmp/audit_purge_done_today"
+    [ "$HOUR" = "22" ] && rm -f "/tmp/audit_purge_done_today"
 
-    # --- 00h : backup quotidien Metabase (pg_dump) ---
-    if [ "$HOUR" = "00" ] && [ ! -f "/tmp/metabase_backup_done_today" ]; then
+    # --- 22h FR (20h UTC) : backup quotidien Metabase (pg_dump) ---
+    if [ "$HOUR" = "20" ] && [ ! -f "/tmp/metabase_backup_done_today" ]; then
       echo "Phase backup-metabase: dump quotidien PostgreSQL"
       if bash /app/scripts/backup_metabase.sh; then
         echo "Backup Metabase termine"
@@ -400,7 +404,7 @@ print('Audit purge terminee')
       fi
       touch "/tmp/metabase_backup_done_today"
     fi
-    [ "$HOUR" = "02" ] && rm -f "/tmp/metabase_backup_done_today"
+    [ "$HOUR" = "22" ] && rm -f "/tmp/metabase_backup_done_today"
 
     # --- ref_reload 14 tables reference (~3h-3h30) ---
     # Utilise >= au lieu de == pour ne pas rater la fenetre si le cycle tombe entre deux heures
@@ -422,19 +426,22 @@ print('Audit purge terminee')
     fi
 
     # --- 04h30 : 1 CDC + 1 cycle dbt complet (integre ref_reload) ---
+    # --- dbt post-reload : uniquement APRES ref_reload termine ---
+    # Condition REF_DONE_FLAG evite le bug HHMM (2102 >= 0430 etait toujours vrai)
     CURRENT_HHMM=$(date +%H%M)
     POST_RELOAD_HHMM="${POST_RELOAD_DBT_HOUR}${POST_RELOAD_DBT_MIN}"
-    if [ "$CURRENT_HHMM" -ge "$POST_RELOAD_HHMM" ] && [ ! -f "$POST_RELOAD_DBT_DONE_FLAG" ]; then
+    if [ -f "$REF_DONE_FLAG" ] && [ "$CURRENT_HHMM" -ge "$POST_RELOAD_HHMM" ] && [ ! -f "$POST_RELOAD_DBT_DONE_FLAG" ]; then
       echo "Mode nuit: cycle post-reload (CDC + dbt complet)"
       run_cdc
       run_dbt
       touch "$POST_RELOAD_DBT_DONE_FLAG"
     fi
 
-    # --- 05h00 : maintenance pipeline complète (1x/jour) ---
+    # --- 04h30 FR (02h30 UTC) : maintenance pipeline complete (1x/jour) ---
     # 5 phases : healthcheck, CDC, bulk, dbt, Metabase (P1-P10 + provisionnement)
     # --fix-safe : corrections sures uniquement (pas de reload lourd)
-    if ([ "$HOUR" = "05" ] || [ "$HOUR" = "06" ]) && [ ! -f "$MB_PROV_DONE_FLAG" ]; then
+    # Attend que ref_reload + dbt post-reload soient termines
+    if [ -f "$REF_DONE_FLAG" ] && [ -f "$POST_RELOAD_DBT_DONE_FLAG" ] && ([ "$HOUR" = "02" ] || [ "$HOUR" = "03" ] || [ "$HOUR" = "04" ]) && [ ! -f "$MB_PROV_DONE_FLAG" ]; then
       echo "Phase pipeline-maintenance: 5 phases (healthcheck, CDC, bulk, dbt, Metabase)"
       if timeout "$PHASE_TIMEOUT_SEC" python /app/scripts/pipeline_maintenance.py --fix-safe; then
         echo "Pipeline maintenance termine"
@@ -443,7 +450,7 @@ print('Audit purge terminee')
       fi
       touch "$MB_PROV_DONE_FLAG"
     fi
-    [ "$HOUR" = "07" ] && rm -f "$MB_PROV_DONE_FLAG"
+    [ "$HOUR" = "05" ] && rm -f "$MB_PROV_DONE_FLAG"
 
     # Statut global du run
     if [ $CDC_FAIL -gt 0 ] || [ $STG_FAIL -gt 0 ] || [ $MARTS_FAIL -gt 0 ]; then
