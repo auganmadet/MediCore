@@ -58,7 +58,7 @@ MediCore est un pipeline ELT (MySQL → Kafka → Snowflake → dbt) qui aliment
   ├──────────────────────────────────────┼──────────────────────────────────────────────┤
   │ Script provision_rls.py              │ ✅ Fonctionnel (détection + provisionnement) │
   ├──────────────────────────────────────┼──────────────────────────────────────────────┤
-  │ Intégration batch_loop.sh (05h00)    │ ✅ En place                                  │
+  │ Integration batch_loop.sh (04h30 FR)    │ ✅ En place                                  │
   └──────────────────────────────────────┴──────────────────────────────────────────────┘
 
 Le filtrage **côté Snowflake fonctionne parfaitement**. Un user MB_PHARMA_217 connecté directement à Snowflake ne voit que les données de PHA_ID=217 sur les 32 tables MARTS.

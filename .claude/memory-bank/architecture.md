@@ -104,7 +104,7 @@ MySQL RDS (winstat)
 
 ## Boucle d'orchestration (batch_loop.sh)
 
-1. Bulk load référence (1x/jour @ 03h00) : `bulk_load.py --ref-only --truncate`
+1. Bulk load référence (1x/jour @ 23h FR, CLONE+SWAP) : `bulk_load.py --ref-only --truncate`
 2. Consumer CDC : `daily_cdc_batch.py` (Kafka -> Snowflake RAW)
 3. dbt staging : `dbt run --select tag:staging`
 4. dbt marts : `dbt run --select tag:marts`

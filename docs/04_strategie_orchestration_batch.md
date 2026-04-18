@@ -183,8 +183,8 @@ implémente cette séparation dans une boucle unique avec des compteurs.
   │ dbt (RAW → MARTS) │ Toutes les ~60  │ KPIs journaliers : 1h de fraîcheur   │
   │                   │ min en journée  │ invisible pour l'utilisateur         │
   ├───────────────────┼─────────────────┼──────────────────────────────────────┤
-  │ Ref_reload (MySQL │ 1x/jour à 01h   │ Finir avant 05h pour que les données │
-  │ → RAW, 14 tables) │                 │ soient prêtes à l'ouverture          │
+  │ Ref_reload (MySQL │ 1x/jour à 23h FR │ CLONE+SWAP, finir avant 04h FR       │
+  │ → RAW, 14 tables) │ (21h UTC)       │ pour dbt post-reload à 04h FR        │
   └───────────────────┴─────────────────┴──────────────────────────────────────┘
 
 ### Mode jour (07h - 21h) : CDC rapide + dbt périodique
@@ -430,10 +430,9 @@ Toutes les variables sont surchargeables via l'environnement (.env) :
   │ DBT_EVERY_N                │ 6 (~60 min)   │ 3 (~6 min)    │ dbt toutes les N         │
   │                            │               │               │ itérations CDC           │
   ├────────────────────────────┼───────────────┼───────────────┼──────────────────────────┤
-  │ NIGHT_START / NIGHT_END    │ 21 / 7        │ 21 / 7        │ Plage mode nuit          │
+  │ NIGHT_START / NIGHT_END    │ 19 / 5 (UTC)  │ 19 / 5 (UTC)  │ 21h-07h FR (UTC+2)       │
   ├────────────────────────────┼───────────────┼───────────────┼──────────────────────────┤
-  │ REF_RELOAD_HOUR            │ 01            │ 01            │ Heure du bulk load       │
-  │                            │               │               │ référence                │
+  │ REF_RELOAD_HOUR            │ 21 (UTC)      │ 21 (UTC)      │ 23h FR, CLONE+SWAP       │
   ├────────────────────────────┼───────────────┼───────────────┼──────────────────────────┤
   │ REF_TIMEOUT_SEC            │ 18000 (5h)    │ 18000         │ Timeout ref_reload       │
   ├────────────────────────────┼───────────────┼───────────────┼──────────────────────────┤

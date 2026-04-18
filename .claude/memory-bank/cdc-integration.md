@@ -99,7 +99,7 @@ KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
 
 ## Bulk load référence (14 tables)
 
-- Exécution quotidienne à 03h00 via `batch_loop.sh`
+- Exécution quotidienne à 23h FR (21h UTC) via `batch_loop.sh` avec pattern CLONE+SWAP
 - `bulk_load.py --ref-only --truncate`
 - Flux : MySQL SELECT -> pandas DataFrame -> Parquet -> PUT @stage -> COPY INTO
 - TRUNCATE avant reload (tables référence = snapshot complet)

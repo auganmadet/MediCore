@@ -70,7 +70,7 @@ Répertoire : `.claude/dev-memories/`
 - **Siège** (IT, Marketing, RH, Achats) : accès direct Metabase, filtrage par collections
 - **Pharmaciens** : dashboards via iframes (signed embedding), filtre pharmacie verrouillé par JWT
 - **Mini-app test** : `embed_app/` (Flask, port 5000) — simule l'intégration Mediprix
-- **Maintenance automatique** : `scripts/pipeline_maintenance.py --fix-safe` (5 phases, 05h00 dans batch_loop.sh)
+- **Maintenance automatique** : `scripts/pipeline_maintenance.py --fix-safe` (5 phases, 04h30 FR dans batch_loop.sh)
 - **Orchestrateur Metabase** : `scripts/metabase_maintenance.py` (P1-P10, appelé par pipeline_maintenance)
 - **Provisionnement pharmacies** : `scripts/provision_rls.py` (groupe + collection + permissions, détection auto)
 - **10 problèmes identifiés** (P1-P10) : voir `docs/15_metabase_checklist_depannage.md`

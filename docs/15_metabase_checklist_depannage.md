@@ -17,7 +17,7 @@
 python scripts/metabase_maintenance.py
 ```
 
-C'est tout. Ce script détecte et corrige **automatiquement** les 10 problèmes identifiés (P1-P10). Il s'auto-authentifie via `.env` — pas besoin de passer un token. C'est celui qui tourne chaque nuit à 05h00 dans `batch_loop.sh`.
+C'est tout. Ce script détecte et corrige **automatiquement** les 10 problèmes identifiés (P1-P10). Il s'auto-authentifie via `.env` — pas besoin de passer un token. Il est appelé par `pipeline_maintenance.py --fix-safe` qui tourne chaque nuit à 04h30 FR dans `batch_loop.sh`.
 
 Autres modes d'exécution :
 
@@ -519,7 +519,7 @@ python scripts/list_users.py <token>
 
   ┌─────────────┬─────────────────────────────────────────────────────────────────────────────────────────────────┐
   │ Symptôme    │ La pharmacie n'apparaît pas dans la mini-app Flask. Détection automatique chaque nuit à         │
-  │             │ 05h00 via `batch_loop.sh`.                                                                      │
+  │             │ 04h30 FR via `batch_loop.sh` (pipeline_maintenance.py).                                                                      │
   ├─────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────┤
   │ Cause       │ La pharmacie existe dans `dim_pharmacie` (Snowflake) mais n'a pas encore de groupe ni de        │
   │             │ collection dans Metabase.                                                                       │

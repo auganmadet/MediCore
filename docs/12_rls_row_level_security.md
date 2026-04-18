@@ -144,7 +144,7 @@ Le script détecte les nouvelles pharmacies dans `dim_pharmacie` et crée les gr
 - Permissions : Vue sur MediCore BI, query-builder uniquement
 
 ```bash
-# Provisionnement automatique (batch_loop.sh à 05h00)
+# Provisionnement automatique (batch_loop.sh a 04h30 FR)
 python scripts/provision_rls.py --run-id <UUID>
 
 # Provisionnement ciblé
@@ -175,7 +175,7 @@ Superset ajoute automatiquement ce `WHERE` à chaque requête du pharmacien. Le 
 
 ### Workflow provisionnement (Metabase -- a la demande)
 
-Le provisionnement est **automatique** : `batch_loop.sh` exécute `metabase_maintenance.py` chaque nuit à 05h00 (après le cycle dbt post-reload qui garantit que `dim_pharmacie` est à jour).
+Le provisionnement est **automatique** : `batch_loop.sh` exécute `pipeline_maintenance.py --fix-safe` chaque nuit à 04h30 FR (après le ref_reload et le dbt post-reload qui garantissent que `dim_pharmacie` est à jour).
 
 Le script est **léger** si rien à faire (~2 secondes : 1 SELECT Snowflake + 1 authentification Metabase) et **autonome** (s'auto-authentifie via `.env`, ne dépend d'aucun autre script).
 
@@ -183,9 +183,9 @@ Le script est **léger** si rien à faire (~2 secondes : 1 SELECT Snowflake + 1 
 NUIT (21h → 07h)
 ━━━━━━━━━━━━━━━━
 00h30  CDC pré-reload
-01h00  ref_reload 14 tables référence
-04h30  CDC + dbt post-reload → dim_pharmacie à jour
-05h00  ★ metabase_maintenance.py ★
+23h00 FR  ref_reload 14 tables référence (CLONE+SWAP, ~4h30)
+04h00 FR  CDC + dbt post-reload → dim_pharmacie à jour
+04h30 FR  ★ pipeline_maintenance.py --fix-safe ★ (inclut metabase P1-P10)
          → Détecte les nouvelles pharmacies dans dim_pharmacie
          → Ne fait rien si aucune nouvelle (idempotent)
          → Provisionne automatiquement si détection

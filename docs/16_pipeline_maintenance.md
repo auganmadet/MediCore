@@ -19,7 +19,7 @@
 python scripts/pipeline_maintenance.py --fix-safe
 ```
 
-Ce script orchestre les 5 phases de maintenance du pipeline MediCore. Il s'auto-authentifie via `.env`, détecte et corrige les problèmes automatiquement. Il tourne chaque nuit à 05h00 dans `batch_loop.sh`.
+Ce script orchestre les 5 phases de maintenance du pipeline MediCore. Il s'auto-authentifie via `.env`, détecte et corrige les problèmes automatiquement. Il tourne chaque nuit à **04h30 FR** (02h30 UTC) dans `batch_loop.sh`, après le ref_reload et le dbt post-reload.
 
 Autres modes d'exécution :
 
@@ -218,22 +218,28 @@ Détecte et corrige 10 problèmes Metabase. Voir `docs/15_metabase_checklist_dep
 ## Intégration batch_loop.sh
 
 ```
-NUIT (21h → 07h)
-━━━━━━━━━━━━━━━━
-00h00  Reset flags quotidiens
-00h30  CDC pré-reload (vider backlog Kafka)
-01h00  ref_reload 14 tables référence (~3h, TRUNCATE + bulk_load)
-04h30  CDC + dbt post-reload (staging + snapshots + marts + tests + freshness)
-05h00  ★ pipeline_maintenance.py --fix-safe ★
-         → Phase 1 : healthcheck (H1-H7)
-         → Phase 2 : CDC (C1-C6)
-         → Phase 3 : bulk (B1-B6, alerte seulement pour B4/B5)
-         → Phase 4 : dbt (D1-D6, alerte seulement pour D1/D2)
-         → Phase 5 : Metabase (P1-P10 + provisionnement pharmacies)
-         → Rapport global
+NUIT — heures françaises (UTC+2)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+21h00 FR  Passage en mode nuit + reset flags quotidiens
+21h30 FR  CDC pré-reload (vider backlog Kafka)
+22h00 FR  Audit purge (> 90j) + Backup Metabase (pg_dump)
+23h00 FR  ref_reload 14 tables référence (~4h30, CLONE+SWAP)
+→ 03h30 FR
+04h00 FR  CDC + dbt post-reload (conditionné au ref_reload terminé)
+            staging (1m40) + marts (8m35) + tests (47s) + freshness (3s)
+→ 04h15 FR
+04h30 FR  ★ pipeline_maintenance.py --fix-safe ★
+            → Phase 1 : healthcheck (H1-H7)
+            → Phase 2 : CDC (C1-C6)
+            → Phase 3 : bulk (B1-B6, alerte seulement pour B4/B5)
+            → Phase 4 : dbt (D1-D6, alerte seulement pour D1/D2)
+            → Phase 5 : Metabase (P1-P10 + provisionnement pharmacies)
+            → Rapport global (~10 min)
+→ 04h40 FR
+07h00 FR  Passage en mode jour
 ```
 
-Le ref_reload (01h00) utilise `HOUR >= REF_RELOAD_HOUR` pour ne pas manquer la fenêtre avec le sleep 10 min en mode nuit.
+Le ref_reload utilise `HOUR >= REF_RELOAD_HOUR` pour ne pas manquer la fenêtre avec le sleep 10 min en mode nuit. Le dbt post-reload et pipeline_maintenance sont conditionnés au flag `REF_DONE_FLAG` (ne démarrent que quand le ref_reload est terminé). Le bulk_load utilise le pattern CLONE+SWAP (backup zero-copy avant TRUNCATE, rollback automatique si échec).
 
 [↑ Retour au sommaire](#table-des-matières)
 
