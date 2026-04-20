@@ -1,7 +1,10 @@
 """Creation du dashboard D17 - Couts Snowflake (plan Z6_7 etape 4).
 
-Cree 4 cartes SQL natives dans la collection Qualite & Pilotage > Cards > IT (id=35),
-puis un dashboard D17 dans Qualite & Pilotage > Dashboards > IT (id=36).
+Cree 4 cartes SQL natives dans la collection Qualite & Pilotage > Cards > Admin (id=33),
+puis un dashboard D17 dans Qualite & Pilotage > Dashboards > Admin (id=34).
+
+Admin = responsable MediCore (budget, supervision).
+IT = equipe IT operationnelle.
 
 Les cartes lisent MEDICORE_PROD.AUDIT.SNOWFLAKE_CREDITS (alimentee par cost_monitoring.py).
 
@@ -32,8 +35,8 @@ MB_EMAIL = os.getenv('METABASE_ADMIN_EMAIL')
 MB_PASSWORD = os.getenv('METABASE_ADMIN_PASSWORD')
 
 SNOWFLAKE_DB_ID = 2  # MediCore database dans Metabase
-CARDS_COLLECTION_ID = 35      # Qualite & Pilotage > Cards > IT
-DASHBOARDS_COLLECTION_ID = 36  # Qualite & Pilotage > Dashboards > IT
+CARDS_COLLECTION_ID = 33       # Qualite & Pilotage > Cards > Admin
+DASHBOARDS_COLLECTION_ID = 34  # Qualite & Pilotage > Dashboards > Admin
 
 
 CARD_DEFS = [
@@ -220,7 +223,7 @@ def main():
     # Creer le dashboard
     dashboard = create_dashboard(
         token,
-        'D17 - Couts Snowflake (IT)',
+        'D17 - Couts Snowflake (Admin)',
         'Suivi de la consommation de credits Snowflake : mois courant, quota restant, evolution quotidienne, comparaison mois precedent. Alimente par cost_monitoring.py.',
         dry_run=args.dry_run,
     )
