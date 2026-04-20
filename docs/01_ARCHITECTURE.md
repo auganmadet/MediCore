@@ -114,7 +114,7 @@
 
 ### RAW Layer
 - Données brutes depuis CDC (Kafka) et bulk load (MySQL SELECT)
-- Colonnes metadata : CDC_OPERATION, CDC_TIMESTAMP, CDC_SCHEMA, CDC_TABLE, CDC_LSN
+- Colonnes metadata : CDC_OPERATION, CDC_TIMESTAMP, CDC_LSN
 - CLUSTER BY (CDC_TIMESTAMP) sur les 4 tables CDC
 - Aucune transformation
 

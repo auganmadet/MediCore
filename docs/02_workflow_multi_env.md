@@ -81,7 +81,7 @@ propres données et son propre usage.
 │  │ (WinStat)  │    └──────────┘    └──────────┘       temps réel, chaque boucle     │
 │  │            │                                                                     │
 │  │ 18 tables  │────────────────────────────────────── Workflow 3 : bulk load        │
-│  └────────────┘                                       14 tables ref. (03h00)        │
+│  └────────────┘                                       14 tables ref. (23h FR)       │
 └─────────────────────────────────────────────────────────────────────────────────────┘
          │                            │                            │
          ▼                            ▼                            ▼
@@ -92,7 +92,7 @@ propres données et son propre usage.
 │ Qui : développeur    │  │ Qui : GitHub CI      │  │  ┌────────────────────────────────────────────┐  │
 │ Quand : local        │  │ Quand : git push     │  │  │       batch_loop.sh (boucle 30 min)        │  │
 │                      │  │                      │  │  │                                            │  │
-│                      │  │                      │  │  │  WORKFLOW 1 (30 min) │ WORKFLOW 3 (03h00)  │  │
+│                      │  │                      │  │  │  WORKFLOW 1 (30 min) │ WORKFLOW 3 (23h FR) │  │
 │ ┌─────────────────┐  │  │ ┌─────────────────┐  │  │  │                      │                     │  │
 │ │ RAW             │  │  │ │ RAW             │  │  │  │  batch_loop.sh       │ batch_loop.sh       │  │
 │ │ (clone)         │  │  │ │ (seeds dbt)     │  │  │  │       │              │      │              │  │
@@ -402,11 +402,11 @@ un script Python ou toute autre partie du code.
 
 ## Workflow 3 — Bulk load des tables référence
 
-Flux automatique quotidien (03h00) pour les 14 tables référence.
+Flux automatique quotidien (23h FR / 21h UTC) pour les 14 tables référence, avec pattern CLONE+SWAP.
 Concerne uniquement MEDICORE_PROD.
 
 ```
-1. batch_loop.sh         Détecte l'heure 03h00, orchestre :
+1. batch_loop.sh         Détecte l'heure 23h FR (21h UTC), orchestre :
        │
        ├──▶ bulk_load.py
        │    Pour chaque table référence :

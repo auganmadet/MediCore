@@ -173,6 +173,18 @@ is_night() {
   fi
 }
 
+# Determine si on est dans la fenetre ref_reload (REF_RELOAD_HOUR <= heure < POST_RELOAD_DBT_HOUR, avec wrap minuit)
+is_ref_reload_window() {
+  local hour
+  hour=$(date +%H | sed 's/^0//')
+  if [ "$REF_RELOAD_HOUR" -gt "$POST_RELOAD_DBT_HOUR" ]; then
+    # Wrap minuit : ex 21h-02h -> fenetre si heure >= 21 OU heure < 2
+    [ "$hour" -ge "$REF_RELOAD_HOUR" ] || [ "$hour" -lt "$POST_RELOAD_DBT_HOUR" ]
+  else
+    [ "$hour" -ge "$REF_RELOAD_HOUR" ] && [ "$hour" -lt "$POST_RELOAD_DBT_HOUR" ]
+  fi
+}
+
 # Phase CDC : consume Kafka -> Snowflake RAW
 run_cdc() {
   echo "Phase CDC"
@@ -407,8 +419,8 @@ print('Audit purge terminee')
     [ "$HOUR" = "22" ] && rm -f "/tmp/metabase_backup_done_today"
 
     # --- ref_reload 14 tables reference (~3h-3h30) ---
-    # Utilise >= au lieu de == pour ne pas rater la fenetre si le cycle tombe entre deux heures
-    if [ "$HOUR" -ge "$REF_RELOAD_HOUR" ] && [ "$HOUR" -lt "$POST_RELOAD_DBT_HOUR" ] && [ ! -f "$REF_DONE_FLAG" ]; then
+    # Fenetre [REF_RELOAD_HOUR, POST_RELOAD_DBT_HOUR) avec wrap minuit (ex: 21h-02h)
+    if is_ref_reload_window && [ ! -f "$REF_DONE_FLAG" ]; then
       echo "Phase ref-reload: 14 tables reference (truncate + bulk load)"
       python3 -c "from pipelines.utils.audit import log_step_start; log_step_start('$RUN_ID', 'ref_reload')" 2>/dev/null || true
       if timeout "$REF_TIMEOUT_SEC" python /app/pipelines/bulk_load.py --ref-only --truncate --run-id "$RUN_ID"; then

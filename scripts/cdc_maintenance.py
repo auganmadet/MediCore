@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 
 KAFKA_BOOTSTRAP = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092')
 KAFKA_GROUP_ID = os.getenv('CDC_KAFKA_GROUP_ID', 'medi_core_cdc_batch_dev2')
-KAFKA_CONNECT_URL = os.getenv('KAFKA_CONNECT_URL', 'http://localhost:8083')
+KAFKA_CONNECT_URL = os.getenv('KAFKA_CONNECT_URL', 'http://kafka_connect:8083')
 CDC_TOPIC_PREFIX = os.getenv('CDC_KAFKA_TOPIC_PREFIX', 'winstat_rds.winstat')
 CDC_TABLES = ['COMMANDES', 'FACTURES', 'ORDERS', 'MODSTOCK']
 CDC_TOPICS = [f'{CDC_TOPIC_PREFIX}.{t}' for t in CDC_TABLES]

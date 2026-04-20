@@ -298,7 +298,7 @@ Chaque entrée décrit **ce qui a changé** du point de vue métier et son impac
 
 ### Ajouts
 - **Alerting Teams** : webhook Microsoft Teams pour les alertes pipeline. Compteur d'échecs consécutifs par phase (CDC, dbt staging, dbt marts, dbt test, reference reload). Alerte après 3 échecs + notification de recovery.
-- **Rechargement quotidien des 14 tables de référence** : TRUNCATE + bulk reload à 03h00, avec `FORCE = TRUE` sur COPY INTO pour contourner le cache de metadata Snowflake.
+- **Rechargement quotidien des 14 tables de référence** : CLONE+SWAP + bulk reload à 23h FR (21h UTC), avec `FORCE = TRUE` sur COPY INTO pour contourner le cache de metadata Snowflake.
 - **Clustering keys** : ajout de `CLUSTER BY` sur les tables RAW volumineuses pour accélérer les requêtes dbt.
 
 ---

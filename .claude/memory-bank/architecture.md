@@ -15,7 +15,7 @@ MySQL RDS (winstat)
     |                              daily_cdc_batch.py
     |                              (micro-batch 500 events)
     |                                    |
-    +-- SELECT (1x/jour @ 03h) --> bulk_load.py
+    +-- SELECT (1x/jour @ 23h FR) --> bulk_load.py
     |                              (Parquet chunks -> PUT @stage)
     |                                    |
     +------------------------------------+

@@ -31,6 +31,37 @@ CDC_KAFKA_TOPIC_PREFIX = os.getenv('CDC_KAFKA_TOPIC_PREFIX', 'winstat_rds.winsta
 CDC_KAFKA_GROUP_ID = os.getenv('CDC_KAFKA_GROUP_ID', 'medi_core_cdc_batch_dev2')
 CDC_TABLES_KAFKA = ['COMMANDES', 'FACTURES', 'ORDERS', 'MODSTOCK']
 
+# Circuit-breaker : arreter le fallback row-by-row si N rows consecutifs echouent
+# (erreur systemique comme un mismatch schema, pas un event individuel toxique)
+FALLBACK_MAX_CONSECUTIVE_FAILS = int(os.getenv('CDC_FALLBACK_MAX_FAILS', '10'))
+
+# Codes d'erreur Snowflake indiquant qu'une reconnexion est necessaire
+SNOWFLAKE_AUTH_EXPIRED_CODES = (390114, 390116, 390111)  # token expired / session expired
+
+# Mapping DECIMAL columns par table CDC (decoder Base64 Debezium)
+# Extrait depuis MySQL INFORMATION_SCHEMA : SELECT COLUMN_NAME, NUMERIC_SCALE
+# WHERE DATA_TYPE = 'decimal'
+CDC_DECIMAL_COLUMNS: Dict[str, Dict[str, int]] = {
+    'COMMANDES': {'COM_PAHTNET': 2, 'COM_TAUXREMISE': 2},
+    'FACTURES': {'FAC_TVA': 2, 'FAC_PAHT': 2, 'FAC_PVHT': 2, 'FAC_PVTTC': 2,
+                 'FAC_PRIXPUBLIC': 2, 'FAC_REMISE': 2},
+    'ORDERS': {'ORD_TOTAL_GENERAL': 2, 'ORD_TOTAL_REMB_SS': 2, 'ORD_TOTAL_REMB_MUTU': 2},
+    'MODSTOCK': {},
+}
+
+# Mapping DATE/DATETIME columns par table CDC
+# Debezium encode :
+#   - MySQL DATE     -> int en JOURS depuis 1970-01-01 (io.debezium.time.Date)
+#   - MySQL DATETIME -> int en MILLISECONDES depuis 1970-01-01 (io.debezium.time.Timestamp)
+# Snowflake attend DATE ou TIMESTAMP_NTZ, il faut donc convertir les int en datetime.
+CDC_DATE_COLUMNS: Dict[str, Dict[str, str]] = {
+    'COMMANDES': {'COM_DATE': 'date'},
+    'FACTURES': {'FAC_DATE': 'datetime'},
+    'ORDERS': {'ORD_DATE': 'datetime', 'ORD_DATE_ORDON': 'datetime',
+               'ORD_DATE_ORDER': 'datetime'},
+    'MODSTOCK': {'MOD_DATE': 'datetime'},
+}
+
 
 class MediCoreCDC:
     """Consumer CDC Kafka -> Snowflake RAW pour les 4 tables CDC Debezium."""
@@ -39,6 +70,9 @@ class MediCoreCDC:
         self.kafka_servers: str = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'kafka:29092')
         self.sf_conn: snowflake.connector.SnowflakeConnection = self._get_snowflake_conn()
         self.sf_cursor = self.sf_conn.cursor()
+        # Connexion DLQ dediee pour eviter qu'une erreur main ne coupe l'ecriture DLQ
+        self.dlq_conn: snowflake.connector.SnowflakeConnection = self._get_snowflake_conn()
+        self.dlq_cursor = self.dlq_conn.cursor()
         self._ensure_dlq()
 
     def _get_snowflake_conn(self) -> snowflake.connector.SnowflakeConnection:
@@ -52,6 +86,48 @@ class MediCoreCDC:
             warehouse=os.getenv('SNOWFLAKE_WAREHOUSE_NAME', 'MEDICORE_WH'),
             schema='RAW'
         )
+
+    def _is_session_expired(self, err: Exception) -> bool:
+        """Detecte une erreur de session Snowflake expiree (token, auth).
+
+        Args:
+            err: Exception Snowflake.
+
+        Returns:
+            True si l'erreur necessite une reconnexion.
+        """
+        errno = getattr(err, 'errno', None)
+        return errno in SNOWFLAKE_AUTH_EXPIRED_CODES
+
+    def _reconnect_main(self) -> None:
+        """Recree la connexion Snowflake principale apres session expiree."""
+        logger.warning("[SF] Session main expiree, reconnexion...")
+        try:
+            self.sf_cursor.close()
+        except Exception:  # pylint: disable=broad-except
+            pass
+        try:
+            self.sf_conn.close()
+        except Exception:  # pylint: disable=broad-except
+            pass
+        self.sf_conn = self._get_snowflake_conn()
+        self.sf_cursor = self.sf_conn.cursor()
+        logger.info("[SF] Reconnexion main OK")
+
+    def _reconnect_dlq(self) -> None:
+        """Recree la connexion Snowflake DLQ apres session expiree."""
+        logger.warning("[SF] Session DLQ expiree, reconnexion...")
+        try:
+            self.dlq_cursor.close()
+        except Exception:  # pylint: disable=broad-except
+            pass
+        try:
+            self.dlq_conn.close()
+        except Exception:  # pylint: disable=broad-except
+            pass
+        self.dlq_conn = self._get_snowflake_conn()
+        self.dlq_cursor = self.dlq_conn.cursor()
+        logger.info("[SF] Reconnexion DLQ OK")
 
     def _ensure_dlq(self) -> None:
         """Cree la table _DLQ si elle n'existe pas."""
@@ -70,6 +146,9 @@ class MediCoreCDC:
     def _write_dlq(self, source: str, table_name: str, topic: Optional[str], payload: Any, error_msg: Any) -> None:
         """Ecrit un message/row invalide dans la dead-letter queue.
 
+        Utilise une connexion dediee (self.dlq_conn) pour eviter qu'une session main
+        expiree ne coupe l'ecriture DLQ. Reconnecte automatiquement si DLQ expire aussi.
+
         Args:
             source: Origine de l'erreur (cdc_parse, cdc_insert).
             table_name: Table Snowflake concernee.
@@ -77,18 +156,25 @@ class MediCoreCDC:
             payload: Contenu du message en erreur.
             error_msg: Message d'erreur associe.
         """
-        try:
-            payload_json = json.dumps(payload, default=str)
-            self.sf_cursor.execute(
-                "INSERT INTO _DLQ (SOURCE, TABLE_NAME, TOPIC, PAYLOAD, ERROR_MESSAGE) "
-                "VALUES (%s, %s, %s, %s, %s)",
-                (source, table_name, topic, payload_json, str(error_msg)[:4000])
-            )
-        except snowflake.connector.errors.ProgrammingError as dlq_err:
-            logger.warning(f"DLQ write failed: {dlq_err}")
+        payload_json = json.dumps(payload, default=str)
+        dlq_sql = (
+            "INSERT INTO _DLQ (SOURCE, TABLE_NAME, TOPIC, PAYLOAD, ERROR_MESSAGE) "
+            "VALUES (%s, %s, %s, %s, %s)"
+        )
+        dlq_values = (source, table_name, topic, payload_json, str(error_msg)[:4000])
+        for attempt in (1, 2):
+            try:
+                self.dlq_cursor.execute(dlq_sql, dlq_values)
+                return
+            except snowflake.connector.errors.Error as dlq_err:
+                if attempt == 1 and self._is_session_expired(dlq_err):
+                    self._reconnect_dlq()
+                    continue
+                logger.warning(f"DLQ write failed: {dlq_err}")
+                return
 
     def consume_cdc_batch(self) -> int:
-        """Consomme les topics Kafka winstat_rds.winstat.* vers RAW_* Snowflake.
+        """Consomme les topics Kafka winstat.winstat.* vers RAW_* Snowflake.
 
         Accumule les events en micro-batch (BATCH_SIZE) avant flush.
 
@@ -110,6 +196,7 @@ class MediCoreCDC:
         buffers: Dict[str, List[Dict]] = {}
         processed = 0
         errors = 0
+        had_flush_errors = False
 
         for message in consumer:
             topic = message.topic
@@ -130,10 +217,14 @@ class MediCoreCDC:
 
                 # Flush si le buffer de cette table atteint BATCH_SIZE
                 if len(buffers[table_name]) >= BATCH_SIZE:
-                    self._flush_batch(table_name, buffers[table_name])
+                    flush_ok = self._flush_batch(table_name, buffers[table_name])
                     processed += len(buffers[table_name])
                     buffers[table_name] = []
-                    consumer.commit()
+                    # Ne commit que si flush reussi (evite la perte de donnees Kafka)
+                    if flush_ok:
+                        consumer.commit()
+                    else:
+                        had_flush_errors = True
 
             except (ValueError, KeyError, TypeError, json.JSONDecodeError) as e:
                 errors += 1
@@ -142,13 +233,19 @@ class MediCoreCDC:
                 continue
 
         # Flush les buffers restants (timeout Kafka atteint, plus de messages)
+        final_flush_ok = True
         for table_name, events in buffers.items():
             if events:
-                self._flush_batch(table_name, events)
+                if not self._flush_batch(table_name, events):
+                    final_flush_ok = False
+                    had_flush_errors = True
                 processed += len(events)
 
-        consumer.commit()
-        logger.info(f"Batch termine: {processed} events inseres, {errors} erreurs")
+        # Commit final uniquement si le dernier flush a reussi
+        if final_flush_ok:
+            consumer.commit()
+        logger.info(f"Batch termine: {processed} events inseres, {errors} erreurs parse"
+                    + (" [flush errors - offsets partiels]" if had_flush_errors else ""))
         consumer.close()
         return processed
 
@@ -211,70 +308,141 @@ class MediCoreCDC:
         else:
             raise ValueError(f"Unknown op: {op}")
 
-        # Normalisation de COM_DATE (Debezium l'envoie en nombre de jours depuis 1970-01-01)
-        raw_date = data.get("COM_DATE")
-        if raw_date is not None:
-            if isinstance(raw_date, int):
-                base = datetime(1970, 1, 1)
-                dt = base + timedelta(days=raw_date)
-                data["COM_DATE"] = dt.strftime("%Y-%m-%d")
-            elif isinstance(raw_date, str):
-                data["COM_DATE"] = raw_date
+        source_table = debezium_payload['source']['table']
+
+        # Normalisation DATE / DATETIME : Debezium envoie des int (jours ou ms)
+        # Snowflake attend DATE ou TIMESTAMP_NTZ -> convertir en datetime
+        base_epoch = datetime(1970, 1, 1)
+        for col, kind in CDC_DATE_COLUMNS.get(source_table, {}).items():
+            val = data.get(col)
+            if val is None or not isinstance(val, int):
+                continue
+            if kind == 'date':
+                data[col] = (base_epoch + timedelta(days=val)).strftime("%Y-%m-%d")
+            elif kind == 'datetime':
+                data[col] = datetime.fromtimestamp(val / 1000)
 
         # Normalisation DECIMAL base64 (Debezium BYTES logical type)
-        data["COM_PAHTNET"] = self._decode_debezium_decimal(data.get("COM_PAHTNET"), scale=2)
-        data["COM_TAUXREMISE"] = self._decode_debezium_decimal(data.get("COM_TAUXREMISE"), scale=2)
+        for col, scale in CDC_DECIMAL_COLUMNS.get(source_table, {}).items():
+            if col in data:
+                data[col] = self._decode_debezium_decimal(data[col], scale=scale)
 
-        # Ajout metadata CDC
+        # Ajout metadata CDC (3 colonnes presentes dans RAW_* tables)
+        # cdc_schema/cdc_table supprimes car absents du schema Snowflake (derivables
+        # depuis le nom de la table cible)
         event = {
             **data,
             'cdc_operation': cdc_op,
             'cdc_timestamp': datetime.fromtimestamp(ts_ms / 1000),
-            'cdc_schema': debezium_payload['source']['db'],
-            'cdc_table': debezium_payload['source']['table'],
             'cdc_lsn': debezium_payload['source']['pos']
         }
 
         return event
 
-    def _flush_batch(self, table_name: str, events: List[Dict[str, Any]]) -> None:
+    def _flush_batch(self, table_name: str, events: List[Dict[str, Any]]) -> bool:
         """INSERT micro-batch via executemany(), fallback row-by-row en cas d'erreur.
+
+        Comportement defensif :
+        - Reconnecte si la session Snowflake a expire (code 390114) et retente une fois
+        - Circuit-breaker : arrete le fallback row-by-row apres N echecs consecutifs
+          (evite la boucle infinie sur erreur systemique type mismatch schema)
+        - Retourne False si la phase a eu des erreurs -> l'appelant ne doit PAS
+          commiter l'offset Kafka (evite la perte de donnees)
 
         Args:
             table_name: Table Snowflake cible (ex: RAW_COMMANDES).
             events: Liste d'events a inserer.
+
+        Returns:
+            True si tous les events ont ete inseres avec succes, False sinon.
         """
         if not events:
-            return
+            return True
 
         # Colonnes depuis le premier event (tous les events d'une table ont les memes cles)
         columns = ", ".join(f'"{k.upper()}"' for k in events[0].keys())
         placeholders = ", ".join(["%s" for _ in events[0]])
         query = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
-
-        # Transformer les events en liste de tuples
         values_list = [tuple(e.values()) for e in events]
 
-        try:
-            self.sf_cursor.executemany(query, values_list)
-            logger.info(f"INSERT {table_name}: {len(events)} rows (batch)")
-        except snowflake.connector.errors.Error as e:
-            logger.error(f"BATCH INSERT {table_name} failed ({len(events)} rows): {e}")
-            # Fallback row-by-row pour identifier l'event problematique
-            inserted = 0
-            for i, vals in enumerate(values_list):
-                try:
-                    self.sf_cursor.execute(query, vals)
-                    inserted += 1
-                except snowflake.connector.errors.Error as row_err:
-                    logger.error(f"  Row {i} failed: {row_err}")
-                    self._write_dlq('cdc_insert', table_name, None, events[i], row_err)
-            logger.info(f"  Fallback: {inserted}/{len(events)} rows inserted")
+        # Tentative batch avec retry sur session expiree (1 reconnexion max)
+        for attempt in (1, 2):
+            try:
+                self.sf_cursor.executemany(query, values_list)
+                logger.info(f"INSERT {table_name}: {len(events)} rows (batch)")
+                return True
+            except snowflake.connector.errors.Error as e:
+                if attempt == 1 and self._is_session_expired(e):
+                    self._reconnect_main()
+                    continue
+                logger.error(f"BATCH INSERT {table_name} failed ({len(events)} rows): {e}")
+                break
+
+        # Fallback row-by-row avec circuit-breaker
+        # Si N rows consecutifs echouent avec la meme erreur racine -> systemique, abandonner
+        inserted = 0
+        consecutive_fails = 0
+        last_err_signature: Optional[str] = None
+        aborted = False
+
+        for i, vals in enumerate(values_list):
+            try:
+                self.sf_cursor.execute(query, vals)
+                inserted += 1
+                consecutive_fails = 0
+                last_err_signature = None
+            except snowflake.connector.errors.Error as row_err:
+                # Retry une fois apres reconnexion si session expiree
+                if self._is_session_expired(row_err):
+                    self._reconnect_main()
+                    try:
+                        self.sf_cursor.execute(query, vals)
+                        inserted += 1
+                        consecutive_fails = 0
+                        last_err_signature = None
+                        continue
+                    except snowflake.connector.errors.Error as retry_err:
+                        row_err = retry_err
+
+                logger.error(f"  Row {i} failed: {row_err}")
+                self._write_dlq('cdc_insert', table_name, None, events[i], row_err)
+
+                # Circuit-breaker : erreur systemique (meme errno repete)
+                # On utilise uniquement errno (stable) car le message contient un
+                # request ID unique par appel qui rendrait chaque signature differente
+                err_signature = str(getattr(row_err, 'errno', None) or type(row_err).__name__)
+                if err_signature == last_err_signature:
+                    consecutive_fails += 1
+                else:
+                    consecutive_fails = 1
+                    last_err_signature = err_signature
+
+                if consecutive_fails >= FALLBACK_MAX_CONSECUTIVE_FAILS:
+                    remaining = len(values_list) - i - 1
+                    logger.error(
+                        f"  CIRCUIT-BREAKER {table_name}: {consecutive_fails} echecs "
+                        f"consecutifs avec meme erreur ({err_signature}). "
+                        f"Arret du fallback ({remaining} rows non traites)."
+                    )
+                    aborted = True
+                    break
+
+        logger.info(f"  Fallback: {inserted}/{len(events)} rows inserted"
+                    + (" (ABORTED circuit-breaker)" if aborted else ""))
+        return False
 
     def close(self) -> None:
-        """Ferme proprement le curseur et la connexion Snowflake."""
-        self.sf_cursor.close()
-        self.sf_conn.close()
+        """Ferme proprement les curseurs et connexions Snowflake (main + DLQ)."""
+        for c in (self.sf_cursor, self.dlq_cursor):
+            try:
+                c.close()
+            except Exception:  # pylint: disable=broad-except
+                pass
+        for conn in (self.sf_conn, self.dlq_conn):
+            try:
+                conn.close()
+            except Exception:  # pylint: disable=broad-except
+                pass
 
 
 if __name__ == "__main__":

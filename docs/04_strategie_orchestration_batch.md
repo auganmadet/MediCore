@@ -236,69 +236,86 @@ Chronologie d'un cycle CDC isolé (hors dbt) :
 
 Sur 10 min d'intervalle : **3 min facturées**, **7 min à 0 crédit** (30% actif / 70% endormi).
 
-### Mode nuit (21h - 07h) : cycles réduits
+### Mode nuit (21h - 07h FR) : cycles réduits + CLONE+SWAP
 
 ```
-21:00  ████████████████████████████  Dernier cycle complet (CDC + dbt)
-21:40  ✓ Données fraîches soirée
+21h00  Passage en mode nuit — fin des cycles jour
 
-       Le warehouse dort (~3h, 0 crédit)
+21h30  ██  1 CDC seul (vider le backlog Kafka avant ref_reload)
 
-00:30  ██  1 CDC seul (vider le backlog Kafka avant ref_reload)
+22h00  Audit purge (AUDIT > 90 jours) + Backup Metabase (pg_dump)
 
-01:00  ████████████████████████████████████████████████  ref_reload 14 tables
-       │                                                  (séquentiel, ~3h31 cumulées)
+23h00  ████████████████████████████████████████████████  ref_reload 14 tables (CLONE+SWAP)
+       │                                                  (séquentiel, ~4h30 cumulées)
        │
-       │  01:00 → 01:03  RAW_PHARMACIE, LOG, PHARMACIES          (3 min)
-       │  01:03 → 01:06  RAW_FOURNISSEURS, HISTORY               (3 min)
-       │  01:06 → 01:08  RAW_LPPR                                (2 min)
-       │  01:08 → 01:14  RAW_EAN13                               (6 min)
-       │  01:14 → 01:24  RAW_PRODUITS                           (10 min)
-       │  01:24 → 01:52  RAW_DAYBYDAY                           (28 min)
-       │  01:52 → 02:28  RAW_ORDERS                             (36 min)
-       │  02:28 → 04:31  RAW_MEDIPRIX_FACTURES                (2h03 min)
+       │  23h00 → 23h03  RAW_PHARMACIE, LOG, PHARMACIES          (3 min)
+       │  23h03 → 23h06  RAW_FOURNISSEURS, HISTORY               (3 min)
+       │  23h06 → 23h08  RAW_LPPR                                (2 min)
+       │  23h08 → 23h14  RAW_EAN13                               (6 min)
+       │  23h14 → 23h24  RAW_PRODUITS                           (10 min)
+       │  23h24 → 23h52  RAW_DAYBYDAY                           (28 min)
+       │  23h52 → 00h28  RAW_ORDERS                             (36 min)
+       │  00h28 → 03h31  RAW_MEDIPRIX_FACTURES                (2h03 min)
        │
-~04:00-04:30  Fin ref_reload
+       │  Pour chaque table :
+       │  1. CLONE backup (zero-copy, 0 coût)
+       │  2. TRUNCATE + bulk_load depuis MySQL
+       │  3. Si count > 0 → DROP backup
+       │  4. Si count = 0 → SWAP backup (rollback automatique)
+       │
+~03h30  Fin ref_reload
 
-04:30  ████████████████████████████  1 CDC + 1 cycle dbt complet
-~05:10-05:30  ✓ Données fraîches matin
+04h00  ████████████████████████████  1 CDC + 1 cycle dbt complet
+       (déclenché par REF_DONE_FLAG)
+~04h15  ✓ Données fraîches matin
 
-       Le warehouse dort (~1h30, 0 crédit)
+04h30  pipeline_maintenance --fix-safe (5 phases, ~10 min)
 
-07:00  Reprise rythme jour
+       Le warehouse dort (~2h30, 0 crédit)
+
+07h00  Reprise rythme jour
 ```
 
 [↑ Retour au sommaire](#table-des-matières)
 
 ---
 
-## 4. Récapitulatif 24h
+## 4. Récapitulatif 24h (heures françaises)
 
-  ┌──────────────────────┬────────┬─────────────┬─────────────┬────────────────────────────┐
-  │ Tranche              │ Durée  │ Cycles CDC  │ Cycles dbt  │ Warehouse                  │
-  ├──────────────────────┼────────┼─────────────┼─────────────┼────────────────────────────┤
-  │ Jour (07h-21h)       │ 14h    │ 84          │ 14          │ ~9.9h actif                │
-  ├──────────────────────┼────────┼─────────────┼─────────────┼────────────────────────────┤
-  │ Soir (21h-21h40)     │ 40 min │ 1           │ 1           │ ~40 min actif              │
-  ├──────────────────────┼────────┼─────────────┼─────────────┼────────────────────────────┤
-  │ Nuit calme           │ ~3h    │ 0           │ 0           │ dort                       │
-  │ (21h40-00h30)        │        │             │             │                            │
-  ├──────────────────────┼────────┼─────────────┼─────────────┼────────────────────────────┤
-  │ CDC pré-reload       │ ~2 min │ 1           │ 0           │ ~3 min actif               │
-  │ (00h30)              │        │             │             │                            │
-  ├──────────────────────┼────────┼─────────────┼─────────────┼────────────────────────────┤
-  │ Ref_reload           │ ~3h30  │ 0           │ 0           │ ~3.5h actif                │
-  │ (01h-~04h30)         │        │             │             │                            │
-  ├──────────────────────┼────────┼─────────────┼─────────────┼────────────────────────────┤
-  │ Cycle matin          │ ~40min │ 1           │ 1           │ ~40 min actif              │
-  │ (04h30-~05h10)       │        │             │             │                            │
-  ├──────────────────────┼────────┼─────────────┼─────────────┼────────────────────────────┤
-  │ Nuit calme           │ ~1h50  │ 0           │ 0           │ dort                       │
-  │ (05h10-07h)          │        │             │             │                            │
-  ├──────────────────────┼────────┼─────────────┼─────────────┼────────────────────────────┤
-  │ **Total 24h**        │        │ **87**      │ **16**      │ **~14.8h actif**           │
-  │                      │        │             │             │ **~9.2h dort**             │
-  └──────────────────────┴────────┴─────────────┴─────────────┴────────────────────────────┘
+  ┌────────────┬───────────────────────────────────────┬──────────┬──────────────────────────────────────────┐
+  │ Heure FR   │ Phase                                 │ Durée    │ Ce qu'elle fait                           │
+  ├────────────┼───────────────────────────────────────┼──────────┼──────────────────────────────────────────┤
+  │ 07h00      │ Passage en mode jour                  │ —        │ Reprise CDC toutes les 10 min (prod)     │
+  ├────────────┼───────────────────────────────────────┼──────────┼──────────────────────────────────────────┤
+  │ 07h - 21h  │ Mode jour : CDC + dbt périodique      │ 14h      │ 84 CDC (10 min), 14 dbt (~60 min)        │
+  │            │                                       │          │ WH ~9.9h actif, se suspend entre CDC     │
+  ├────────────┼───────────────────────────────────────┼──────────┼──────────────────────────────────────────┤
+  │ 21h00      │ Passage en mode nuit                  │ —        │ Fin des cycles jour                      │
+  ├────────────┼───────────────────────────────────────┼──────────┼──────────────────────────────────────────┤
+  │ 21h30      │ CDC pré-reload                        │ ~3 min   │ Vide le backlog Kafka avant reload       │
+  ├────────────┼───────────────────────────────────────┼──────────┼──────────────────────────────────────────┤
+  │ 22h00      │ Audit purge + Backup Metabase         │ ~10 min  │ DELETE AUDIT > 90j + pg_dump             │
+  ├────────────┼───────────────────────────────────────┼──────────┼──────────────────────────────────────────┤
+  │ 23h00      │ ref_reload (14 tables, CLONE+SWAP)    │ ~4h30    │ Pour chaque table :                      │
+  │ → 03h30    │                                       │          │ 1. CLONE backup (zero-copy, 0 coût)      │
+  │            │                                       │          │ 2. TRUNCATE + bulk_load depuis MySQL     │
+  │            │                                       │          │ 3. Vérifier count > 0                    │
+  │            │                                       │          │ 4. Si OK → DROP backup                   │
+  │            │                                       │          │ 5. Si FAIL → SWAP backup (rollback)      │
+  ├────────────┼───────────────────────────────────────┼──────────┼──────────────────────────────────────────┤
+  │ 04h00      │ CDC + dbt post-reload                 │ ~12 min  │ Déclenché UNIQUEMENT si REF_DONE_FLAG    │
+  │ → 04h15    │ (après ref_reload terminé)            │          │ existe (ref_reload terminé)              │
+  │            │                                       │          │ CDC flush + staging (1m40) + marts       │
+  │            │                                       │          │ (8m35) + tests (47s) + freshness (3s)    │
+  ├────────────┼───────────────────────────────────────┼──────────┼──────────────────────────────────────────┤
+  │ 04h30      │ pipeline_maintenance --fix-safe       │ ~10 min  │ 5 phases : healthcheck, CDC, bulk, dbt,  │
+  │ → 04h40    │                                       │          │ Metabase (P1-P10 + provisionnement)      │
+  ├────────────┼───────────────────────────────────────┼──────────┼──────────────────────────────────────────┤
+  │ 05h00      │ Mode nuit (veille)                    │ —        │ Sleep 10 min jusqu'à 07h                 │
+  ├────────────┼───────────────────────────────────────┼──────────┼──────────────────────────────────────────┤
+  │ **Total**  │                                       │          │ **87 CDC, 16 dbt, ~14.8h WH actif**     │
+  │            │                                       │          │ **~9.2h WH dort (0 crédit)**             │
+  └────────────┴───────────────────────────────────────┴──────────┴──────────────────────────────────────────┘
 
 [↑ Retour au sommaire](#table-des-matières)
 
@@ -394,10 +411,10 @@ garantit que les données brutes sont toujours proches du temps réel.
 
 ### Données prêtes avant l'ouverture
 
-En avançant le ref_reload de 03h à **01h**, les 14 tables de référence
-(~463M lignes, ~3h-3h30 de chargement) sont rechargées et intégrées par
-dbt avant **05h30**. À l'arrivée du premier utilisateur à 07h-08h,
-les dashboards affichent des données complètes et à jour.
+En avançant le ref_reload à **23h FR** (21h UTC) avec le pattern CLONE+SWAP,
+les 14 tables de référence (~463M lignes, ~3h-3h30 de chargement) sont
+rechargées et intégrées par dbt avant **05h30 FR**. À l'arrivée du premier
+utilisateur à 07h-08h, les dashboards affichent des données complètes et à jour.
 
 ### Économie sans compromis fonctionnel
 

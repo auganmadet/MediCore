@@ -48,11 +48,11 @@ REF_TABLES = {
     'RAW_MANQHISTORY': 'PHA_ID, MNQ_DATE, PRD_ID, FAC_ID',
     'RAW_MEDIPRIX_FACTURES': 'PHA_ID, FAC_ID, FAC_TI',
     'RAW_PHARMACIE': 'PHA_ID',
-    'RAW_PHARMACIES': 'PHA_ID',
-    'RAW_PHARMACIES_ERREUR': 'PHA_ID',
+    'RAW_PHARMACIES': 'ID',
+    'RAW_PHARMACIES_ERREUR': 'ID',
     'RAW_PRODUITS': 'PHA_ID, PRD_ID',
-    'RAW_PRODUITS_NEGATIFS': 'PHA_ID, PRD_ID',
-    'RAW_STOCKHISTORY': 'PHA_ID, STK_DATE, PRD_ID',
+    'RAW_PRODUITS_NEGATIFS': 'PRD_ID',
+    'RAW_STOCKHISTORY': 'PHA_ID, STH_DATE, PRD_ID',
 }
 
 ALL_TABLES = list(REF_TABLES.keys()) + [
@@ -133,7 +133,7 @@ def check_b3_duplicates():
             cursor.execute(
                 f'SELECT COUNT(*) FROM ('
                 f'SELECT {pk} FROM {table} GROUP BY {pk} HAVING COUNT(*) > 1'
-                f')'
+                f') AS dup_check'
             )
             nb_dupes = cursor.fetchone()[0]
             if nb_dupes > 0:
@@ -251,7 +251,7 @@ def check_b6_schema_drift():
             sf_cols = set()
 
         # Colonnes CDC ajoutees par le pipeline (pas dans MySQL)
-        cdc_cols = {'CDC_OPERATION', 'CDC_TIMESTAMP', 'CDC_LSN', 'CDC_SCHEMA', 'CDC_TABLE'}
+        cdc_cols = {'CDC_OPERATION', 'CDC_TIMESTAMP', 'CDC_LSN'}
         sf_cols_clean = sf_cols - cdc_cols
 
         missing_in_sf = mysql_cols - sf_cols_clean

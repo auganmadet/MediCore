@@ -309,13 +309,11 @@ def bulk_load_table(mysql_conn: Any, sf_conn: Any, mysql_table: str, sf_table: s
         # Renommer colonnes MySQL → casing Snowflake
         df.columns = [sf_col_upper_map.get(c.upper(), c.upper()) for c in df.columns]
 
-        # Ajouter métadonnées CDC
+        # Ajouter métadonnées CDC (3 colonnes : alignement avec les 4 tables RAW_* CDC)
         now = datetime.now()
         cdc_metadata = {
             'CDC_OPERATION': 'S',
             'CDC_TIMESTAMP': now,
-            'CDC_SCHEMA': 'winstat',
-            'CDC_TABLE': mysql_table,
             'CDC_LSN': None,
         }
         for col_upper, value in cdc_metadata.items():

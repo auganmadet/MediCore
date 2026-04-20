@@ -310,11 +310,11 @@ Voir [Workflow multi-environnement](docs/02_workflow_multi_env.md) pour comprend
   ┌───────────────────────────┬──────────┬────────────────────────────────────────────────────┐
   │ Service                   │ Port     │ URL                                                │
   ├───────────────────────────┼──────────┼────────────────────────────────────────────────────┤
-  │ Metabase (BI dashboards)  │ 3000     │ http://localhost:3000                               │
+  │ Metabase (BI dashboards)  │ 3000     │ http://localhost:3000                              │
   ├───────────────────────────┼──────────┼────────────────────────────────────────────────────┤
-  │ Data Catalog (dbt docs)   │ 8080     │ http://localhost:8080                               │
+  │ Data Catalog (dbt docs)   │ 8080     │ http://localhost:8080                              │
   ├───────────────────────────┼──────────┼────────────────────────────────────────────────────┤
-  │ Kafdrop (Kafka UI)        │ 9000     │ http://localhost:9000                               │
+  │ Kafdrop (Kafka UI)        │ 9000     │ http://localhost:9000                              │
   └───────────────────────────┴──────────┴────────────────────────────────────────────────────┘
 
 Voir [Opérations — Data Catalog](docs/03_operations.md#data-catalog-dbt-docs) pour la configuration réseau (pare-feu, portproxy WSL2).
@@ -327,7 +327,7 @@ Voir [Opérations — Data Catalog](docs/03_operations.md#data-catalog-dbt-docs)
 
 Le conteneur `medicore_elt_batch` exécute `batch_loop.sh` en boucle (5 min dev / 30 min prod) :
 
-1. **Re-bulk référence** (1x/jour à 03h) : `bulk_load.py --ref-only --truncate` (14 tables)
+1. **Re-bulk référence** (1x/jour à 23h FR) : `bulk_load.py --ref-only --truncate` (14 tables, CLONE+SWAP)
 2. **CDC** : `daily_cdc_batch.py` consomme les events Kafka (4 tables)
 3. **dbt staging** : `dbt run --select tag:staging` (dédup + PII masking)
 4. **dbt marts** : `dbt run --select tag:marts` (dims + facts)

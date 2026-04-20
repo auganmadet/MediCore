@@ -832,7 +832,7 @@ s = add_two_column_slide(
         "Parquet : écriture par chunks 500K rows",
         "Snowflake : PUT vers stage interne",
         "COPY INTO : avec FORCE=TRUE",
-        "Rechargement : TRUNCATE + reload à 03h00",
+        "Rechargement : CLONE+SWAP + reload à 23h FR",
         "Mémoire : gc.collect() après chaque chunk",
         "Volume : 920M+ lignes chargées au total",
     ],
@@ -1052,7 +1052,7 @@ add_notes(s, "Le batch_loop.sh est volontairement simple — un script bash plut
 "— parce que l'orchestration est linéaire : 7 phases séquentielles. Pas besoin d'un "
 "DAG complexe pour l'instant.\n\n"
 "Les 7 phases dans l'ordre :\n"
-"1. ref_reload — rechargement quotidien des 14 tables de référence à 03h00. TRUNCATE "
+"1. ref_reload — rechargement quotidien des 14 tables de référence à 23h FR. CLONE+SWAP "
 "+ bulk load complet. Ne s'exécute qu'une fois par jour.\n"
 "2. cdc_batch — consommation des événements Kafka sur les 4 tables CDC. Micro-batch "
 "de 500 events ou timeout 30s. C'est la phase la plus fréquente.\n"
@@ -1084,7 +1084,7 @@ add_notes(s, "Le batch_loop.sh est volontairement simple — un script bash plut
 "selon le type : les tables CDC doivent être fraîches à moins de 12h (warning) ou "
 "24h (erreur), car elles sont alimentées toutes les 5-30 minutes. Les tables "
 "référence ont des seuils plus larges — 36h warning, 48h erreur — car elles ne sont "
-"rechargées qu'une fois par jour à 03h00. Si une table dépasse le seuil, l'équipe "
+"rechargées qu'une fois par jour à 23h FR. Si une table dépasse le seuil, l'équipe "
 "est alertée via Teams.")
 
 # --- SECTION 6 ---

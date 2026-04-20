@@ -98,8 +98,6 @@ class TestCDCMetadataAddition:
     Le bulk load ajoute des colonnes CDC pour compatibilité avec le CDC streaming :
         - CDC_OPERATION = 'S' (Snapshot)
         - CDC_TIMESTAMP = datetime du chargement
-        - CDC_SCHEMA = 'winstat'
-        - CDC_TABLE = nom de la table source
         - CDC_LSN = None (pas de position binlog pour bulk)
     """
 
