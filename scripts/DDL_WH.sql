@@ -45,6 +45,21 @@ CREATE OR REPLACE WAREHOUSE MEDICORE_WH
     INITIALLY_SUSPENDED = TRUE
     COMMENT = 'Warehouse MEDICORE ELT pipeline';
 
+-- Resource Monitor : plafond mensuel 600 crédits, notifications 75/90/100%
+-- Pas de SUSPEND pour eviter de bloquer le pipeline ; seules les notifs email sont declenchees.
+-- NOTIFY_USERS necessite un email verifie cote Snowflake (User Profile).
+CREATE OR REPLACE RESOURCE MONITOR MEDICORE_MONITOR
+    WITH CREDIT_QUOTA = 600
+    FREQUENCY = MONTHLY
+    START_TIMESTAMP = IMMEDIATELY
+    NOTIFY_USERS = (AUGUSTIN)
+    TRIGGERS
+        ON 75 PERCENT DO NOTIFY
+        ON 90 PERCENT DO NOTIFY
+        ON 100 PERCENT DO NOTIFY;
+
+ALTER WAREHOUSE MEDICORE_WH SET RESOURCE_MONITOR = MEDICORE_MONITOR;
+
 -- ============================================================================
 -- SECTION 3 : DATABASES ET SCHEMAS (multi-environnement)
 -- ============================================================================

@@ -426,6 +426,23 @@ CREATE TABLE IF NOT EXISTS MEDICORE_PROD.AUDIT.CDC_LAG_METRICS (
     PRIMARY KEY (RUN_ID, TOPIC)
 );
 
+-- 1 ligne par jour par warehouse : historique consommation credits Snowflake
+-- Alimente par cost_monitoring.py depuis SNOWFLAKE.ACCOUNT_USAGE.WAREHOUSE_METERING_HISTORY.
+CREATE TABLE IF NOT EXISTS MEDICORE_PROD.AUDIT.SNOWFLAKE_CREDITS (
+    USAGE_DATE        DATE          NOT NULL,
+    WAREHOUSE_NAME    VARCHAR(100)  NOT NULL,
+    CREDITS_USED      NUMBER(12,4)  NOT NULL,
+    CREDITS_USED_CLOUD_SERVICES  NUMBER(12,4) DEFAULT 0,
+    CREDITS_REMAINING NUMBER(12,4)  NULL,
+    QUOTA_MONTHLY     NUMBER(12,2)  NULL,
+    PERIOD_START      DATE          NULL,
+    CREATED_AT        TIMESTAMP_NTZ NOT NULL DEFAULT CURRENT_TIMESTAMP(),
+    PRIMARY KEY (USAGE_DATE, WAREHOUSE_NAME)
+);
+
+COMMENT ON TABLE MEDICORE_PROD.AUDIT.SNOWFLAKE_CREDITS IS
+    'Historique quotidien de la consommation de credits Snowflake par warehouse. Alimente par cost_monitoring.py (phase healthcheck). ACCOUNT_USAGE a un delai de ~45 min ; les donnees sont eventually consistent.';
+
 -- ============================================================
 -- TABLES AUDIT : RLS (Row-Level Security) pharmacies
 -- ============================================================

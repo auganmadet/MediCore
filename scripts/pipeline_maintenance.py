@@ -133,6 +133,33 @@ def run_phase(phase_key, fix_level, dry_run):
         return 'ERROR', str(e)[:100]
 
 
+def run_cost_monitoring(dry_run):
+    """Hook post-Phase 1 : cout Snowflake (insert AUDIT + alerte Teams si seuil).
+
+    Non bloquant : un echec ici ne stoppe pas la suite du pipeline.
+    """
+    script_path = SCRIPTS_DIR / 'cost_monitoring.py'
+    if not script_path.exists():
+        return 'SKIP', 'cost_monitoring.py absent'
+
+    cmd = [PYTHON, str(script_path)]
+    if dry_run:
+        cmd.append('--dry-run')
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        if result.stdout:
+            for line in result.stdout.strip().split('\n'):
+                print(f'  {line}')
+        if result.returncode == 0:
+            return 'OK', ''
+        return 'WARN', f'Exit code {result.returncode}'
+    except subprocess.TimeoutExpired:
+        return 'TIMEOUT', 'Timeout 60s'
+    except Exception as e:  # pylint: disable=broad-except
+        return 'ERROR', str(e)[:100]
+
+
 def main():
     parser = argparse.ArgumentParser(description='Pipeline maintenance (5 phases)')
     parser.add_argument('--phase', choices=list(PHASES.keys()),
@@ -185,6 +212,16 @@ def main():
         else:
             print(f'\n  >> {phase["name"]}: {status} {msg}')
 
+        # Hook post-Phase 1 : cout Snowflake (non bloquant, non compte comme phase)
+        if phase_key == 'healthcheck' and status == 'OK':
+            print(f'\n  --- Cost monitoring (hook post-healthcheck) ---')
+            cost_status, cost_msg = run_cost_monitoring(args.dry_run)
+            report['cost_monitoring'] = {'status': cost_status, 'msg': cost_msg}
+            if cost_status == 'OK':
+                print(f'  >> Cost monitoring: OK')
+            else:
+                print(f'  >> Cost monitoring: {cost_status} {cost_msg}')
+
         # Si phase critique echoue, stop
         if phase['critical'] and status in ('FAIL', 'TIMEOUT', 'ERROR'):
             print(f'\n  STOP: {phase["name"]} est critique — phases suivantes sautees')
@@ -203,16 +240,18 @@ def main():
     print(f'{"=" * 70}')
 
     for phase_key, result in report.items():
-        phase = PHASES[phase_key]
         status = result['status']
         indicator = {'OK': 'OK', 'FAIL': 'FAIL', 'WARN': 'WARN',
                      'SKIP': 'SKIP', 'TIMEOUT': 'TIMEOUT', 'ERROR': 'ERROR'}
-        print(f'  {phase["name"]:.<45} {indicator.get(status, status)}')
+        label = PHASES[phase_key]['name'] if phase_key in PHASES else 'Hook - Cost monitoring'
+        print(f'  {label:.<45} {indicator.get(status, status)}')
 
-    nb_ok = sum(1 for r in report.values() if r['status'] == 'OK')
-    nb_fail = sum(1 for r in report.values() if r['status'] in ('FAIL', 'ERROR', 'TIMEOUT'))
-    nb_warn = sum(1 for r in report.values() if r['status'] == 'WARN')
-    nb_skip = sum(1 for r in report.values() if r['status'] == 'SKIP')
+    # Cost monitoring n'est pas compte dans le decompte OK/FAIL (hook non bloquant)
+    counted = {k: v for k, v in report.items() if k in PHASES}
+    nb_ok = sum(1 for r in counted.values() if r['status'] == 'OK')
+    nb_fail = sum(1 for r in counted.values() if r['status'] in ('FAIL', 'ERROR', 'TIMEOUT'))
+    nb_warn = sum(1 for r in counted.values() if r['status'] == 'WARN')
+    nb_skip = sum(1 for r in counted.values() if r['status'] == 'SKIP')
 
     print(f'\n  Total: {nb_ok} OK, {nb_fail} FAIL, {nb_warn} WARN, {nb_skip} SKIP')
 
