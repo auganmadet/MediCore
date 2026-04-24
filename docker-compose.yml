@@ -211,9 +211,9 @@ services:
       MB_EMAIL_SMTP_PASSWORD: ${MB_EMAIL_SMTP_PASSWORD:-}
       MB_EMAIL_FROM_ADDRESS: ${MB_EMAIL_FROM_ADDRESS:-metabase@mediprix.fr}
       MB_EMAIL_FROM_NAME: ${MB_EMAIL_FROM_NAME:-MediCore BI}
-      MB_SITE_URL: ${MB_SITE_URL:-http://192.168.0.37:3000}
+      MB_SITE_URL: ${MB_SITE_URL:-http://192.168.0.37:3001}
     ports:
-      - "0.0.0.0:3000:3000"
+      - "0.0.0.0:3001:3000"
     networks:
       - medicore_net
     restart: unless-stopped
@@ -227,7 +227,7 @@ services:
     volumes:
       - ./dbt/target:/app/target:ro
     ports:
-      - "0.0.0.0:8080:8080"
+      - "0.0.0.0:8082:8080"
     networks:
       - medicore_net
     restart: unless-stopped
