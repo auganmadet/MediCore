@@ -47,6 +47,11 @@ REF_DONE_FLAG="/tmp/ref_bulk_done_today"
 NIGHT_CDC_DONE_FLAG="/tmp/night_cdc_done"
 POST_RELOAD_DBT_DONE_FLAG="/tmp/post_reload_dbt_done"
 MB_PROV_DONE_FLAG="/tmp/mb_provision_done_today"
+# Dev auto-clone : resynchronise MEDICORE_DEV depuis MEDICORE_PROD une fois
+# par nuit (clone zero-copy Snowflake, quelques secondes, cout nul). Opt-in.
+DEV_AUTO_CLONE=${DEV_AUTO_CLONE:-false}
+DEV_CLONE_ROLE=${DEV_CLONE_ROLE:-ACCOUNTADMIN}
+DEV_CLONE_DONE_FLAG="/tmp/dev_clone_done_today"
 # Extra bulk_load ad-hoc : declenche par un flag manuel contenant les tables
 # a recharger (ex: "FACTURES"). Execute APRES pipeline_maintenance pour ne
 # pas entrer en competition warehouse. Une seule fois par activation.
@@ -432,6 +437,40 @@ run_dbt() {
   cd /app
 }
 
+# Resynchronisation MEDICORE_DEV depuis MEDICORE_PROD via CLONE zero-copy.
+# Appelee une fois par nuit si DEV_AUTO_CLONE=true, apres toutes les autres
+# phases. Le clone est quasi instantane (metadata seulement) et gratuit en
+# compute. Garantit que les sessions dev du lendemain partent sur des
+# donnees fraiches sans effort manuel.
+run_dev_clone() {
+  echo "Phase dev-clone: CREATE OR REPLACE DATABASE MEDICORE_DEV CLONE MEDICORE_PROD"
+  if python3 -c "
+import os, sys, snowflake.connector
+try:
+    conn = snowflake.connector.connect(
+        account=os.environ['SNOWFLAKE_ACCOUNT'],
+        user=os.environ['SNOWFLAKE_USER'],
+        password=os.environ['SNOWFLAKE_PASSWORD'],
+        warehouse=os.getenv('SNOWFLAKE_WAREHOUSE_NAME', 'MEDICORE_WH'),
+        role='${DEV_CLONE_ROLE}',
+    )
+    cur = conn.cursor()
+    cur.execute('CREATE OR REPLACE DATABASE MEDICORE_DEV CLONE MEDICORE_PROD')
+    cur.close()
+    conn.close()
+    print('MEDICORE_DEV resynchronise depuis MEDICORE_PROD')
+except Exception as e:
+    print(f'Dev clone echec: {e}', file=sys.stderr)
+    sys.exit(1)
+"; then
+    touch "$DEV_CLONE_DONE_FLAG"
+    echo "Dev clone termine"
+  else
+    echo "Dev clone echec (non bloquant)"
+    send_teams_alert "dev_auto_clone" "1" "failure" 2>/dev/null || true
+  fi
+}
+
 # ==========================================================================
 # BOUCLE PRINCIPALE
 # ==========================================================================
@@ -477,6 +516,7 @@ check_env_coherence
 echo "MediCore Batch Loop - CDC ${CDC_INTERVAL_MIN}min, dbt every ${DBT_EVERY_N} cycles - ENV: ${ENV}"
 echo "  Mode nuit: ${NIGHT_START}h-${NIGHT_END}h UTC (CDC ${NIGHT_CDC_HOUR}:${NIGHT_CDC_MIN}, ref_reload ${REF_RELOAD_HOUR}h-${POST_RELOAD_DBT_HOUR}h, dbt+maintenance enchaînent après REF_DONE)"
 echo "  Heures FR (UTC+2): nuit 21h-07h, CDC 21h30, ref_reload 23h, dbt+maintenance enchaînent après (~23h40 en mode incremental)"
+echo "  Dev auto-clone: DEV_AUTO_CLONE=${DEV_AUTO_CLONE} (role: ${DEV_CLONE_ROLE})"
 
 # En dev : mode single-run (pas de boucle infinie)
 if [ "${ENV}" = "dev" ] && [ "${BATCH_LOOP:-true}" = "false" ]; then
@@ -516,7 +556,7 @@ while true; do
 
   # Reset flags et compteurs quotidiens au debut du mode nuit (19h UTC = 21h FR)
   if [ "$HOUR" = "19" ] && [ "$(date +%M)" -lt "10" ]; then
-    rm -f "$REF_DONE_FLAG" "$NIGHT_CDC_DONE_FLAG" "$POST_RELOAD_DBT_DONE_FLAG" "$MB_PROV_DONE_FLAG"
+    rm -f "$REF_DONE_FLAG" "$NIGHT_CDC_DONE_FLAG" "$POST_RELOAD_DBT_DONE_FLAG" "$MB_PROV_DONE_FLAG" "$DEV_CLONE_DONE_FLAG"
     REF_FAIL=0; CDC_FAIL=0; STG_FAIL=0; SNAP_FAIL=0; MARTS_FAIL=0
     TEST_FAIL=0; MARTS_TEST_FAIL=0; FRESH_FAIL=0; ZERO_VOL=0; LAG_HIGH=0
     REF_RELOAD_JUST_DONE=0; DBT_CYCLE_COUNT=0
@@ -719,6 +759,18 @@ print('Audit purge terminee')
         send_teams_alert "Extra bulk_load $EXTRA_TABLES" 1 "failure"
       fi
       rm -f "$EXTRA_BULK_RUNNING_FLAG"
+    fi
+
+    # --- Dev auto-clone (opt-in via DEV_AUTO_CLONE=true) ---
+    # Resynchronise MEDICORE_DEV depuis MEDICORE_PROD apres toutes les autres
+    # phases nocturnes. Clone zero-copy = ~2 secondes, compute gratuit.
+    # Executee uniquement en production (ENV=prod) pour eviter de cloner
+    # depuis DEV sur lui-meme pendant les sessions de dev.
+    if [ "$DEV_AUTO_CLONE" = "true" ] \
+       && [ "$ENV" = "prod" ] \
+       && [ -f "$MB_PROV_DONE_FLAG" ] \
+       && [ ! -f "$DEV_CLONE_DONE_FLAG" ]; then
+      run_dev_clone
     fi
 
     # Statut global du run
