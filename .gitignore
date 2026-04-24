@@ -29,6 +29,7 @@ __pycache__/
 .idea/
 *.code-workspace
 .claude/settings.local.json
+.claude/scheduled_tasks.lock
 
 # Environnements / venv locaux
 .venv/
