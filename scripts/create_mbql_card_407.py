@@ -13,7 +13,7 @@ if len(sys.argv) < 2:
     sys.exit(1)
 
 TOKEN = sys.argv[1]
-BASE = 'http://localhost:3000/api'
+BASE = 'http://localhost:3001/api'
 
 
 def api_get(path):

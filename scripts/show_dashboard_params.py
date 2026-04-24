@@ -16,7 +16,7 @@ TOKEN = sys.argv[1]
 DASH_ID = sys.argv[2]
 
 req = urllib.request.Request(
-    f'http://localhost:3000/api/dashboard/{DASH_ID}',
+    f'http://localhost:3001/api/dashboard/{DASH_ID}',
     headers={'X-Metabase-Session': TOKEN},
 )
 dash = json.loads(urllib.request.urlopen(req, timeout=120).read())

@@ -23,7 +23,7 @@ if len(sys.argv) < 3:
 
 EMAIL = sys.argv[1]
 PASSWORD = sys.argv[2]
-BASE = 'http://localhost:3000/api'
+BASE = 'http://localhost:3001/api'
 MEDICORE_DB_ID = 2
 ADMIN_DASHBOARD_ID = 2  # D1
 

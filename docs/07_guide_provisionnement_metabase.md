@@ -41,7 +41,7 @@ Gérer les comptes utilisateurs Metabase de manière centralisée via un fichier
 
 ## Prérequis
 
-- Metabase en cours d'exécution (`http://localhost:3000`)
+- Metabase en cours d'exécution (`http://localhost:3001`)
 - Un **session token** administrateur (voir [Obtenir un token](#obtenir-un-session-token))
 - Python 3.10+ (aucune dépendance externe)
 
@@ -114,7 +114,7 @@ console.log(JSON.parse(localStorage.getItem('metabase.CURRENT_USER')))
 Ou via l'API :
 
 ```bash
-curl -X POST http://localhost:3000/api/session \
+curl -X POST http://localhost:3001/api/session \
   -H "Content-Type: application/json" \
   -d '{"username":"admin@mediprix.fr","password":"votre_mot_de_passe"}'
 ```
@@ -281,7 +281,7 @@ MediCore BI/                              view pour tous
 
 Metabase est accessible sur le réseau local à l'adresse :
 
-**`http://192.168.0.37:3000`**
+**`http://192.168.0.37:3001`**
 
 > Cette URL est valable pour tous les postes connectés au même réseau local.
 > Si l'IP du serveur change, mettre à jour cette documentation.
@@ -345,7 +345,7 @@ MB_EMAIL_SMTP_USERNAME=metabase@mediprix.fr
 MB_EMAIL_SMTP_PASSWORD=abcdefghijklmnop
 MB_EMAIL_FROM_ADDRESS=metabase@mediprix.fr
 MB_EMAIL_FROM_NAME=MediCore BI
-MB_SITE_URL=http://192.168.0.37:3000
+MB_SITE_URL=http://192.168.0.37:3001
 ```
 
 > **Important** : `MB_EMAIL_SMTP_PASSWORD` est le mot de passe d'application (16 caractères),
@@ -361,7 +361,7 @@ ses settings SMTP dans sa base PostgreSQL. Il faut donc les configurer **via l'A
 TOKEN=$(python -c "
 import urllib.request, json
 data = json.dumps({'username':'admin@mediprix.fr','password':'xxx'}).encode()
-req = urllib.request.Request('http://localhost:3000/api/session', data=data, headers={'Content-Type':'application/json'})
+req = urllib.request.Request('http://localhost:3001/api/session', data=data, headers={'Content-Type':'application/json'})
 print(json.loads(urllib.request.urlopen(req).read())['id'])
 ")
 
@@ -377,11 +377,11 @@ mapping = {
   'email-smtp-password': os.getenv('MB_EMAIL_SMTP_PASSWORD',''),
   'email-from-address': os.getenv('MB_EMAIL_FROM_ADDRESS',''),
   'email-from-name': os.getenv('MB_EMAIL_FROM_NAME','MediCore BI'),
-  'site-url': os.getenv('MB_SITE_URL','http://192.168.0.37:3000'),
+  'site-url': os.getenv('MB_SITE_URL','http://192.168.0.37:3001'),
 }
 import json; print(json.dumps(mapping['$KEY']))
   ")
-  curl -s -X PUT "http://localhost:3000/api/setting/$KEY" \
+  curl -s -X PUT "http://localhost:3001/api/setting/$KEY" \
     -H "X-Metabase-Session: $TOKEN" \
     -H "Content-Type: application/json" \
     -d "{\"value\": $VALUE}"
@@ -396,7 +396,7 @@ Ou plus simplement, utiliser l'interface Metabase :
 Via l'API :
 
 ```bash
-curl -X POST http://localhost:3000/api/email/test \
+curl -X POST http://localhost:3001/api/email/test \
   -H "X-Metabase-Session: $TOKEN" \
   -H "Content-Type: application/json" -d '{}'
 ```
@@ -434,7 +434,7 @@ Bonjour [Prénom],
 
 Ton compte Metabase MediCore est créé. Voici tes accès :
 
-  URL       : http://192.168.0.37:3000
+  URL       : http://192.168.0.37:3001
   Email     : [son email]
   Mot de passe temporaire : Medicore2026!
 
@@ -455,7 +455,7 @@ de ton service (ex: Cards/IT/, Dashboards/IT/).
   ┌─────────────────────────────┬─────────────────────────────────────────────────────────────────┐
   │ Situation                   │ Action                                                          │
   ├─────────────────────────────┼─────────────────────────────────────────────────────────────────┤
-  │ Même réseau local           │ `http://192.168.0.37:3000` — aucune config supplémentaire       │
+  │ Même réseau local           │ `http://192.168.0.37:3001` — aucune config supplémentaire       │
   ├─────────────────────────────┼─────────────────────────────────────────────────────────────────┤
   │ VPN d'entreprise            │ S'assurer que le VPN route vers le réseau 192.168.1.0/24        │
   ├─────────────────────────────┼─────────────────────────────────────────────────────────────────┤
@@ -474,7 +474,7 @@ netsh advfirewall firewall add rule name="Metabase" dir=in action=allow protocol
 > Sans cette règle, les autres postes du réseau ne peuvent pas accéder à Metabase
 > même si Docker expose le port sur `0.0.0.0:3000`.
 
-**IP fixe (recommandé)** : l'URL `http://192.168.0.37:3000` dépend d'une IP attribuée par DHCP — elle peut changer. Demander à l'admin réseau de réserver l'IP dans le routeur :
+**IP fixe (recommandé)** : l'URL `http://192.168.0.37:3001` dépend d'une IP attribuée par DHCP — elle peut changer. Demander à l'admin réseau de réserver l'IP dans le routeur :
 
   ┌──────────────────┬──────────────────────────────────────────┐
   │ Paramètre        │ Valeur                                   │
@@ -511,7 +511,7 @@ netsh advfirewall firewall add rule name="Metabase" dir=in action=allow protocol
   │ Erreur "Permission denied"           │ Vérifier que le token utilisé est celui d'un admin       │
   ├──────────────────────────────────────┼──────────────────────────────────────────────────────────┤
   │ L'utilisateur ne peut pas accéder    │ Vérifier : 1) même réseau local 2) pare-feu Windows      │
-  │ à http://192.168.0.37:3000           │ port 3000 ouvert 3) Docker en cours d'exécution          │
+  │ à http://192.168.0.37:3001           │ port 3000 ouvert 3) Docker en cours d'exécution          │
   ├──────────────────────────────────────┼──────────────────────────────────────────────────────────┤
   │ "Connection refused" depuis un       │ Vérifier que le bind est `0.0.0.0:3000:3000` dans        │
   │ autre poste                          │ `docker-compose.yml` (pas `127.0.0.1`)                   │

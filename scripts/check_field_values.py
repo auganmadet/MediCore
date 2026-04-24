@@ -19,7 +19,7 @@ FIELD_IDS = [int(x) for x in sys.argv[2:]]
 for fid in FIELD_IDS:
     try:
         req = urllib.request.Request(
-            f'http://localhost:3000/api/field/{fid}/values',
+            f'http://localhost:3001/api/field/{fid}/values',
             headers={'X-Metabase-Session': TOKEN},
         )
         resp = json.loads(urllib.request.urlopen(req, timeout=60).read())

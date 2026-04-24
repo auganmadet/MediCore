@@ -157,7 +157,7 @@
   │                  │ Inconvenient : cout eleve (~70$/utilisateur/mois).           │
   ├──────────────────┼──────────────────────────────────────────────────────────────┤
   │ Metabase         │ Open-source, self-hosted, SQL natif, gratuit.                │
-  │                  │ Deploye dans le stack Docker (`localhost:3000`).             │
+  │                  │ Deploye dans le stack Docker (`localhost:3001`).             │
   ├──────────────────┼──────────────────────────────────────────────────────────────┤
   │ API / Exports    │ Integration KPIs dans ERP, CRM, applications metier.         │
   │                  │ Exports CSV/Excel pour partenaires (labos, groupements).     │

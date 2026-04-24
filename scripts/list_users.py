@@ -14,7 +14,7 @@ if len(sys.argv) < 2:
 
 TOKEN = sys.argv[1]
 req = urllib.request.Request(
-    'http://localhost:3000/api/user',
+    'http://localhost:3001/api/user',
     headers={'X-Metabase-Session': TOKEN},
 )
 data = json.loads(urllib.request.urlopen(req, timeout=60).read())

@@ -19,7 +19,7 @@ if len(sys.argv) < 2:
     sys.exit(1)
 
 TOKEN = sys.argv[1]
-BASE = 'http://localhost:3000/api'
+BASE = 'http://localhost:3001/api'
 ALL_IDS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
 
 start_id = 2

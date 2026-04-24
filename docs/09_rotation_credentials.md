@@ -141,7 +141,7 @@ de production (RAW, STAGING, MARTS, AUDIT).
 ### 2e. Metabase admin password
 
 ```
-1. Se connecter à Metabase (http://192.168.0.37:3000)
+1. Se connecter à Metabase (http://192.168.0.37:3001)
 2. Profil admin → Mot de passe → Changer
 3. Communiquer le nouveau mot de passe aux administrateurs IT
    (Simon, Richard, Alexandre)

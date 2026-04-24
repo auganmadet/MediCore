@@ -18,7 +18,7 @@ PASSWORD = sys.argv[3]
 
 body = json.dumps({'password': PASSWORD}).encode('utf-8')
 req = urllib.request.Request(
-    f'http://localhost:3000/api/user/{USER_ID}/password',
+    f'http://localhost:3001/api/user/{USER_ID}/password',
     data=body, method='PUT',
     headers={
         'X-Metabase-Session': TOKEN,

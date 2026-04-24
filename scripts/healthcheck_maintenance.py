@@ -38,7 +38,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger(__name__)
 
 # URLs : utiliser les noms Docker internes si disponibles, sinon localhost
-METABASE_URL = os.getenv('METABASE_URL', os.getenv('MB_SITE_URL', os.getenv('METABASE_SITE_URL', 'http://localhost:3000')))
+METABASE_URL = os.getenv('METABASE_URL', os.getenv('MB_SITE_URL', os.getenv('METABASE_SITE_URL', 'http://localhost:3001')))
 KAFKA_CONNECT_URL = os.getenv('KAFKA_CONNECT_URL', 'http://kafka_connect:8083')
 
 

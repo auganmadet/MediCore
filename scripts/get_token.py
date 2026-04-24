@@ -7,7 +7,7 @@ data = json.dumps({
 }).encode()
 
 req = urllib.request.Request(
-    'http://localhost:3000/api/session',
+    'http://localhost:3001/api/session',
     data=data,
     headers={'Content-Type': 'application/json'},
 )

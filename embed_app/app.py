@@ -32,7 +32,7 @@ METABASE_SECRET_KEY = os.getenv(
     'METABASE_EMBEDDING_SECRET_KEY',
     '6bb88d0ecf2a8e8a45d60d04adda4ea87ab3cd50e809fa2d9ce1ae45b06f150c',
 )
-METABASE_SITE_URL = os.getenv('METABASE_SITE_URL', 'http://localhost:3000')
+METABASE_SITE_URL = os.getenv('METABASE_SITE_URL', 'http://localhost:3001')
 
 DASHBOARDS = [
     {'id': 2, 'name': 'D1 - Synthese pharmacie'},

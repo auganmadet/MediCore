@@ -106,7 +106,7 @@ Cause probable : P2 (ancien nom database) ou P3 (syntaxe SQL) ou P7 (erreur gén
    → Ou recréer en MBQL : python scripts/create_mbql_card.py --card <card_id>
 ```
 
-### Carte OK sur localhost:3000 mais erreur sur localhost:5000
+### Carte OK sur localhost:3001 mais erreur sur localhost:5000
 
 ```
 Cause probable : P8 (carte SQL native avec template-tag date incompatible embedding)
@@ -289,7 +289,7 @@ python scripts/get_token.py
 L'ID est visible dans l'URL Metabase :
 
 ```
-http://localhost:3000/dashboard/5  →  dashboard_id = 5
+http://localhost:3001/dashboard/5  →  dashboard_id = 5
 
 Mapping D1-D16 :
   D1=2, D2=3, D3=4, D4=5, D5=6, D6=7, D7=8, D8=9,
@@ -306,7 +306,7 @@ python scripts/list_dashboards.py <token>
 
 1. **Depuis Metabase** : ouvrir le dashboard → cliquer sur une carte → l'ID est dans l'URL :
    ```
-   http://localhost:3000/question/369  →  card_id = 369
+   http://localhost:3001/question/369  →  card_id = 369
    ```
 
 2. **Depuis un script de diagnostic** :
@@ -476,7 +476,7 @@ python scripts/list_users.py <token>
 ### P8 — Carte SQL native avec template-tag date incompatible embedding
 
   ┌─────────────┬─────────────────────────────────────────────────────────────────────────────────────────────────┐
-  │ Symptôme    │ Carte OK sur localhost:3000 mais triangle jaune sur localhost:5000 (mini-app Flask).            │
+  │ Symptôme    │ Carte OK sur localhost:3001 mais triangle jaune sur localhost:5000 (mini-app Flask).            │
   ├─────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────┤
   │ Cause       │ Metabase v0.58 gère différemment les paramètres `date` en mode embedding pour les cartes        │
   │             │ SQL natives — le format de la valeur envoyée par le JWT n'est pas compatible avec le            │

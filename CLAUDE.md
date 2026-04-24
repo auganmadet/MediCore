@@ -65,7 +65,7 @@ Répertoire : `.claude/dev-memories/`
 
 ### Metabase BI & Embedding
 
-- **Metabase v0.58.7** + PostgreSQL 16, accès `http://localhost:3000`
+- **Metabase v0.58.7** + PostgreSQL 16, accès `http://localhost:3001`
 - 16 dashboards (D1-D16), 98 cartes, embedding signé (JWT) pour les pharmaciens
 - **Siège** (IT, Marketing, RH, Achats) : accès direct Metabase, filtrage par collections
 - **Pharmaciens** : dashboards via iframes (signed embedding), filtre pharmacie verrouillé par JWT

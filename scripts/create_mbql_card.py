@@ -24,7 +24,7 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parent.parent / '.env')
 
-BASE_URL = os.getenv('METABASE_URL', os.getenv('METABASE_SITE_URL', 'http://localhost:3000'))
+BASE_URL = os.getenv('METABASE_URL', os.getenv('METABASE_SITE_URL', 'http://localhost:3001'))
 BASE = f'{BASE_URL}/api'
 DB_ID = int(os.getenv('MB_SOURCE_DATABASE_ID', '2'))
 ADMIN_COLLECTION_ID = 21

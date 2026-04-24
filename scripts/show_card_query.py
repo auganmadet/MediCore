@@ -16,7 +16,7 @@ TOKEN = sys.argv[1]
 CARD_ID = sys.argv[2]
 
 req = urllib.request.Request(
-    f'http://localhost:3000/api/card/{CARD_ID}',
+    f'http://localhost:3001/api/card/{CARD_ID}',
     headers={'X-Metabase-Session': TOKEN},
 )
 card = json.loads(urllib.request.urlopen(req, timeout=60).read())

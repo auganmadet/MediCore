@@ -2,7 +2,7 @@
 
 Ce document est un mode d'emploi pour créer les dashboards MediCore dans
 l'interface web Metabase. Toutes les étapes décrivent les actions manuelles
-à effectuer dans le navigateur (`http://localhost:3000`).
+à effectuer dans le navigateur (`http://localhost:3001`).
 
 > **Séparation des responsabilités** : les cards Metabase font uniquement des `SELECT` sur les tables MARTS pré-calculées par dbt. Les `SUM()`, `AVG()`, `COUNT()` présents dans les équivalents SQL sont des **agrégations d'affichage** (regrouper par mois, par pharmacie, etc.), pas des calculs métier. La logique métier (formules, KPIs) est entièrement dans dbt — voir [`docs/05_KPIs.md`](05_KPIs.md) pour les formules détaillées.
 >
@@ -504,7 +504,7 @@ Pour ajouter un filtre manuellement sur un autre dashboard :
 
 ### Résultat
 
-Le dashboard D11 est accessible à `http://localhost:3000/dashboard/12`.
+Le dashboard D11 est accessible à `http://localhost:3001/dashboard/12`.
 Il contient 7 questions répondant à : **« Combien de capital dort dans mes étagères ? »**
 
 [↑ Retour au sommaire](#table-des-matières)

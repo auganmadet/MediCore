@@ -34,7 +34,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(mess
 
 # --- Configuration -----------------------------------------------------------
 
-METABASE_URL = os.getenv('METABASE_URL', 'http://localhost:3000')
+METABASE_URL = os.getenv('METABASE_URL', 'http://localhost:3001')
 MB_BASE = f'{METABASE_URL}/api'
 MB_SOURCE_DATABASE_ID = int(os.getenv('MB_SOURCE_DATABASE_ID', '2'))
 MEDICORE_COLL_ID = int(os.getenv('MB_MEDICORE_COLLECTION_ID', '5'))

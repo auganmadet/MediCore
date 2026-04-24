@@ -326,7 +326,7 @@ docker exec -it medicore_elt_batch bash /app/scripts/restore_metabase.sh
 docker compose start metabase
 
 # 4. Vérifier (attendre ~30s que Metabase redémarre)
-# Ouvrir http://localhost:3000 et vérifier que les dashboards sont présents
+# Ouvrir http://localhost:3001 et vérifier que les dashboards sont présents
 ```
 
 ### Backup manuel (hors cycle automatique)

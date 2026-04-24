@@ -15,7 +15,7 @@ if len(sys.argv) < 2:
     sys.exit(1)
 
 TOKEN = sys.argv[1]
-BASE = 'http://localhost:3000/api'
+BASE = 'http://localhost:3001/api'
 
 # D4 = dashboard 5, D15 = dashboard 16, D16 = dashboard 17
 DASHBOARDS_TO_FIX = [5, 16, 17]

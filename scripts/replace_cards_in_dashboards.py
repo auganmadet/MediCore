@@ -15,7 +15,7 @@ if len(sys.argv) < 4:
 TOKEN = sys.argv[1]
 NEW_CARD_369 = int(sys.argv[2])
 NEW_CARD_405 = int(sys.argv[3])
-BASE = 'http://localhost:3000/api'
+BASE = 'http://localhost:3001/api'
 
 REPLACEMENTS = {
     5: {369: NEW_CARD_369},   # D4: Distribution taux de marge

@@ -11,7 +11,7 @@ def api_put(path, data):
     """Met à jour une ressource Metabase via PUT."""
     body = json.dumps(data).encode('utf-8')
     req = urllib.request.Request(
-        'http://localhost:3000/api/' + path, data=body, method='PUT',
+        'http://localhost:3001/api/' + path, data=body, method='PUT',
         headers={'X-Metabase-Session': TOKEN, 'Content-Type': 'application/json; charset=utf-8'}
     )
     return json.loads(urllib.request.urlopen(req, timeout=60).read())

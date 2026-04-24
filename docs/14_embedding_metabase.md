@@ -61,7 +61,7 @@ Application Mediprix
   │ Clé secrète                      │ Dans .env : METABASE_EMBEDDING_SECRET_KEY        │
   ├──────────────────────────────────┼──────────────────────────────────────────────────┤
   │ URL Metabase                     │ Accessible depuis le navigateur du pharmacien    │
-  │                                  │ (ex: http://192.168.0.37:3000)                   │
+  │                                  │ (ex: http://192.168.0.37:3001)                   │
   ├──────────────────────────────────┼──────────────────────────────────────────────────┤
   │ Bibliothèque JWT                 │ PyJWT (Python) ou jsonwebtoken (Node.js)         │
   │                                  │ ou équivalent dans le langage de Mediprix        │
@@ -190,12 +190,12 @@ Le dashboard est affiché via le Web Component Metabase (pas un iframe classique
 
 ```html
 <!-- Charger le SDK Metabase (une seule fois par page) -->
-<script defer src="http://192.168.0.37:3000/app/embed.js"></script>
+<script defer src="http://192.168.0.37:3001/app/embed.js"></script>
 <script>
   window.metabaseConfig = {
     theme: { preset: "light" },
     isGuest: true,
-    instanceUrl: "http://192.168.0.37:3000"
+    instanceUrl: "http://192.168.0.37:3001"
   };
 </script>
 

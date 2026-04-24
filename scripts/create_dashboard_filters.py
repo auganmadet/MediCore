@@ -9,7 +9,7 @@ import sys
 import urllib.request
 import urllib.error
 
-BASE_URL = "http://localhost:3000/api"
+BASE_URL = "http://localhost:3001/api"
 
 # ── Field IDs PHARMACIE_SK par table ──────────────────────────────────────
 PHARMACIE_SK = {
