@@ -33,20 +33,27 @@ Ce document recense l'ensemble des indicateurs clés de performance (KPIs) calcu
    - [mart_kpi_ecoulement_par_fournisseur](#219-mart_kpi_ecoulement_par_fournisseur--écoulement-par-fournisseur)
    - [mart_kpi_ventes_par_produit](#220-mart_kpi_ventes_par_produit--ventes-agrégées-par-produit)
    - [mart_kpi_generique_marge](#221-mart_kpi_generique_marge--marge-générique-vs-princeps)
-3. [Axes d'analyse (dimensions)](#3-axes-danalyse-dimensions)
-4. [Classification des KPIs par catégorie commerciale](#4-classification-des-kpis-par-catégorie-commerciale)
-   - [Sell-in](#41-sell-in-achats-fournisseurs--pharmacie)
-   - [Sell-out](#42-sell-out-pharmacie--consommateur-final)
-   - [Sell-through](#43-sell-through-taux-découlement--rotation)
-   - [Upsell](#44-upsell--upselling-montée-en-gamme)
-   - [Cross-sell](#45-cross-sell--cross-selling-ventes-additionnelles)
-   - [Downsell](#46-downsell--down-selling-substitution-vers-moins-cher)
-   - [Repeat / Réachat](#47-repeat--réachat)
-   - [Churn](#48-churn-attrition-client)
-   - [CLV / LTV](#49-clv--ltv-customer-lifetime-value)
-   - [Attach rate](#410-attach-rate-taux-dassociation-produits)
-   - [Synthèse de couverture](#411-synthèse-de-couverture)
-5. [KPIs manquants et plan d'action](#5-kpis-manquants-et-plan-daction)
+3. [Lineage des données (RAW → KPI)](#3-lineage-des-données-raw--kpi)
+   - [Schéma global](#31-schéma-global-du-flux)
+   - [Lineage par table RAW (vue amont)](#32-lineage-par-table-raw-vue-amont)
+   - [Propagation transitive via les dimensions](#33-propagation-transitive-via-les-dimensions)
+   - [Analyse d'impact par criticité](#34-analyse-dimpact-par-criticité-de-la-raw)
+   - [Sources par KPI (vue aval)](#35-sources-par-kpi-vue-aval)
+   - [Alimentation des RAW (CDC vs bulk)](#36-alimentation-des-raw-cdc-vs-bulk)
+4. [Axes d'analyse (dimensions)](#4-axes-danalyse-dimensions)
+5. [Classification des KPIs par catégorie commerciale](#5-classification-des-kpis-par-catégorie-commerciale)
+   - [Sell-in](#51-sell-in-achats-fournisseurs--pharmacie)
+   - [Sell-out](#52-sell-out-pharmacie--consommateur-final)
+   - [Sell-through](#53-sell-through-taux-découlement--rotation)
+   - [Upsell](#54-upsell--upselling-montée-en-gamme)
+   - [Cross-sell](#55-cross-sell--cross-selling-ventes-additionnelles)
+   - [Downsell](#56-downsell--down-selling-substitution-vers-moins-cher)
+   - [Repeat / Réachat](#57-repeat--réachat)
+   - [Churn](#58-churn-attrition-client)
+   - [CLV / LTV](#59-clv--ltv-customer-lifetime-value)
+   - [Attach rate](#510-attach-rate-taux-dassociation-produits)
+   - [Synthèse de couverture](#511-synthèse-de-couverture)
+6. [KPIs manquants et plan d'action](#6-kpis-manquants-et-plan-daction)
 
 ---
 
@@ -1224,7 +1231,176 @@ Les deux indicateurs sont complémentaires : un produit peut avoir le stock à z
 
 ---
 
-## 3. Axes d'analyse (dimensions)
+## 3. Lineage des données (RAW → KPI)
+
+Cette section trace le parcours de chaque table RAW Snowflake jusqu'aux KPIs qu'elle alimente. Elle répond à deux questions opérationnelles :
+
+- **Impact amont → aval** : "Si la table RAW_X est indisponible ou corrompue, quels KPIs sont impactés ?"
+- **Provenance aval → amont** : "Quelle donnée source alimente le KPI Y ?"
+
+### 3.1 Schéma global du flux
+
+```
+Source MySQL  ──►  RAW (18 tables)  ──►  STAGING (18 modèles)  ──►  MARTS (11 faits/dims)  ──►  KPIs (21 mart_kpi_*)
+                    Copie brute           Dédup + PII             Star schema                Agrégations métier
+                    (+ métadonnées        + typage                (surrogate keys,
+                     CDC)                                          jointures)
+```
+
+Toutes les **18 tables RAW** sont utilisées. Aucune n'est orpheline. Chaque table contribue à **au moins un** KPI métier.
+
+### 3.2 Lineage par table RAW (vue amont)
+
+Pour chaque table RAW : le staging associé, le fait/dimension cible, et les KPIs finaux consommateurs.
+
+  ┌─────────────────────────┬──────────────────────────┬──────────────────────────────────────────────────────┐
+  │ Table RAW               │ Fait / Dimension         │ KPIs finaux directement consommateurs                │
+  ├─────────────────────────┼──────────────────────────┼──────────────────────────────────────────────────────┤
+  │ RAW_COMMANDES           │ fact_commandes           │ mart_kpi_ecoulement, mart_kpi_remise_labo            │
+  ├─────────────────────────┼──────────────────────────┼──────────────────────────────────────────────────────┤
+  │ RAW_FACTURES            │ fact_ventes              │ mart_kpi_abc, mart_kpi_ca_evolution,                 │
+  │                         │                          │ mart_kpi_dormant, mart_kpi_ecoulement,               │
+  │                         │                          │ mart_kpi_generique, mart_kpi_marge,                  │
+  │                         │                          │ mart_kpi_ruptures, mart_kpi_stock,                   │
+  │                         │                          │ mart_kpi_stock_valorisation,                         │
+  │                         │                          │ mart_kpi_ventes_par_produit                          │
+  ├─────────────────────────┼──────────────────────────┼──────────────────────────────────────────────────────┤
+  │ RAW_ORDERS              │ fact_operateur,          │ mart_kpi_operateur + tous les KPIs fact_ventes       │
+  │                         │ fact_ventes (jointure)   │                                                      │
+  ├─────────────────────────┼──────────────────────────┼──────────────────────────────────────────────────────┤
+  │ RAW_MODSTOCK            │ fact_stock_mouvement     │ mart_kpi_stock                                       │
+  ├─────────────────────────┼──────────────────────────┼──────────────────────────────────────────────────────┤
+  │ RAW_DAYBYDAY            │ fact_prix_journalier     │ mart_kpi_generique, mart_kpi_marge, mart_kpi_ruptures│
+  ├─────────────────────────┼──────────────────────────┼──────────────────────────────────────────────────────┤
+  │ RAW_EAN13               │ dim_produit              │ 7 KPIs (dormant, ecoulement_par_fournisseur,         │
+  │                         │                          │ generique, marge_par_produit, marge_par_univers,     │
+  │                         │                          │ ruptures_par_produit, ventes_par_produit)            │
+  ├─────────────────────────┼──────────────────────────┼──────────────────────────────────────────────────────┤
+  │ RAW_FOURNISSEURS        │ dim_fournisseur          │ mart_kpi_dormant, mart_kpi_ecoulement_par_fournisseur│
+  │                         │                          │ mart_kpi_generique, mart_kpi_remise_labo             │
+  ├─────────────────────────┼──────────────────────────┼──────────────────────────────────────────────────────┤
+  │ RAW_HISTORY             │ fact_tresorerie          │ mart_kpi_tresorerie                                  │
+  ├─────────────────────────┼──────────────────────────┼──────────────────────────────────────────────────────┤
+  │ RAW_LOG                 │ (direct mart_kpi)        │ mart_kpi_qualite_donnees                             │
+  ├─────────────────────────┼──────────────────────────┼──────────────────────────────────────────────────────┤
+  │ RAW_LPPR                │ dim_produit              │ 7 KPIs (via dim_produit)                             │
+  ├─────────────────────────┼──────────────────────────┼──────────────────────────────────────────────────────┤
+  │ RAW_MANQHISTORY         │ fact_ruptures            │ mart_kpi_ruptures                                    │
+  ├─────────────────────────┼──────────────────────────┼──────────────────────────────────────────────────────┤
+  │ RAW_MEDIPRIX_FACTURES   │ fact_operateur           │ mart_kpi_operateur                                   │
+  ├─────────────────────────┼──────────────────────────┼──────────────────────────────────────────────────────┤
+  │ RAW_PHARMACIE           │ dim_pharmacie            │ mart_kpi_dormant, mart_kpi_qualite_donnees           │
+  │                         │                          │ + implicitement tous les KPIs (via PHARMACIE_SK)     │
+  ├─────────────────────────┼──────────────────────────┼──────────────────────────────────────────────────────┤
+  │ RAW_PHARMACIES          │ dim_pharmacie            │ idem (external data enrichment)                      │
+  ├─────────────────────────┼──────────────────────────┼──────────────────────────────────────────────────────┤
+  │ RAW_PHARMACIES_ERREUR   │ (direct mart_kpi)        │ mart_kpi_qualite_donnees                             │
+  ├─────────────────────────┼──────────────────────────┼──────────────────────────────────────────────────────┤
+  │ RAW_PRODUITS            │ dim_produit              │ 7 KPIs (via dim_produit)                             │
+  ├─────────────────────────┼──────────────────────────┼──────────────────────────────────────────────────────┤
+  │ RAW_PRODUITS_NEGATIFS   │ dim_produit              │ 7 KPIs (via dim_produit)                             │
+  ├─────────────────────────┼──────────────────────────┼──────────────────────────────────────────────────────┤
+  │ RAW_STOCKHISTORY        │ fact_stock_valorisation  │ mart_kpi_dormant, mart_kpi_stock_valorisation        │
+  └─────────────────────────┴──────────────────────────┴──────────────────────────────────────────────────────┘
+
+### 3.3 Propagation transitive via les dimensions
+
+Les 3 dimensions `dim_pharmacie`, `dim_produit`, `dim_fournisseur` sont jointes par surrogate keys à la quasi-totalité des faits. Une table RAW qui alimente une dimension est donc **présente implicitement** dans tous les KPIs en aval.
+
+  ┌──────────────────┬──────────────────┬───────────────────────────────────────────────┐
+  │ Dimension        │ Utilisée par     │ Tables RAW sources                            │
+  ├──────────────────┼──────────────────┼───────────────────────────────────────────────┤
+  │ dim_pharmacie    │ 8/8 faits        │ RAW_PHARMACIE, RAW_PHARMACIES                 │
+  ├──────────────────┼──────────────────┼───────────────────────────────────────────────┤
+  │ dim_produit      │ 6/8 faits        │ RAW_PRODUITS, RAW_EAN13, RAW_LPPR,            │
+  │                  │                  │ RAW_PRODUITS_NEGATIFS                         │
+  ├──────────────────┼──────────────────┼───────────────────────────────────────────────┤
+  │ dim_fournisseur  │ fact_commandes   │ RAW_FOURNISSEURS                              │
+  │                  │ uniquement       │                                               │
+  └──────────────────┴──────────────────┴───────────────────────────────────────────────┘
+
+**Conséquence** : RAW_PHARMACIE et RAW_PHARMACIES sont indirectement impliquées dans **tous** les KPIs par pharmacie (c'est-à-dire 20 KPIs sur 21, tous sauf mart_kpi_qualite_donnees).
+
+### 3.4 Analyse d'impact par criticité de la RAW
+
+  ┌─────────────────────────┬──────────────┬─────────────────────────────────────────────┐
+  │ Table RAW               │ Nb KPIs      │ Criticité métier si indisponible            │
+  │                         │ directs      │                                             │
+  ├─────────────────────────┼──────────────┼─────────────────────────────────────────────┤
+  │ RAW_FACTURES            │ 10           │ CRITIQUE — cœur des ventes/marge            │
+  │ RAW_ORDERS              │ 11 (transitif│ CRITIQUE — impact ventes + vendeurs         │
+  │                         │  + operateur)│                                             │
+  │ RAW_PHARMACIE /         │ 20 (transitif│ CRITIQUE — dimension quasi universelle      │
+  │ RAW_PHARMACIES          │  via dim)    │                                             │
+  │ RAW_PRODUITS / EAN13 /  │ 7            │ ÉLEVÉE — dimension produit fréquente        │
+  │ LPPR / PRODUITS_NEGATIFS│              │                                             │
+  │ RAW_FOURNISSEURS        │ 4            │ MOYENNE — fournisseurs fréquents            │
+  │ RAW_DAYBYDAY            │ 3            │ MOYENNE — prix journalier                   │
+  │ RAW_COMMANDES           │ 2            │ MOYENNE — sell-in fournisseurs              │
+  │ RAW_STOCKHISTORY        │ 2            │ MOYENNE — valorisation stock                │
+  │ RAW_MODSTOCK            │ 1            │ FAIBLE — stock mouvement                    │
+  │ RAW_HISTORY             │ 1            │ FAIBLE — trésorerie                         │
+  │ RAW_MANQHISTORY         │ 1            │ FAIBLE — ruptures historiques               │
+  │ RAW_MEDIPRIX_FACTURES   │ 1            │ FAIBLE — perf vendeur (D5 uniquement)       │
+  │ RAW_LOG /               │ 1            │ MINEURE — monitoring qualité interne        │
+  │ RAW_PHARMACIES_ERREUR   │              │                                             │
+  └─────────────────────────┴──────────────┴─────────────────────────────────────────────┘
+
+### 3.5 Sources par KPI (vue aval)
+
+Inverse du tableau 3.2 : pour chaque KPI, les tables RAW qui le nourrissent.
+
+  ┌──────────────────────────────────┬───────────────────────────────────────────────────┐
+  │ KPI                              │ Tables RAW sources                                │
+  ├──────────────────────────────────┼───────────────────────────────────────────────────┤
+  │ mart_kpi_marge                   │ FACTURES, DAYBYDAY + dim_pharmacie + dim_produit  │
+  │ mart_kpi_stock                   │ FACTURES, MODSTOCK + dim_pharmacie + dim_produit  │
+  │ mart_kpi_ecoulement              │ FACTURES, COMMANDES + dim_pharmacie+dim_produit   │
+  │ mart_kpi_ruptures                │ FACTURES, MANQHISTORY, DAYBYDAY + dim_*           │
+  │ mart_kpi_tresorerie              │ HISTORY + dim_pharmacie                           │
+  │ mart_kpi_stock_valorisation      │ FACTURES, STOCKHISTORY + dim_*                    │
+  │ mart_kpi_qualite_donnees         │ LOG, PHARMACIES_ERREUR, PHARMACIE                 │
+  │ mart_kpi_operateur               │ MEDIPRIX_FACTURES, ORDERS + dim_pharmacie         │
+  │ mart_kpi_abc                     │ FACTURES + dim_pharmacie + dim_produit            │
+  │ mart_kpi_ca_evolution            │ FACTURES + dim_pharmacie                          │
+  │ mart_kpi_generique               │ FACTURES, DAYBYDAY + dim_produit + dim_fournisseur│
+  │ mart_kpi_remise_labo             │ COMMANDES + dim_fournisseur                       │
+  │ mart_kpi_univers                 │ dim_produit + agrégations                         │
+  │ mart_kpi_dormant                 │ FACTURES, STOCKHISTORY + dim_pharmacie +          │
+  │                                  │ dim_produit + dim_fournisseur                     │
+  │ mart_kpi_synthese_pharmacie      │ Vue consolidée multi-KPI                          │
+  │ mart_kpi_marge_par_produit       │ dérivé mart_kpi_marge + dim_produit               │
+  │ mart_kpi_marge_par_univers       │ dérivé mart_kpi_marge + dim_produit               │
+  │ mart_kpi_ruptures_par_produit    │ dérivé fact_ruptures + dim_produit                │
+  │ mart_kpi_ecoulement_par_fourn... │ dérivé + dim_fournisseur + dim_produit            │
+  │ mart_kpi_ventes_par_produit      │ FACTURES + dim_produit                            │
+  │ mart_kpi_generique_marge         │ dérivé mart_kpi_generique                         │
+  └──────────────────────────────────┴───────────────────────────────────────────────────┘
+
+### 3.6 Alimentation des RAW (CDC vs bulk)
+
+Le mode d'alimentation influence la fraîcheur des KPIs :
+
+  ┌──────────────────┬─────────────────────────────────────────────────┬────────────────┐
+  │ Mode             │ Tables RAW                                      │ Fraîcheur      │
+  ├──────────────────┼─────────────────────────────────────────────────┼────────────────┤
+  │ CDC temps réel   │ RAW_COMMANDES, RAW_FACTURES,                    │ ~10 min        │
+  │ (Debezium+Kafka) │ RAW_ORDERS, RAW_MODSTOCK                        │                │
+  ├──────────────────┼─────────────────────────────────────────────────┼────────────────┤
+  │ Bulk nocturne    │ Les 14 autres tables référence                  │ ~24 h          │
+  │ (23h FR,         │ (MEDIPRIX_FACTURES, STOCKHISTORY, PRODUITS,     │ (reload        │
+  │ CLONE+SWAP)      │ DAYBYDAY, EAN13, FOURNISSEURS, LPPR,            │ quotidien à    │
+  │                  │ MANQHISTORY, HISTORY, PHARMACIE, PHARMACIES,    │ 23h FR)        │
+  │                  │ PHARMACIES_ERREUR, PRODUITS_NEGATIFS, LOG)      │                │
+  └──────────────────┴─────────────────────────────────────────────────┴────────────────┘
+
+Les KPIs dérivés **uniquement** de tables CDC (ex: `mart_kpi_ca_evolution` qui ne dépend que de FACTURES) sont actualisés en quasi-temps-réel. Les KPIs qui croisent CDC + bulk (la plupart) ont la fraîcheur la plus lente de leurs sources (souvent 24 h).
+
+[↑ Retour au sommaire](#table-des-matières)
+
+---
+
+## 4. Axes d'analyse (dimensions)
 
 Tous les KPIs ci-dessus peuvent être filtrés et ventilés selon les axes suivants :
 
@@ -1251,11 +1427,11 @@ Tous les KPIs ci-dessus peuvent être filtrés et ventilés selon les axes suiva
 
 ---
 
-## 4. Classification des KPIs par catégorie commerciale
+## 5. Classification des KPIs par catégorie commerciale
 
 Cette section classe les KPIs selon les catégories standard du commerce et de la distribution.
 
-### 4.1 Sell-in (achats fournisseurs → pharmacie)
+### 5.1 Sell-in (achats fournisseurs → pharmacie)
 
 KPIs mesurant les flux d'approvisionnement auprès des grossistes et laboratoires.
 
@@ -1284,7 +1460,7 @@ KPIs mesurant les flux d'approvisionnement auprès des grossistes et laboratoire
 [↑ Retour au sommaire](#table-des-matières)
 
 
-### 4.2 Sell-out (pharmacie → consommateur final)
+### 5.2 Sell-out (pharmacie → consommateur final)
 
 KPIs mesurant les ventes au comptoir, l'activité commerciale B2C.
 
@@ -1321,7 +1497,7 @@ KPIs mesurant les ventes au comptoir, l'activité commerciale B2C.
 [↑ Retour au sommaire](#table-des-matières)
 
 
-### 4.3 Sell-through (taux d'écoulement / rotation)
+### 5.3 Sell-through (taux d'écoulement / rotation)
 
 KPIs mesurant la vitesse à laquelle les produits achetés sont revendus.
 
@@ -1342,7 +1518,7 @@ KPIs mesurant la vitesse à laquelle les produits achetés sont revendus.
 [↑ Retour au sommaire](#table-des-matières)
 
 
-### 4.4 Upsell / Upselling (montée en gamme)
+### 5.4 Upsell / Upselling (montée en gamme)
 
 KPIs mesurant la capacité à vendre des produits de gamme supérieure.
 
@@ -1357,7 +1533,7 @@ KPIs mesurant la capacité à vendre des produits de gamme supérieure.
 [↑ Retour au sommaire](#table-des-matières)
 
 
-### 4.5 Cross-sell / Cross-selling (ventes additionnelles)
+### 5.5 Cross-sell / Cross-selling (ventes additionnelles)
 
 KPIs mesurant la capacité à vendre des produits complémentaires.
 
@@ -1374,7 +1550,7 @@ KPIs mesurant la capacité à vendre des produits complémentaires.
 [↑ Retour au sommaire](#table-des-matières)
 
 
-### 4.6 Downsell / Down-selling (substitution vers moins cher)
+### 5.6 Downsell / Down-selling (substitution vers moins cher)
 
 KPIs mesurant la substitution vers des produits moins chers (notamment génériques).
 
@@ -1391,7 +1567,7 @@ KPIs mesurant la substitution vers des produits moins chers (notamment génériq
 [↑ Retour au sommaire](#table-des-matières)
 
 
-### 4.7 Repeat / Réachat
+### 5.7 Repeat / Réachat
 
 KPIs mesurant la fidélité et la récurrence des achats clients.
 
@@ -1406,7 +1582,7 @@ KPIs mesurant la fidélité et la récurrence des achats clients.
 [↑ Retour au sommaire](#table-des-matières)
 
 
-### 4.8 Churn (attrition client)
+### 5.8 Churn (attrition client)
 
 KPIs mesurant la perte de clients.
 
@@ -1421,7 +1597,7 @@ KPIs mesurant la perte de clients.
 [↑ Retour au sommaire](#table-des-matières)
 
 
-### 4.9 CLV / LTV (Customer Lifetime Value)
+### 5.9 CLV / LTV (Customer Lifetime Value)
 
 KPIs mesurant la valeur totale d'un client sur sa durée de vie.
 
@@ -1436,7 +1612,7 @@ KPIs mesurant la valeur totale d'un client sur sa durée de vie.
 [↑ Retour au sommaire](#table-des-matières)
 
 
-### 4.10 Attach rate (taux d'association produits)
+### 5.10 Attach rate (taux d'association produits)
 
 KPIs mesurant la fréquence d'achat conjoint de produits.
 
@@ -1451,7 +1627,7 @@ KPIs mesurant la fréquence d'achat conjoint de produits.
 [↑ Retour au sommaire](#table-des-matières)
 
 
-### 4.11 Synthèse de couverture
+### 5.11 Synthèse de couverture
 
   ┌─────────────────────────┬────────────┬─────────────────────────────────────────────────────────────┐
   │ Catégorie               │ Statut     │ Commentaire                                                 │
@@ -1481,7 +1657,7 @@ KPIs mesurant la fréquence d'achat conjoint de produits.
 
 ---
 
-## 5. KPIs manquants et plan d'action
+## 6. KPIs manquants et plan d'action
 
 Deux KPIs ne sont pas calculables aujourd'hui car les données sources nécessaires n'existent pas dans le pipeline.
 

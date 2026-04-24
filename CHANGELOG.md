@@ -5,6 +5,59 @@ Chaque entrée décrit **ce qui a changé** du point de vue métier et son impac
 
 ---
 
+## [2026-04-23] — Optimisation coût Snowflake L1+L5 : incremental merge + skip dimanche
+
+### Ajouts
+- **Incremental merge sur 4 tables référence volumineuses** (MEDIPRIX_FACTURES 264 M, STOCKHISTORY 147 M, DAYBYDAY 47 M, MANQHISTORY 3 M) : chaque nuit de semaine hors lundi, seules les données des 30 derniers jours sont chargées depuis MySQL et mergées dans Snowflake (`bulk_load.py --incremental-days 30`). Les 10 autres tables référence restent en TRUNCATE+reload classique.
+- **Logique hebdomadaire dans `batch_loop.sh`** : dimanche → skip complet (pharmacies fermées), lundi → full reload (réconciliation hebdomadaire pour capturer DELETEs), mardi→samedi → incremental 30 jours glissants.
+- **Enchaînement immédiat dbt post-reload + pipeline_maintenance** : avec l'incremental, le ref_reload termine en ~16 min au lieu de 4h48. Les phases dbt et maintenance ne sont plus bloquées sur 04h UTC mais s'enchaînent dès `REF_DONE_FLAG`, avec un sleep de 10 min entre chaque cycle nuit. Rapport Teams disponible dès 23h50 FR au lieu de 04h40 FR.
+- **Pre-night healthcheck** (`scripts/pre_night_healthcheck.py --fix`) : exécuté à 20h30 FR, 14 checks infrastructure + config (H1-H7 + N2-N8) avec corrections automatiques (H2/H3/H4/H6 + N2/N3/N5/N6/N7/N8). Crée `/tmp/pre_night_ok` si OK, alerte Teams critique sinon. Garde l'ensemble du cycle nocturne si l'infra n'est pas prête.
+- **Post-checks inline `batch_loop.sh`** : 2a après CDC pré-reload (warning si lag élevé), 2b après ref_reload (bloquant si tables vides ou `_BACKUP` résiduel → empêche dbt post-reload de tourner sur des données corrompues).
+- **Plan d'optimisation détaillé** : `docs/plans/2026-04-22_optimisation_cost_snowflake.md` (12 leviers analysés, Solution = L1+L5, critères de validation et plan de rollback).
+
+### Modifications
+- **`pipelines/bulk_load.py`** : nouvelle constante `INCREMENTAL_TABLES` + fonction `bulk_load_incremental_table` qui charge les N derniers jours et MERGE INTO sur la PK. Argument CLI `--incremental-days N`. Le code reste backwards-compatible : sans l'argument, comportement TRUNCATE+reload inchangé.
+- **`scripts/batch_loop.sh`** : variables de configuration `REF_FULL_DOW=1`, `REF_INCREMENTAL_DAYS=30`, `REF_SKIP_DOW=0` pour piloter la logique hebdomadaire. Fonction `is_ref_reload_window()` gère le wrap minuit (21h-02h). Post-checks 2a/2b intégrés.
+- **`scripts/pipeline_maintenance.py`** : retrait de la Phase 1 Healthcheck (H1-H7 maintenant couverts par pre-night à 20h30 FR). Script allégé à 4 phases : CDC, Bulk Load, dbt, Metabase.
+- **`scripts/bulk_maintenance.py`** : B4 tolère désormais 1 % d'écart MySQL/Snowflake (env var `B4_TOLERANCE_PCT`). Justification : en mode incremental, des écarts <1 % sont attendus pendant la semaine (modifs >30j non captées), le full du lundi ramène à 0 %.
+- **`.env`** : `REF_TIMEOUT_SEC=21600` (6h au lieu de 5h par défaut) — filet de sécurité intermédiaire pour absorber les nuits lentes (contention Docker Desktop). Observé : MEDIPRIX_FACTURES peut passer de 3h37 à 4h18 selon la charge machine.
+- **`docker-compose.yml`** : volumes `./scripts:/app/scripts` et `./.env:/app/.env` ajoutés pour permettre aux scripts de surveillance d'éditer le `.env` (fix N3) et d'être testés sans rebuild image.
+
+### Corrections
+- **Bug wrap minuit `is_ref_reload_window`** : l'ancienne condition `HOUR >= 21 && HOUR < 02` était toujours fausse. Réécrite avec `||` pour gérer la fenêtre 21h-02h.
+- **Bug CDC consumer SQL compilation error (`COM_PAHTNET`)** : le hardcoding des colonnes DECIMAL de COMMANDES appliquait ces colonnes à toutes les tables CDC (ORDERS, FACTURES, MODSTOCK), générant un INSERT avec colonnes inexistantes. Remplacé par mapping `CDC_DECIMAL_COLUMNS` paramétré par table, avec guard `if col in data`.
+- **Consumer CDC bloqué en boucle infinie row-by-row** : ajout d'un circuit-breaker `FALLBACK_MAX_CONSECUTIVE_FAILS=10` qui arrête le fallback après N échecs systémiques consécutifs avec la même erreur.
+- **Session Snowflake expirée non gérée** : ajout de `SNOWFLAKE_AUTH_EXPIRED_CODES` + `_reconnect_main()` / `_reconnect_dlq()` pour reconnexion automatique (codes 390114, 390116, 390111).
+- **Commit Kafka inconditionnel** : le commit d'offset se faisait même en cas d'échec du flush Snowflake, entraînant perte silencieuse de données. Corrigé : `if flush_ok: consumer.commit()`.
+- **Config Debezium drift** : `topic.prefix` était devenu `winstat` alors que le code attendait `winstat_rds.winstat`. Connector recréé avec config conforme à `setup.sh` (4 tables include.list, snapshot.mode=schema_only).
+- **Schéma CDC uniforme** : les 4 tables RAW CDC ont désormais 3 colonnes métadata identiques (`CDC_OPERATION`, `CDC_TIMESTAMP`, `CDC_LSN`). Les colonnes obsolètes `CDC_SCHEMA` et `CDC_TABLE` ont été retirées du code Python et du DDL.
+
+### Gain métier
+- **~-391 EUR/mois** (-83 %) sur le coût Snowflake MediCore en mode incremental : de 471 EUR/mois à ~80 EUR/mois.
+- **Ref_reload 18× plus court** : de 4h48 à ~16 min. Réduit drastiquement la fenêtre d'incident possible (veille machine, timeout, crash Docker).
+- **Rapport opérationnel disponible le soir** : consultable avant le coucher au lieu d'attendre le lendemain matin.
+
+### Ce qui est différé
+- **L4 Metabase caching** : à activer quand la production pleine démarrera (269 pharmacies actives, gain estimé -150 à -500 EUR/mois).
+- **L7 Optimisation `mart_kpi_dormant`** : modèle qui prend 7 min seul, différé car non bloquant (gain ~75 EUR/mois).
+
+---
+
+## [2026-04-22] — Lineage données RAW → KPI documenté
+
+### Ajouts
+- **Section 3 « Lineage des données (RAW → KPI) »** dans `docs/05_KPIs.md` : trace le parcours de chaque table RAW jusqu'aux KPIs (6 sous-sections : schéma global, vue amont, propagation via dimensions, analyse d'impact par criticité, vue aval par KPI, alimentation CDC vs bulk). Permet de répondre instantanément à deux questions opérationnelles : « si RAW_X est indisponible, quels KPIs sont impactés ? » et « quelles sources alimentent le KPI Y ? ».
+
+### Modifications
+- **Renumérotation sections `docs/05_KPIs.md`** : Axes d'analyse 3 → 4, Classification commerciale 4 → 5 (avec ses sous-sections 4.1-4.11 → 5.1-5.11), KPIs manquants 5 → 6. Table des matières mise à jour.
+
+### Constat
+- **100% des tables RAW** (18/18) contribuent à au moins un KPI métier. Aucune table orpheline.
+- **RAW_FACTURES est la table pivot** (10 KPIs directs via fact_ventes).
+- **RAW_PHARMACIE / RAW_PHARMACIES** impliquées dans 20/21 KPIs par propagation via dim_pharmacie.
+
+---
+
 ## [2026-03-24] — Tests singular, démasquage PII, CI complète
 
 ### Ajouts

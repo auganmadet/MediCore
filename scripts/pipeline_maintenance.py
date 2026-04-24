@@ -1,24 +1,30 @@
-"""Orchestrateur global de maintenance du pipeline MediCore.
+"""Orchestrateur de maintenance post-exécution du pipeline MediCore.
 
-Execute les 5 phases de maintenance en sequence :
-- Phase 1 : Healthcheck (connectivite MySQL, Kafka, Snowflake, Metabase, Debezium)
-- Phase 2 : CDC (lag Kafka, DLQ, doublons, offsets)
-- Phase 3 : Bulk Load (lock, tables vides, reconciliation, schema drift)
-- Phase 4 : dbt (modeles en erreur, tests echoues, freshness, MARTS vides)
-- Phase 5 : Metabase (P1-P10, provisionnement pharmacies)
+Execute a 04h30 FR (02h30 UTC) par batch_loop.sh, APRES la nuit complete.
+Audit de l'etat produit par les phases nocturnes (ref_reload + dbt post-reload).
 
-S'auto-authentifie via .env. Chaque phase est un script independant.
-Si Phase 1 echoue (connectivite critique), les phases suivantes sont sautees.
+4 phases (Phase 1 Healthcheck ex-H1/H7 est maintenant couverte par
+pre_night_healthcheck.py a 20h30 FR, 30 min avant le mode nuit) :
+
+- Phase 2 : CDC          lag Kafka, DLQ, doublons RAW CDC, offsets
+                          (C4 Debezium state et N2 config deja verifies en pre-night)
+- Phase 3 : Bulk Load    lock, tables vides, reconciliation MySQL/SF, timestamps
+                          (B6 schema drift deja verifie en pre-night via N8)
+- Phase 4 : dbt          modeles en erreur, tests, freshness, MARTS vides
+                          (parse run_results.json genere par dbt post-reload)
+- Phase 5 : Metabase     P1-P10, provisionnement pharmacies
+
+Hook optionnel : cost_monitoring (insert AUDIT + alerte Teams si seuil cout).
 
 Usage :
     python scripts/pipeline_maintenance.py                      # toutes les phases
     python scripts/pipeline_maintenance.py --dry-run             # simulation
-    python scripts/pipeline_maintenance.py --phase healthcheck   # une seule phase
-    python scripts/pipeline_maintenance.py --phase cdc
+    python scripts/pipeline_maintenance.py --phase cdc          # une seule phase
     python scripts/pipeline_maintenance.py --phase bulk
     python scripts/pipeline_maintenance.py --phase dbt
     python scripts/pipeline_maintenance.py --phase metabase
-    python scripts/pipeline_maintenance.py --fix                 # corrige ce qui peut l'etre
+    python scripts/pipeline_maintenance.py --fix-safe            # fix surs (batch_loop)
+    python scripts/pipeline_maintenance.py --fix                 # tous les fix (manuel)
 """
 
 import argparse
@@ -31,13 +37,10 @@ from pathlib import Path
 SCRIPTS_DIR = Path(__file__).resolve().parent
 PYTHON = sys.executable
 
+# Phase 1 (Healthcheck) retiree : couverte par pre_night_healthcheck.py a 20h30 FR
+# avant la nuit. Les sous-checks C4 (cdc) et B6 (bulk) restent dans leurs scripts
+# respectifs comme "defense en profondeur" (cout ~1s chacun).
 PHASES = {
-    'healthcheck': {
-        'name': 'Phase 1 - Healthcheck',
-        'script': 'healthcheck_maintenance.py',
-        'critical': True,
-        'description': 'Connectivite MySQL, Kafka, Snowflake, Metabase, Debezium',
-    },
     'cdc': {
         'name': 'Phase 2 - CDC',
         'script': 'cdc_maintenance.py',
@@ -48,7 +51,7 @@ PHASES = {
         'name': 'Phase 3 - Bulk Load',
         'script': 'bulk_maintenance.py',
         'critical': False,
-        'description': 'Lock, tables vides, reconciliation MySQL/Snowflake, schema drift',
+        'description': 'Lock, tables vides, reconciliation MySQL/Snowflake, timestamps',
     },
     'dbt': {
         'name': 'Phase 4 - dbt',
@@ -96,9 +99,8 @@ def run_phase(phase_key, fix_level, dry_run):
         cmd.append('--dry-run')
 
     try:
-        # Timeout par phase : healthcheck/cdc rapides, bulk/dbt/metabase lents
+        # Timeout par phase : cdc rapide, bulk/dbt/metabase lents
         phase_timeouts = {
-            'healthcheck': 120,
             'cdc': 300,
             'bulk': 1800,
             'dbt': 1800,
@@ -134,9 +136,10 @@ def run_phase(phase_key, fix_level, dry_run):
 
 
 def run_cost_monitoring(dry_run):
-    """Hook post-Phase 1 : cout Snowflake (insert AUDIT + alerte Teams si seuil).
+    """Hook post-phases : cout Snowflake (insert AUDIT + alerte Teams si seuil).
 
-    Non bloquant : un echec ici ne stoppe pas la suite du pipeline.
+    Execute apres toutes les phases (les couts bulk/dbt de la nuit sont
+    desormais visibles). Non bloquant : un echec ici ne stoppe pas le rapport.
     """
     script_path = SCRIPTS_DIR / 'cost_monitoring.py'
     if not script_path.exists():
@@ -161,14 +164,15 @@ def run_cost_monitoring(dry_run):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Pipeline maintenance (5 phases)')
+    parser = argparse.ArgumentParser(
+        description='Pipeline maintenance post-execution (4 phases : CDC, Bulk, dbt, Metabase)')
     parser.add_argument('--phase', choices=list(PHASES.keys()),
                         help='Executer une seule phase')
     fix_group = parser.add_mutually_exclusive_group()
     fix_group.add_argument('--fix-safe', action='store_true',
-                           help='Fix surs uniquement : H4, H6, C2, C4, D3, P1-P10 (mode batch_loop)')
+                           help='Fix surs uniquement : C2, D3, P1-P10 (mode batch_loop)')
     fix_group.add_argument('--fix', action='store_true',
-                           help='Tous les fix : y compris B4, B5, D1/D2, H2, H3 (mode manuel)')
+                           help='Tous les fix : y compris B4, B5, D1/D2 (mode manuel)')
     parser.add_argument('--dry-run', action='store_true',
                         help='Simulation sans modification')
     args = parser.parse_args()
@@ -183,8 +187,8 @@ def main():
 
     mode_label = {
         'none': 'detection',
-        'safe': 'fix-safe (H4,H6,C2,C4,D3,P1-P10)',
-        'all': 'fix-all (inclut B4,B5,D1/D2,H2,H3)',
+        'safe': 'fix-safe (C2, D3, P1-P10)',
+        'all': 'fix-all (inclut B4, B5, D1/D2)',
     }
 
     start_time = datetime.now(timezone.utc)
@@ -212,17 +216,8 @@ def main():
         else:
             print(f'\n  >> {phase["name"]}: {status} {msg}')
 
-        # Hook post-Phase 1 : cout Snowflake (non bloquant, non compte comme phase)
-        if phase_key == 'healthcheck' and status == 'OK':
-            print(f'\n  --- Cost monitoring (hook post-healthcheck) ---')
-            cost_status, cost_msg = run_cost_monitoring(args.dry_run)
-            report['cost_monitoring'] = {'status': cost_status, 'msg': cost_msg}
-            if cost_status == 'OK':
-                print(f'  >> Cost monitoring: OK')
-            else:
-                print(f'  >> Cost monitoring: {cost_status} {cost_msg}')
-
-        # Si phase critique echoue, stop
+        # Si phase critique echoue, stop (aucune phase n'est critique actuellement,
+        # Phase 1 Healthcheck etant desormais couverte par pre_night_healthcheck)
         if phase['critical'] and status in ('FAIL', 'TIMEOUT', 'ERROR'):
             print(f'\n  STOP: {phase["name"]} est critique — phases suivantes sautees')
             for remaining in phases_to_run[phases_to_run.index(phase_key) + 1:]:
@@ -232,6 +227,18 @@ def main():
         # Pause entre phases
         if phase_key != phases_to_run[-1]:
             time.sleep(2)
+
+    # Hook final : cost_monitoring apres toutes les phases (cout nuit visible)
+    if not args.phase:  # uniquement en mode full-run, pas sur une phase isolee
+        print(f'\n{"=" * 70}')
+        print(f'  Cost monitoring (hook post-phases)')
+        print(f'{"=" * 70}')
+        cost_status, cost_msg = run_cost_monitoring(args.dry_run)
+        report['cost_monitoring'] = {'status': cost_status, 'msg': cost_msg}
+        if cost_status == 'OK':
+            print(f'  >> Cost monitoring: OK')
+        else:
+            print(f'  >> Cost monitoring: {cost_status} {cost_msg}')
 
     # Rapport final
     elapsed = (datetime.now(timezone.utc) - start_time).total_seconds()

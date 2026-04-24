@@ -34,8 +34,11 @@ NIGHT_CDC_HOUR=${NIGHT_CDC_HOUR:-19}
 NIGHT_CDC_MIN=${NIGHT_CDC_MIN:-30}
 # ref_reload : 23h FR (21h UTC) — 14 tables reference (~4h30)
 REF_RELOAD_HOUR=${REF_RELOAD_HOUR:-21}
-# dbt post-reload : 04h FR (02h UTC) — staging + marts + tests + freshness
-# Conditionne au flag REF_DONE_FLAG (ne demarre que quand ref_reload est termine)
+# Fin fenêtre ref_reload (heure à laquelle ref_reload ne peut plus démarrer).
+# Utilisé par is_ref_reload_window() pour détecter la fenêtre [REF_RELOAD_HOUR,
+# POST_RELOAD_DBT_HOUR). Après 02h UTC, ref_reload de la nuit ne se déclenche plus.
+# NB : le dbt post-reload n'utilise plus ces variables, il enchaîne désormais
+# immédiatement après la fin du ref_reload (flag REF_DONE_FLAG).
 POST_RELOAD_DBT_HOUR=${POST_RELOAD_DBT_HOUR:-02}
 POST_RELOAD_DBT_MIN=${POST_RELOAD_DBT_MIN:-00}
 
@@ -44,6 +47,17 @@ REF_DONE_FLAG="/tmp/ref_bulk_done_today"
 NIGHT_CDC_DONE_FLAG="/tmp/night_cdc_done"
 POST_RELOAD_DBT_DONE_FLAG="/tmp/post_reload_dbt_done"
 MB_PROV_DONE_FLAG="/tmp/mb_provision_done_today"
+# Extra bulk_load ad-hoc : declenche par un flag manuel contenant les tables
+# a recharger (ex: "FACTURES"). Execute APRES pipeline_maintenance pour ne
+# pas entrer en competition warehouse. Une seule fois par activation.
+EXTRA_BULK_PENDING_FLAG="/tmp/extra_bulk_pending"
+EXTRA_BULK_RUNNING_FLAG="/tmp/extra_bulk_running"
+# Pre-night healthcheck : go/no-go pour toutes les phases nuit critiques
+PRE_NIGHT_OK_FLAG="/tmp/pre_night_ok"
+PRE_NIGHT_DONE_FLAG="/tmp/pre_night_done_today"
+# 20h30 FR (18h30 UTC) : appel pre_night_healthcheck --fix
+PRE_NIGHT_HOUR=${PRE_NIGHT_HOUR:-18}
+PRE_NIGHT_MIN=${PRE_NIGHT_MIN:-30}
 
 # Alerting Teams (optionnel : si TEAMS_WEBHOOK_URL est vide, les erreurs sont loguees sans alerte)
 ALERT_THRESHOLD=${ALERT_THRESHOLD:-3}
@@ -185,6 +199,106 @@ is_ref_reload_window() {
   fi
 }
 
+# Phase pre-night-healthcheck : verif + fix auto avant le mode nuit.
+# Appelee a 18h30 UTC (20h30 FR) et en fallback si pre_night_ok absent.
+# Cree /tmp/pre_night_ok si tout OK, sinon alerte Teams (geree par le script).
+run_pre_night_healthcheck() {
+  echo "Phase pre-night-healthcheck"
+  local exit_code=0
+  timeout 900 python /app/scripts/pre_night_healthcheck.py --fix || exit_code=$?
+
+  if [ $exit_code -eq 0 ]; then
+    echo "pre-night-healthcheck: OK (nuit autorisee)"
+  elif [ $exit_code -eq 2 ]; then
+    echo "pre-night-healthcheck: RESTART CONTENEUR REQUIS (.env corrige)"
+    echo "  Action : docker compose up -d medicore-elt-batch"
+    # Alerte Teams deja envoyee par le script
+  else
+    echo "pre-night-healthcheck: FAIL (code=$exit_code) — nuit skippee"
+  fi
+  touch "$PRE_NIGHT_DONE_FLAG"
+}
+
+# Post-check CDC pre-reload (2a) : verif flag + lag Kafka acceptable.
+# Non bloquant, alerte warning uniquement.
+post_check_cdc_prereload() {
+  local status="OK"
+  local msg=""
+  if [ ! -f "$NIGHT_CDC_DONE_FLAG" ]; then
+    status="FAIL"; msg="flag night_cdc_done absent"
+  else
+    local lag_total
+    lag_total=$(grep '^total=' /tmp/cdc_lag_metrics 2>/dev/null | cut -d= -f2 || echo "0")
+    if [ "$lag_total" -gt "$KAFKA_LAG_THRESHOLD" ] 2>/dev/null; then
+      status="WARN"; msg="lag=$lag_total > seuil $KAFKA_LAG_THRESHOLD"
+    else
+      msg="lag=$lag_total"
+    fi
+  fi
+  echo "[POST-CHECK CDC pre-reload] $status : $msg"
+  if [ "$status" != "OK" ]; then
+    send_teams_alert "CDC pre-reload post-check: $msg" 1 "warning"
+  fi
+}
+
+# Post-check ref_reload (2b) : 14 tables non vides + pas de _BACKUP residuel.
+# Bloquant : si KO, skip dbt post-reload.
+# Retourne 0 si OK, 1 si KO.
+post_check_ref_reload() {
+  local status="OK"
+  local msg=""
+  local output
+  output=$(python3 << 'PY_EOF'
+import snowflake.connector, os, sys
+try:
+    conn = snowflake.connector.connect(
+        account=os.getenv('SNOWFLAKE_ACCOUNT'),
+        user=os.getenv('SNOWFLAKE_USER'),
+        password=os.getenv('SNOWFLAKE_PASSWORD'),
+        database=os.getenv('SNOWFLAKE_DATABASE', 'MEDICORE_PROD'),
+        warehouse=os.getenv('SNOWFLAKE_WAREHOUSE_NAME', 'MEDICORE_WH'),
+        schema='RAW',
+    )
+    cur = conn.cursor()
+    ref_tables = [
+        'RAW_DAYBYDAY', 'RAW_EAN13', 'RAW_FOURNISSEURS', 'RAW_HISTORY',
+        'RAW_LOG', 'RAW_LPPR', 'RAW_MANQHISTORY', 'RAW_MEDIPRIX_FACTURES',
+        'RAW_PHARMACIE', 'RAW_PHARMACIES', 'RAW_PHARMACIES_ERREUR',
+        'RAW_PRODUITS', 'RAW_PRODUITS_NEGATIFS', 'RAW_STOCKHISTORY',
+    ]
+    empty = []
+    for t in ref_tables:
+        cur.execute(f'SELECT COUNT(*) FROM {t}')
+        if cur.fetchone()[0] == 0:
+            empty.append(t)
+    cur.execute(
+        "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES "
+        "WHERE TABLE_SCHEMA='RAW' AND TABLE_NAME LIKE '%_BACKUP'"
+    )
+    backups = [r[0] for r in cur.fetchall()]
+    cur.close(); conn.close()
+    if empty or backups:
+        print(f'FAIL:empty={empty} backups={backups}')
+        sys.exit(1)
+    print('OK')
+except Exception as e:
+    print(f'ERROR:{str(e)[:80]}')
+    sys.exit(2)
+PY_EOF
+)
+  if echo "$output" | grep -q "^OK"; then
+    status="OK"; msg="14 tables peuplees, 0 _BACKUP residuel"
+  else
+    status="FAIL"; msg="$output"
+  fi
+  echo "[POST-CHECK ref_reload] $status : $msg"
+  if [ "$status" != "OK" ]; then
+    send_teams_alert "ref_reload post-check: $msg" 1 "critical"
+    return 1
+  fi
+  return 0
+}
+
 # Phase CDC : consume Kafka -> Snowflake RAW
 run_cdc() {
   echo "Phase CDC"
@@ -322,9 +436,47 @@ run_dbt() {
 # BOUCLE PRINCIPALE
 # ==========================================================================
 
+# Garde-fou : verifier que SNOWFLAKE_DATABASE (pipelines Python) et la
+# database du target dbt (profiles.yml[ENV]) pointent au meme endroit.
+# Sans ca, le CDC/bulk ecrit en PROD pendant que dbt ecrit en DEV (ou vice
+# versa), les MARTS se desynchronisent silencieusement (cf. incident 2026-04-24).
+check_env_coherence() {
+  local dbt_db
+  dbt_db=$(python3 -c "
+import sys, yaml
+with open('/app/dbt/profiles.yml') as f:
+    profiles = yaml.safe_load(f)
+target = '${ENV}'
+outputs = profiles.get('medicore', {}).get('outputs', {})
+if target not in outputs:
+    print(f'TARGET_NOT_FOUND:{target}', file=sys.stderr)
+    sys.exit(2)
+print(outputs[target].get('database', 'UNKNOWN'))
+" 2>/dev/null) || { echo "[FAIL] Lecture profiles.yml impossible (ENV=${ENV})"; exit 1; }
+
+  local sf_db="${SNOWFLAKE_DATABASE:-UNSET}"
+  if [ "$dbt_db" != "$sf_db" ]; then
+    echo "================================================================"
+    echo "[FAIL] Incoherence database Snowflake detectee :"
+    echo "  SNOWFLAKE_DATABASE (pipelines Python) = $sf_db"
+    echo "  profiles.yml[${ENV}].database (dbt)   = $dbt_db"
+    echo ""
+    echo "Les pipelines (CDC, bulk_load) ecrivent RAW dans $sf_db mais"
+    echo "dbt lit/ecrit STAGING et MARTS dans $dbt_db. Les MARTS vont se"
+    echo "desynchroniser. Corriger soit .env (ENV=), soit profiles.yml,"
+    echo "soit .env (SNOWFLAKE_DATABASE=) pour qu'ils pointent au meme."
+    echo "================================================================"
+    send_teams_alert "check_env_coherence" "1" "failure" 2>/dev/null || true
+    exit 1
+  fi
+  echo "[OK] Coherence database confirmee : ${sf_db} (ENV=${ENV})"
+}
+
+check_env_coherence
+
 echo "MediCore Batch Loop - CDC ${CDC_INTERVAL_MIN}min, dbt every ${DBT_EVERY_N} cycles - ENV: ${ENV}"
-echo "  Mode nuit: ${NIGHT_START}h-${NIGHT_END}h UTC (CDC ${NIGHT_CDC_HOUR}:${NIGHT_CDC_MIN}, ref_reload ${REF_RELOAD_HOUR}h, dbt post-reload ${POST_RELOAD_DBT_HOUR}:${POST_RELOAD_DBT_MIN})"
-echo "  Heures FR (UTC+2): nuit 21h-07h, CDC 21h30, ref_reload 23h, dbt 04h, maintenance 04h30"
+echo "  Mode nuit: ${NIGHT_START}h-${NIGHT_END}h UTC (CDC ${NIGHT_CDC_HOUR}:${NIGHT_CDC_MIN}, ref_reload ${REF_RELOAD_HOUR}h-${POST_RELOAD_DBT_HOUR}h, dbt+maintenance enchaînent après REF_DONE)"
+echo "  Heures FR (UTC+2): nuit 21h-07h, CDC 21h30, ref_reload 23h, dbt+maintenance enchaînent après (~23h40 en mode incremental)"
 
 # En dev : mode single-run (pas de boucle infinie)
 if [ "${ENV}" = "dev" ] && [ "${BATCH_LOOP:-true}" = "false" ]; then
@@ -370,6 +522,29 @@ while true; do
     REF_RELOAD_JUST_DONE=0; DBT_CYCLE_COUNT=0
   fi
 
+  # Reset du flag pre_night_done en milieu de journee (14h UTC = 16h FR)
+  # Permet la re-execution du pre_night_healthcheck le soir suivant.
+  if [ "$HOUR" = "14" ] && [ "$(date +%M)" -lt "10" ]; then
+    rm -f "$PRE_NIGHT_DONE_FLAG"
+  fi
+
+  # --- Pre-night healthcheck a 18h30 UTC (20h30 FR) : 30 min avant mode nuit ---
+  # Verifie et corrige l'infra + config avant le ref_reload critique.
+  # Si FAIL non fixable, alerte Teams et ne cree PAS /tmp/pre_night_ok
+  # (toutes les phases nuit critiques seront skippees).
+  if [ "$HOUR" -ge "$PRE_NIGHT_HOUR" ] && [ "$HOUR" -lt "19" ] \
+     && [ "$(date +%M)" -ge "$PRE_NIGHT_MIN" ] \
+     && [ ! -f "$PRE_NIGHT_DONE_FLAG" ]; then
+    run_pre_night_healthcheck
+  fi
+
+  # Fallback : si on entre en mode nuit et pre_night_ok absent (ex: restart
+  # conteneur en fin de journee qui a vide /tmp), relance le healthcheck.
+  if is_night && [ ! -f "$PRE_NIGHT_OK_FLAG" ] && [ ! -f "$PRE_NIGHT_DONE_FLAG" ]; then
+    echo "Mode nuit sans pre_night_ok (/tmp vide ?) : relance pre-night-healthcheck"
+    run_pre_night_healthcheck
+  fi
+
   # ==================================================================
   # MODE NUIT (21h - 07h) : cycles reduits pour economiser le WH
   # ==================================================================
@@ -380,11 +555,20 @@ while true; do
     # Apres 21h, on entre en mode nuit.
 
     # --- CDC pre-reload (vider backlog Kafka avant ref_reload) ---
-    # Utilise >= pour ne pas rater la fenetre avec le sleep 10 min
-    if [ "$HOUR" -ge "$NIGHT_CDC_HOUR" ] && [ ! -f "$NIGHT_CDC_DONE_FLAG" ] && [ ! -f "$REF_DONE_FLAG" ]; then
-      echo "Mode nuit: CDC pre-reload (vider backlog Kafka)"
+    # Fenetre NIGHT_CDC_HOUR:NIGHT_CDC_MIN (ex: 19:30 UTC = 21h30 FR).
+    # Declenche si on est apres l'heure exacte, ou apres NIGHT_CDC_HOUR + 1.
+    # Guard : pre_night_ok obligatoire (infra validee a 18h30)
+    MINUTE=$(date +%M | sed 's/^0*//')
+    MINUTE=${MINUTE:-0}
+    if [ ! -f "$PRE_NIGHT_OK_FLAG" ]; then
+      echo "Mode nuit: pre_night_ok absent — phase CDC pre-reload skippee"
+    elif { [ "$HOUR" -gt "$NIGHT_CDC_HOUR" ] || { [ "$HOUR" -eq "$NIGHT_CDC_HOUR" ] && [ "$MINUTE" -ge "$NIGHT_CDC_MIN" ]; }; } \
+         && [ ! -f "$NIGHT_CDC_DONE_FLAG" ] && [ ! -f "$REF_DONE_FLAG" ]; then
+      echo "Mode nuit: CDC pre-reload (vider backlog Kafka) — ${HOUR}:${MINUTE} UTC"
       run_cdc
       touch "$NIGHT_CDC_DONE_FLAG"
+      # Post-check 2a (non bloquant)
+      post_check_cdc_prereload
     fi
 
     # --- Retention audit : purge donnees > 90 jours (22h FR = 20h UTC) ---
@@ -418,43 +602,91 @@ print('Audit purge terminee')
     fi
     [ "$HOUR" = "22" ] && rm -f "/tmp/metabase_backup_done_today"
 
-    # --- ref_reload 14 tables reference (~3h-3h30) ---
-    # Fenetre [REF_RELOAD_HOUR, POST_RELOAD_DBT_HOUR) avec wrap minuit (ex: 21h-02h)
-    if is_ref_reload_window && [ ! -f "$REF_DONE_FLAG" ]; then
-      echo "Phase ref-reload: 14 tables reference (truncate + bulk load)"
-      python3 -c "from pipelines.utils.audit import log_step_start; log_step_start('$RUN_ID', 'ref_reload')" 2>/dev/null || true
-      if timeout "$REF_TIMEOUT_SEC" python /app/pipelines/bulk_load.py --ref-only --truncate --run-id "$RUN_ID"; then
-        python3 -c "from pipelines.utils.audit import log_step_end; log_step_end('$RUN_ID', 'ref_reload', 'SUCCESS')" 2>/dev/null || true
-        [ $REF_FAIL -ge $ALERT_THRESHOLD ] && send_teams_alert "Ref-reload" "$REF_FAIL" "recovery"
-        REF_FAIL=0
-        REF_RELOAD_JUST_DONE=1
+    # --- ref_reload 14 tables référence ---
+    # Fenêtre [REF_RELOAD_HOUR, POST_RELOAD_DBT_HOUR) avec wrap minuit (ex: 21h-02h)
+    # Garde : pre_night_ok obligatoire (infra validée à 18h30)
+    #
+    # Optimisation L1+L5 (plan docs/plans/2026-04-22_optimisation_cost_snowflake.md) :
+    #   Dimanche (DOW=0)     -> SKIP : pharmacies fermées, peu de transactions
+    #   Lundi (DOW=1)        -> FULL reload : réconciliation hebdomadaire (DELETEs captés)
+    #   Mar-Sam (DOW=2..6)   -> INCREMENTAL 30j sur 4 grosses tables + full sur les 10 autres
+    # Gain mensuel : ~-391 EUR (ref_reload 4h48 -> 16 min en moyenne)
+    #
+    # Configuration :
+    #   REF_FULL_DOW         : jour de la semaine pour le full reload (défaut : 1 = lundi)
+    #   REF_INCREMENTAL_DAYS : fenêtre glissante (défaut : 30 jours)
+    #   REF_SKIP_DOW         : jour(s) skippé(s), liste csv (défaut : "0" = dimanche)
+    REF_FULL_DOW=${REF_FULL_DOW:-1}
+    REF_INCREMENTAL_DAYS=${REF_INCREMENTAL_DAYS:-30}
+    REF_SKIP_DOW=${REF_SKIP_DOW:-0}
+
+    if [ ! -f "$PRE_NIGHT_OK_FLAG" ]; then
+      is_ref_reload_window && echo "Mode nuit: pre_night_ok absent — ref-reload skippé"
+    elif is_ref_reload_window && [ ! -f "$REF_DONE_FLAG" ]; then
+      DOW=$(date +%w)  # 0=dimanche, 1=lundi, ..., 6=samedi
+
+      # Détermine le mode : skip / full / incremental
+      REF_MODE="incremental"
+      if echo ",$REF_SKIP_DOW," | grep -q ",$DOW,"; then
+        REF_MODE="skip"
+      elif [ "$DOW" = "$REF_FULL_DOW" ]; then
+        REF_MODE="full"
+      fi
+
+      if [ "$REF_MODE" = "skip" ]; then
+        echo "Phase ref-reload: SKIP (DOW=$DOW, pharmacies fermées)"
+        # Flag créé pour ne pas bloquer dbt post-reload le dimanche
         touch "$REF_DONE_FLAG"
+        python3 -c "from pipelines.utils.audit import log_step_end; log_step_end('$RUN_ID', 'ref_reload', 'SUCCESS', metadata={'mode': 'skip', 'dow': $DOW})" 2>/dev/null || true
       else
-        python3 -c "from pipelines.utils.audit import log_step_end; log_step_end('$RUN_ID', 'ref_reload', 'FAILED', error='Ref-reload failed')" 2>/dev/null || true
-        REF_FAIL=$((REF_FAIL + 1))
-        echo "Ref-reload failed ($REF_FAIL consecutive)"
-        [ $REF_FAIL -eq $ALERT_THRESHOLD ] && send_teams_alert "Ref-reload" "$REF_FAIL"
+        # Full ou incremental : construire la commande bulk_load adaptée
+        if [ "$REF_MODE" = "full" ]; then
+          echo "Phase ref-reload: FULL (DOW=$DOW, réconciliation hebdomadaire)"
+          BULK_CMD="python /app/pipelines/bulk_load.py --ref-only --truncate --run-id $RUN_ID"
+        else
+          echo "Phase ref-reload: INCREMENTAL ${REF_INCREMENTAL_DAYS}j (DOW=$DOW, 4 tables sur fenêtre glissante)"
+          BULK_CMD="python /app/pipelines/bulk_load.py --ref-only --truncate --incremental-days $REF_INCREMENTAL_DAYS --run-id $RUN_ID"
+        fi
+
+        python3 -c "from pipelines.utils.audit import log_step_start; log_step_start('$RUN_ID', 'ref_reload')" 2>/dev/null || true
+        if timeout "$REF_TIMEOUT_SEC" $BULK_CMD; then
+          python3 -c "from pipelines.utils.audit import log_step_end; log_step_end('$RUN_ID', 'ref_reload', 'SUCCESS', metadata={'mode': '$REF_MODE', 'dow': $DOW})" 2>/dev/null || true
+          [ $REF_FAIL -ge $ALERT_THRESHOLD ] && send_teams_alert "Ref-reload" "$REF_FAIL" "recovery"
+          REF_FAIL=0
+          # Post-check 2b (bloquant) : si FAIL, ne crée PAS REF_DONE_FLAG -> dbt skippé
+          if post_check_ref_reload; then
+            REF_RELOAD_JUST_DONE=1
+            touch "$REF_DONE_FLAG"
+          else
+            echo "Ref-reload post-check FAIL : REF_DONE_FLAG non créé, dbt post-reload sera skippé"
+          fi
+        else
+          python3 -c "from pipelines.utils.audit import log_step_end; log_step_end('$RUN_ID', 'ref_reload', 'FAILED', error='Ref-reload failed (mode=$REF_MODE)')" 2>/dev/null || true
+          REF_FAIL=$((REF_FAIL + 1))
+          echo "Ref-reload failed mode=$REF_MODE ($REF_FAIL consecutive)"
+          [ $REF_FAIL -eq $ALERT_THRESHOLD ] && send_teams_alert "Ref-reload" "$REF_FAIL"
+        fi
       fi
     fi
 
-    # --- 04h30 : 1 CDC + 1 cycle dbt complet (integre ref_reload) ---
-    # --- dbt post-reload : uniquement APRES ref_reload termine ---
-    # Condition REF_DONE_FLAG evite le bug HHMM (2102 >= 0430 etait toujours vrai)
-    CURRENT_HHMM=$(date +%H%M)
-    POST_RELOAD_HHMM="${POST_RELOAD_DBT_HOUR}${POST_RELOAD_DBT_MIN}"
-    if [ -f "$REF_DONE_FLAG" ] && [ "$CURRENT_HHMM" -ge "$POST_RELOAD_HHMM" ] && [ ! -f "$POST_RELOAD_DBT_DONE_FLAG" ]; then
+    # --- dbt post-reload : enchaîne immédiatement après ref_reload terminé ---
+    # Avec l'incremental merge (L1), ref_reload passe de 4h48 à ~16 min.
+    # Ancien comportement : attendait POST_RELOAD_DBT_HOUR=02h UTC (04h FR) =
+    # battement de 4h30 inutile. Nouveau : dès que REF_DONE_FLAG présent.
+    # Le cycle batch_loop sleep 10 min, donc dbt tourne ~10 min après fin ref_reload.
+    if [ -f "$REF_DONE_FLAG" ] && [ ! -f "$POST_RELOAD_DBT_DONE_FLAG" ]; then
       echo "Mode nuit: cycle post-reload (CDC + dbt complet)"
       run_cdc
       run_dbt
       touch "$POST_RELOAD_DBT_DONE_FLAG"
     fi
 
-    # --- 04h30 FR (02h30 UTC) : maintenance pipeline complete (1x/jour) ---
-    # 5 phases : healthcheck, CDC, bulk, dbt, Metabase (P1-P10 + provisionnement)
-    # --fix-safe : corrections sures uniquement (pas de reload lourd)
-    # Attend que ref_reload + dbt post-reload soient termines
-    if [ -f "$REF_DONE_FLAG" ] && [ -f "$POST_RELOAD_DBT_DONE_FLAG" ] && ([ "$HOUR" = "02" ] || [ "$HOUR" = "03" ] || [ "$HOUR" = "04" ]) && [ ! -f "$MB_PROV_DONE_FLAG" ]; then
-      echo "Phase pipeline-maintenance: 5 phases (healthcheck, CDC, bulk, dbt, Metabase)"
+    # --- pipeline_maintenance : enchaîne immédiatement après dbt post-reload ---
+    # 4 phases post-exec : CDC, Bulk, dbt, Metabase (H1-H7 déjà vérifiés en pre-night).
+    # --fix-safe : corrections sûres uniquement (pas de reload lourd).
+    # Rapport Teams disponible dès le soir (~23h50 FR au lieu de 04h40 FR).
+    if [ -f "$REF_DONE_FLAG" ] && [ -f "$POST_RELOAD_DBT_DONE_FLAG" ] && [ ! -f "$MB_PROV_DONE_FLAG" ]; then
+      echo "Phase pipeline-maintenance: 4 phases (CDC, bulk, dbt, Metabase)"
       if timeout "$PHASE_TIMEOUT_SEC" python /app/scripts/pipeline_maintenance.py --fix-safe; then
         echo "Pipeline maintenance termine"
       else
@@ -462,7 +694,32 @@ print('Audit purge terminee')
       fi
       touch "$MB_PROV_DONE_FLAG"
     fi
-    [ "$HOUR" = "05" ] && rm -f "$MB_PROV_DONE_FLAG"
+
+    # --- Extra bulk_load ad-hoc (catchup manuel d'une table) ---
+    # Usage : docker exec medicore_elt_batch bash -c "echo FACTURES > /tmp/extra_bulk_pending"
+    # Declenche apres pipeline_maintenance pour ne pas entrer en competition warehouse.
+    # CLONE+SWAP integre par bulk_load.py -> rollback auto si echec.
+    # Le pending flag est supprime apres succes pour eviter re-run involontaire.
+    if [ -f "$PRE_NIGHT_OK_FLAG" ] \
+       && [ -f "$REF_DONE_FLAG" ] \
+       && [ -f "$POST_RELOAD_DBT_DONE_FLAG" ] \
+       && [ -f "$MB_PROV_DONE_FLAG" ] \
+       && [ -f "$EXTRA_BULK_PENDING_FLAG" ] \
+       && [ ! -f "$EXTRA_BULK_RUNNING_FLAG" ]; then
+      touch "$EXTRA_BULK_RUNNING_FLAG"
+      EXTRA_TABLES=$(cat "$EXTRA_BULK_PENDING_FLAG" | tr -d '\n' | tr -s ' ')
+      echo "Phase extra-bulk-load: $EXTRA_TABLES (ad-hoc, catchup manuel)"
+      # shellcheck disable=SC2086
+      if timeout "$REF_TIMEOUT_SEC" python /app/pipelines/bulk_load.py --tables $EXTRA_TABLES --truncate --run-id "extra-$(date +%Y%m%d)"; then
+        echo "Extra bulk_load $EXTRA_TABLES: SUCCESS"
+        rm -f "$EXTRA_BULK_PENDING_FLAG"
+        send_teams_alert "Extra bulk_load $EXTRA_TABLES" 1 "recovery"
+      else
+        echo "Extra bulk_load $EXTRA_TABLES: FAIL"
+        send_teams_alert "Extra bulk_load $EXTRA_TABLES" 1 "failure"
+      fi
+      rm -f "$EXTRA_BULK_RUNNING_FLAG"
+    fi
 
     # Statut global du run
     if [ $CDC_FAIL -gt 0 ] || [ $STG_FAIL -gt 0 ] || [ $MARTS_FAIL -gt 0 ]; then

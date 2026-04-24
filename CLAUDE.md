@@ -70,13 +70,16 @@ Répertoire : `.claude/dev-memories/`
 - **Siège** (IT, Marketing, RH, Achats) : accès direct Metabase, filtrage par collections
 - **Pharmaciens** : dashboards via iframes (signed embedding), filtre pharmacie verrouillé par JWT
 - **Mini-app test** : `embed_app/` (Flask, port 5000) — simule l'intégration Mediprix
-- **Maintenance automatique** : `scripts/pipeline_maintenance.py --fix-safe` (5 phases, 04h30 FR dans batch_loop.sh)
+- **Surveillance à 4 niveaux** (depuis 2026-04-23) : pre-night (20h30) → post-CDC (~21h35) → post-ref_reload bloquant (~23h16) → pipeline_maintenance (~23h47)
+- **Pre-night healthcheck** : `scripts/pre_night_healthcheck.py --fix` (14 checks H1-H7 + N2-N8, corrections auto)
+- **Maintenance post-exécution** : `scripts/pipeline_maintenance.py --fix-safe` (4 phases : CDC, Bulk, dbt, Metabase ; enchaîne après dbt post-reload)
 - **Orchestrateur Metabase** : `scripts/metabase_maintenance.py` (P1-P10, appelé par pipeline_maintenance)
 - **Provisionnement pharmacies** : `scripts/provision_rls.py` (groupe + collection + permissions, détection auto)
 - **10 problèmes identifiés** (P1-P10) : voir `docs/15_metabase_checklist_depannage.md`
 - **Guide embedding Mediprix** : voir `docs/14_embedding_metabase.md`
 - **Bilan RLS et options** : voir `docs/13_rls_bilan_et_options.md`
-- **Maintenance pipeline complète** : voir `docs/16_pipeline_maintenance.md` (5 phases : healthcheck, CDC, bulk, dbt, Metabase)
+- **Maintenance pipeline complète** : voir `docs/16_pipeline_maintenance.md` (architecture 4 niveaux : pre-night + post-checks inline + pipeline_maintenance)
+- **Optimisation coût Snowflake L1+L5** : voir `docs/plans/2026-04-22_optimisation_cost_snowflake.md` (incremental merge + skip dimanche, gain -391 EUR/mois)
 
 ### Sécurité critique
 

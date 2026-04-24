@@ -104,21 +104,51 @@ MySQL RDS (winstat)
 
 ## Boucle d'orchestration (batch_loop.sh)
 
-1. Bulk load référence (1x/jour @ 23h FR, CLONE+SWAP) : `bulk_load.py --ref-only --truncate`
-2. Consumer CDC : `daily_cdc_batch.py` (Kafka -> Snowflake RAW)
-3. dbt staging : `dbt run --select tag:staging`
-4. dbt marts : `dbt run --select tag:marts`
-5. dbt tests : `dbt test --select stg_*`
-6. Source freshness : `dbt source freshness`
-7. Alertes Teams : webhook si échec/recovery
+### Surveillance à 4 niveaux (depuis 2026-04-23)
 
-**Intervalle** : 5 min (dev) / 30 min (prod)
+- **N1 pre-night (20h30 FR)** : `pre_night_healthcheck.py --fix` valide infra + config avant la nuit, auto-corrige ce qui peut l'être, crée `/tmp/pre_night_ok` ou alerte Teams.
+- **N2a post CDC pré-reload (~21h35)** : vérifie flag + lag Kafka acceptable (warning non bloquant).
+- **N2b post ref_reload (~23h16)** : vérifie 14 tables non vides + 0 `_BACKUP` résiduel. **Bloquant** : si KO, `REF_DONE_FLAG` non créé → dbt post-reload skippé.
+- **N3 pipeline_maintenance (~23h47)** : audit final 4 phases (CDC, Bulk, dbt, Metabase) avec corrections sûres.
+
+### Logique hebdomadaire ref_reload (L1+L5)
+
+- **Dimanche** (DOW=0) : `SKIP` complet (pharmacies fermées).
+- **Lundi** (DOW=1) : `FULL` reload classique (`--truncate`) pour réconciliation hebdomadaire (DELETEs captés).
+- **Mardi→Samedi** (DOW=2..6) : `INCREMENTAL` 30 jours glissants (`--incremental-days 30`) sur 4 tables (MEDIPRIX_FACTURES, STOCKHISTORY, DAYBYDAY, MANQHISTORY) + TRUNCATE classique sur les 10 autres.
+
+### Enchaînement nocturne typique (jour incremental)
+
+1. 20h30 FR : pre-night healthcheck (30 s)
+2. 21h30 FR : CDC pré-reload (quelques minutes) + post-check 2a
+3. 22h00 FR : audit purge + backup Metabase
+4. 23h00 FR : ref_reload (~16 min en incremental, ~4h48 en full)
+5. 23h16 FR : post-check 2b + REF_DONE_FLAG
+6. 23h26 FR : dbt post-reload (CDC flush + staging + marts + tests + freshness, ~11 min)
+7. 23h47 FR : pipeline_maintenance `--fix-safe` (~10 min) + rapport Teams
+
+### Consumer CDC (cycle court)
+
+- `daily_cdc_batch.py` (Kafka → Snowflake RAW), intervalle **10 min (prod) / 2 min (dev)**.
+- Circuit-breaker : arrêt du fallback row-by-row après 10 échecs consécutifs (`FALLBACK_MAX_CONSECUTIVE_FAILS`).
+- Reconnexion auto sur session Snowflake expirée (codes 390114, 390116, 390111).
+- Commit Kafka conditionnel au flush réussi (`if flush_ok: consumer.commit()`).
+- DLQ sur connexion dédiée pour survivre à une session main morte.
+
+### Alertes Teams
+
+- Webhook si échec/recovery (seuil 3 échecs consécutifs).
+- Rapport dbt après chaque phase staging/marts/tests.
+- Alerte critique si pre-night KO (skip toute la nuit).
+- Alerte warning si post-check 2a KO, critique si 2b KO.
 
 ## Patterns de conception
 
 - **Medallion Architecture** : RAW -> STAGING -> MARTS (3 couches)
 - **CDC + Bulk dual path** : temps réel (4 tables) + batch (14 tables)
-- **Incremental merge** : pas de retraitement complet, merge sur PK
+- **Incremental merge côté ref_reload** (L1) : 4 grosses tables (MEDIPRIX_FACTURES, STOCKHISTORY, DAYBYDAY, MANQHISTORY) chargées sur fenêtre 30 jours glissants avec MERGE INTO sur PK, sauf full reload du lundi
+- **Skip dimanche** (L5) : pas de ref_reload le dimanche (pharmacies fermées)
+- **Incremental merge côté dbt staging** : `ROW_NUMBER() OVER (PARTITION BY PK ORDER BY cdc_timestamp DESC)` filtre `WHERE cdc_operation != 'D'`
 - **DLQ (Dead Letter Queue)** : events CDC malformés isolés
 - **Micro-batch** : 500 events ou timeout 30s avant flush Snowflake
 - **Star schema** : dimensions (surrogate keys + lignes orphelines -1/INCONNU) + faits (LEFT JOIN + coalesce FK)

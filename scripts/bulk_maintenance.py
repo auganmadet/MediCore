@@ -146,8 +146,20 @@ def check_b3_duplicates():
         return False, {'error': str(e)[:100]}
 
 
+# Tolérance en pourcentage sur l'écart B4 (0 = strict, 1 = 1 %, etc.)
+# Justification : en mode incremental (L1 du plan d'optimisation), les écarts MySQL/SF
+# sont attendus à hauteur de <1 % pendant la semaine. Le full hebdomadaire du lundi
+# ramène à 0 %. Un écart >1 % indique une dérive grave à investiguer.
+# Pour les tables CDC, le catch-up peut aussi créer des écarts temporaires similaires.
+B4_TOLERANCE_PCT = float(os.getenv('B4_TOLERANCE_PCT', '1.0'))
+
+
 def check_b4_reconciliation():
-    """B4 : reconciliation MySQL vs Snowflake (count par table)."""
+    """B4 : réconciliation MySQL vs Snowflake (count par table).
+
+    Tolérance : un écart <B4_TOLERANCE_PCT % (défaut 1 %) est considéré OK.
+    Les écarts absolus sont toujours rapportés dans le détail pour traçabilité.
+    """
     mysql_to_sf = {
         'PHARMACIE': 'RAW_PHARMACIE',
         'PRODUITS': 'RAW_PRODUITS',
@@ -170,7 +182,8 @@ def check_b4_reconciliation():
         sf_conn.close()
         return False, {'error': f'MySQL: {str(e)[:80]}'}
 
-    ecarts = {}
+    ecarts = {}           # Tous les écarts (pour traçabilité)
+    ecarts_critiques = {} # Écarts > B4_TOLERANCE_PCT (pour statut FAIL)
     for mysql_table, sf_table in mysql_to_sf.items():
         try:
             my_cursor.execute(f'SELECT COUNT(*) FROM {mysql_table}')
@@ -185,13 +198,27 @@ def check_b4_reconciliation():
             sf_count = -1
 
         if mysql_count != sf_count:
-            ecarts[mysql_table] = {'mysql': mysql_count, 'snowflake': sf_count}
+            pct = 0.0
+            if mysql_count > 0:
+                pct = abs(mysql_count - sf_count) / mysql_count * 100
+            ecarts[mysql_table] = {
+                'mysql': mysql_count,
+                'snowflake': sf_count,
+                'ecart_pct': round(pct, 3),
+            }
+            if pct > B4_TOLERANCE_PCT:
+                ecarts_critiques[mysql_table] = ecarts[mysql_table]
 
     my_cursor.close()
     my_conn.close()
     sf_cursor.close()
     sf_conn.close()
-    return len(ecarts) == 0, {'ecarts': ecarts, 'tables_verifiees': len(mysql_to_sf)}
+    return len(ecarts_critiques) == 0, {
+        'ecarts': ecarts,
+        'ecarts_critiques': ecarts_critiques,
+        'tolerance_pct': B4_TOLERANCE_PCT,
+        'tables_verifiees': len(mysql_to_sf),
+    }
 
 
 def check_b5_timestamps():
