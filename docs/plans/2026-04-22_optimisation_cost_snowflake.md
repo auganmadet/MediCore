@@ -1,9 +1,10 @@
 # Plan d'optimisation coût Snowflake
 
-> **Statut** : ✓ IMPLÉMENTÉ le 2026-04-23 (validation en production sur 2 semaines en cours)
+> **Statut** : ✓ IMPLÉMENTÉ le 2026-04-23 — ✓ 1er run production mesuré le 2026-04-25 (voir §11)
 > **Date proposition** : 2026-04-22
 > **Date validation** : 2026-04-23
-> **Objectif** : Réduire le coût Snowflake de ~471 EUR/mois à ~80 EUR/mois (-390 EUR/mois, -83 %)
+> **Objectif** : Réduire le coût Snowflake de ~471 EUR/mois à ~80 EUR/mois (-391 EUR/mois, -83 %)
+> **Résultat mesuré** : ~115 EUR/mois (-356 EUR/mois, -76 %) sur le 1er run prod. Cible -83 % atteignable après tuning clustering Snowflake (voir §11).
 > **Fichiers impactés** : `pipelines/bulk_load.py`, `scripts/batch_loop.sh`, `scripts/bulk_maintenance.py`, `.env`, `CHANGELOG.md`, `docs/16_pipeline_maintenance.md`
 
 ## Table des matières
@@ -18,6 +19,7 @@
 8. [Plan de rollback](#8-plan-de-rollback)
 9. [Timeline d'implémentation](#9-timeline-dimplémentation)
 10. [Décisions à valider](#10-décisions-à-valider)
+11. [Résultats mesurés en production](#11-résultats-mesurés-en-production)
 
 ---
 
@@ -589,4 +591,85 @@ Total Solution estimé                           : ~391 EUR/mois économisés
 
 ---
 
-**Document préparé le 2026-04-22 — En attente de validation avant implémentation.**
+## 11. Résultats mesurés en production
+
+> **1er run production complet : nuit du 2026-04-24 au 2026-04-25** (vendredi → samedi, mode incremental DOW=5)
+
+### 11.1 Durée mesurée du ref_reload
+
+  ┌──────────────────────────────────┬──────────────┬──────────────────────────┐
+  │ Table                            │ Durée mesurée│ Notes                    │
+  ├──────────────────────────────────┼──────────────┼──────────────────────────┤
+  │ MEDIPRIX_FACTURES (incremental)  │      37 min  │ 7,1 M rows mergés        │
+  ├──────────────────────────────────┼──────────────┼──────────────────────────┤
+  │ STOCKHISTORY (incremental)       │      10 min  │ 5,1 M rows mergés        │
+  ├──────────────────────────────────┼──────────────┼──────────────────────────┤
+  │ DAYBYDAY (incremental)           │       2 min  │ 1,5 M rows mergés        │
+  ├──────────────────────────────────┼──────────────┼──────────────────────────┤
+  │ MANQHISTORY (incremental)        │      17 sec  │ 97 K rows mergés         │
+  ├──────────────────────────────────┼──────────────┼──────────────────────────┤
+  │ 10 autres tables (TRUNCATE+COPY) │     ~4 min   │ Inchangées               │
+  ├──────────────────────────────────┼──────────────┼──────────────────────────┤
+  │ **Total**                        │  **~53 min** │ Cible plan : 16 min      │
+  └──────────────────────────────────┴──────────────┴──────────────────────────┘
+
+### 11.2 Écart vs cible et cause
+
+L'écart de 37 min est concentré sur **MEDIPRIX_FACTURES** (264 M lignes au total). Le risque a été anticipé en §6.3 :
+
+> *"MERGE lent si clustering Snowflake mal dimensionné. Le gain théorique (16 min) pourrait devenir 30-40 min."*
+
+**Mitigation prévue** : ajouter `CLUSTER BY (PHA_ID, FAC_DATE)` sur `RAW_MEDIPRIX_FACTURES`. Effort : 1 jour. Gain attendu : retour vers 16-20 min total.
+
+### 11.3 Coût mesuré vs cible
+
+  ┌─────────────────────────────────────────┬──────────────┬───────────────┐
+  │ Calcul                                  │ Mesuré 25/04 │ Cible (plan)  │
+  ├─────────────────────────────────────────┼──────────────┼───────────────┤
+  │ Lundi (full)                            │    19 cr/mois│   19 cr/mois  │
+  ├─────────────────────────────────────────┼──────────────┼───────────────┤
+  │ Mar-Sam (incremental ~53 min vs 16 min) │    18 cr/mois│    5 cr/mois  │
+  ├─────────────────────────────────────────┼──────────────┼───────────────┤
+  │ Dimanche (skip)                         │     0 cr/mois│    0 cr/mois  │
+  ├─────────────────────────────────────────┼──────────────┼───────────────┤
+  │ Sous-total ref_reload                   │    37 cr/mois│   24 cr/mois  │
+  │                                         │  ~102 EUR    │   ~66 EUR     │
+  ├─────────────────────────────────────────┼──────────────┼───────────────┤
+  │ Autres (CDC, dbt, Metabase, storage)    │   ~74 EUR    │   ~74 EUR     │
+  ├─────────────────────────────────────────┼──────────────┼───────────────┤
+  │ **Total mensuel**                       │ **~115 EUR** │ **~80 EUR**   │
+  ├─────────────────────────────────────────┼──────────────┼───────────────┤
+  │ **Économie vs avant (471 EUR)**         │ **-356 EUR** │ **-391 EUR**  │
+  ├─────────────────────────────────────────┼──────────────┼───────────────┤
+  │ **Économie %**                          │  **-76 %**   │   **-83 %**   │
+  ├─────────────────────────────────────────┼──────────────┼───────────────┤
+  │ **Économie annuelle**                   │ **-4 270 EUR**│ **-4 690 EUR**│
+  └─────────────────────────────────────────┴──────────────┴───────────────┘
+
+### 11.4 Bénéfices fonctionnels confirmés
+
+  ┌──────────────────────────────────┬───────────────┬─────────────────┐
+  │ Métrique                         │ Avant         │ Après mesuré    │
+  ├──────────────────────────────────┼───────────────┼─────────────────┤
+  │ Durée ref_reload mar-sam         │   4h48        │     53 min      │
+  ├──────────────────────────────────┼───────────────┼─────────────────┤
+  │ Fenêtre d'incident nocturne      │   4h48/nuit   │   ~1h/nuit      │
+  ├──────────────────────────────────┼───────────────┼─────────────────┤
+  │ Heure rapport Teams disponible   │   ~04h40 FR   │   ~00h45 FR     │
+  ├──────────────────────────────────┼───────────────┼─────────────────┤
+  │ dbt post-reload terminé          │   ~05h30 FR   │   ~00h39 FR     │
+  ├──────────────────────────────────┼───────────────┼─────────────────┤
+  │ Nuit complète terminée           │   ~05h30 FR   │   ~00h50 FR     │
+  └──────────────────────────────────┴───────────────┴─────────────────┘
+
+### 11.5 Action de suivi
+
+- [ ] Ajouter `ALTER TABLE RAW.RAW_MEDIPRIX_FACTURES CLUSTER BY (PHA_ID, FAC_DATE)`
+- [ ] Mesurer la durée du ref_reload sur les 4 nuits suivantes pour confirmer la stabilité
+- [ ] Si durée stable < 20 min après clustering : déclarer la cible -83 % atteinte
+
+[↑ Retour au sommaire](#table-des-matières)
+
+---
+
+**Document préparé le 2026-04-22 — Implémenté le 2026-04-23 — 1er run prod mesuré le 2026-04-25.**

@@ -390,11 +390,12 @@ Chronologie nocturne type **en mode incremental** (mardi→samedi). Les variante
   │ 22h00        │ Audit purge + Backup Metabase            │ `DELETE AUDIT > 90j` +                                  │
   │              │                                          │ `pg_dump` PostgreSQL Metabase.                          │
   ├──────────────┼──────────────────────────────────────────┼─────────────────────────────────────────────────────────┤
-  │ 23h00        │ ref_reload INCREMENTAL 30j               │ 4 tables fenêtre glissante :                            │
-  │ → 23h16      │                                          │   MEDIPRIX_FACTURES ~5 min, STOCKHISTORY ~3 min,        │
-  │              │                                          │   DAYBYDAY ~1 min, MANQHISTORY ~10 s.                   │
-  │              │                                          │ + TRUNCATE sur 10 petites tables (~7 min).              │
-  │              │                                          │ Total ~16 min [guard `pre_night_ok`].                   │
+  │ 23h00        │ ref_reload INCREMENTAL 30j               │ 4 tables fenêtre glissante (mesuré 25/04) :             │
+  │ → 23h53      │                                          │   MEDIPRIX_FACTURES 37 min, STOCKHISTORY 10 min,        │
+  │              │                                          │   DAYBYDAY 2 min, MANQHISTORY 17 s.                     │
+  │              │                                          │ + TRUNCATE sur 10 petites tables (~4 min).              │
+  │              │                                          │ Total ~53 min mesuré, cible 16 min après clustering     │
+  │              │                                          │ RAW_MEDIPRIX_FACTURES [guard `pre_night_ok`].           │
   ├──────────────┼──────────────────────────────────────────┼─────────────────────────────────────────────────────────┤
   │ ~23h16       │ ★ NIVEAU 2b — Post-check ref_reload ★   │ Vérifie 14 tables non vides + 0 `_BACKUP` résiduel.     │
   │              │                                          │ Si KO : `REF_DONE_FLAG` non créé                        │
@@ -424,7 +425,7 @@ Chronologie nocturne type **en mode incremental** (mardi→samedi). Les variante
 
 - **Dimanche (DOW=0)** : ref_reload SKIP, les flags sont créés directement (dbt et pipeline_maintenance tournent quand même pour les CDC tables et les tests).
 - **Lundi (DOW=1)** : ref_reload FULL (~4h48). Fin ref_reload vers 03h48 FR, post-check 2b à ~03h48, dbt post-reload vers ~04h00, pipeline_maintenance vers ~04h20. Rapport Teams vers ~04h30.
-- **Mardi→Samedi (DOW=2..6)** : ref_reload INCREMENTAL (~16 min) comme détaillé ci-dessus.
+- **Mardi→Samedi (DOW=2..6)** : ref_reload INCREMENTAL (~53 min mesuré 25/04, cible 16 min après clustering RAW_MEDIPRIX_FACTURES) comme détaillé ci-dessus. Voir `docs/plans/2026-04-22_optimisation_cost_snowflake.md` §11.
 
 **Guard `pre_night_ok`** : CDC pré-reload et ref_reload ne se déclenchent que si `/tmp/pre_night_ok` est présent. Sans lui, les phases sont skippées et le batch_loop logge "phase skippée — pre_night_ok absent". Cela empêche de lancer des phases coûteuses sur une infra dégradée.
 

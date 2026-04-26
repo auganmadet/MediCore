@@ -650,7 +650,7 @@ print('Audit purge terminee')
     #   Dimanche (DOW=0)     -> SKIP : pharmacies fermées, peu de transactions
     #   Lundi (DOW=1)        -> FULL reload : réconciliation hebdomadaire (DELETEs captés)
     #   Mar-Sam (DOW=2..6)   -> INCREMENTAL 30j sur 4 grosses tables + full sur les 10 autres
-    # Gain mensuel : ~-391 EUR (ref_reload 4h48 -> 16 min en moyenne)
+    # Gain mensuel : -356 EUR mesuré 25/04 / -391 EUR cible (ref_reload 4h48 -> 53 min mesuré / 16 min cible après clustering)
     #
     # Configuration :
     #   REF_FULL_DOW         : jour de la semaine pour le full reload (défaut : 1 = lundi)
@@ -710,7 +710,7 @@ print('Audit purge terminee')
     fi
 
     # --- dbt post-reload : enchaîne immédiatement après ref_reload terminé ---
-    # Avec l'incremental merge (L1), ref_reload passe de 4h48 à ~16 min.
+    # Avec l'incremental merge (L1), ref_reload passe de 4h48 à ~53 min mesuré / ~16 min cible.
     # Ancien comportement : attendait POST_RELOAD_DBT_HOUR=02h UTC (04h FR) =
     # battement de 4h30 inutile. Nouveau : dès que REF_DONE_FLAG présent.
     # Le cycle batch_loop sleep 10 min, donc dbt tourne ~10 min après fin ref_reload.

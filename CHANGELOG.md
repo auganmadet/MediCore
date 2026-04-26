@@ -5,12 +5,36 @@ Chaque entrée décrit **ce qui a changé** du point de vue métier et son impac
 
 ---
 
+## [2026-04-25] — Validation production L1+L5 : 1er run mesuré
+
+### Mesures du 1er run production (nuit 24/25 avril, vendredi DOW=5)
+
+- **ref_reload incremental terminé en 53 min** (cible plan : 16 min). MEDIPRIX_FACTURES seule prend 37 min sur les 53. Cause anticipée en §6.3 du plan : clustering Snowflake mal dimensionné. Mitigation prévue : `ALTER TABLE RAW.RAW_MEDIPRIX_FACTURES CLUSTER BY (PHA_ID, FAC_DATE)` (1 jour de tuning).
+- **dbt post-reload : 39 min** (target=prod pour la 1ère fois depuis mars suite au fix `ENV=dev → prod`). 18 modèles staging, 25 marts, 314 tests.
+- **Pipeline_maintenance : 11 min** (4 phases, 0 erreur bloquante).
+- **Dev auto-clone réussi** (~20 s) : `MEDICORE_DEV` resynchronisé depuis `MEDICORE_PROD`.
+- **Nuit complète terminée à 00h50 FR** (vs ~04h30 FR avant L1+L5).
+
+### Coût mesuré
+
+- **~115 EUR/mois mesuré** (-356 EUR/mois, -76 %) — vs cible plan 80 EUR/mois (-391 EUR/mois, -83 %).
+- **-4 270 EUR/an mesuré**, -4 690 EUR/an cible.
+- L'écart -7 points est concentré sur MEDIPRIX_FACTURES. L'ajout du clustering devrait permettre d'atteindre la cible -83 %.
+
+### Validation workflow CDC end-to-end
+
+Test injection 5 lignes CDC (PHA_ID=99999) le 24 avril 21h14 FR via `scripts/cdc_test_injection.py --insert` : MySQL RDS → Debezium → Kafka → daily_cdc_batch.py → Snowflake RAW (`cdc_operation='I'`) → STAGING (dédup PK) → MARTS (FACT_COMMANDES, FACT_VENTES, FACT_STOCK_MOUVEMENT date 2026-04-24). Workflow complet validé.
+
+Voir `docs/plans/2026-04-22_optimisation_cost_snowflake.md` §11 pour les chiffres détaillés.
+
+---
+
 ## [2026-04-23] — Optimisation coût Snowflake L1+L5 : incremental merge + skip dimanche
 
 ### Ajouts
 - **Incremental merge sur 4 tables référence volumineuses** (MEDIPRIX_FACTURES 264 M, STOCKHISTORY 147 M, DAYBYDAY 47 M, MANQHISTORY 3 M) : chaque nuit de semaine hors lundi, seules les données des 30 derniers jours sont chargées depuis MySQL et mergées dans Snowflake (`bulk_load.py --incremental-days 30`). Les 10 autres tables référence restent en TRUNCATE+reload classique.
 - **Logique hebdomadaire dans `batch_loop.sh`** : dimanche → skip complet (pharmacies fermées), lundi → full reload (réconciliation hebdomadaire pour capturer DELETEs), mardi→samedi → incremental 30 jours glissants.
-- **Enchaînement immédiat dbt post-reload + pipeline_maintenance** : avec l'incremental, le ref_reload termine en ~16 min au lieu de 4h48. Les phases dbt et maintenance ne sont plus bloquées sur 04h UTC mais s'enchaînent dès `REF_DONE_FLAG`, avec un sleep de 10 min entre chaque cycle nuit. Rapport Teams disponible dès 23h50 FR au lieu de 04h40 FR.
+- **Enchaînement immédiat dbt post-reload + pipeline_maintenance** : avec l'incremental, le ref_reload est attendu à ~16 min (cible plan, mesuré 53 min sur 1er run prod du 25/04, voir entrée du 2026-04-25) au lieu de 4h48. Les phases dbt et maintenance ne sont plus bloquées sur 04h UTC mais s'enchaînent dès `REF_DONE_FLAG`, avec un sleep de 10 min entre chaque cycle nuit. Rapport Teams disponible dès 23h50 FR (cible) / 00h45 FR (mesuré) au lieu de 04h40 FR.
 - **Pre-night healthcheck** (`scripts/pre_night_healthcheck.py --fix`) : exécuté à 20h30 FR, 14 checks infrastructure + config (H1-H7 + N2-N8) avec corrections automatiques (H2/H3/H4/H6 + N2/N3/N5/N6/N7/N8). Crée `/tmp/pre_night_ok` si OK, alerte Teams critique sinon. Garde l'ensemble du cycle nocturne si l'infra n'est pas prête.
 - **Post-checks inline `batch_loop.sh`** : 2a après CDC pré-reload (warning si lag élevé), 2b après ref_reload (bloquant si tables vides ou `_BACKUP` résiduel → empêche dbt post-reload de tourner sur des données corrompues).
 - **Plan d'optimisation détaillé** : `docs/plans/2026-04-22_optimisation_cost_snowflake.md` (12 leviers analysés, Solution = L1+L5, critères de validation et plan de rollback).
@@ -32,9 +56,9 @@ Chaque entrée décrit **ce qui a changé** du point de vue métier et son impac
 - **Config Debezium drift** : `topic.prefix` était devenu `winstat` alors que le code attendait `winstat_rds.winstat`. Connector recréé avec config conforme à `setup.sh` (4 tables include.list, snapshot.mode=schema_only).
 - **Schéma CDC uniforme** : les 4 tables RAW CDC ont désormais 3 colonnes métadata identiques (`CDC_OPERATION`, `CDC_TIMESTAMP`, `CDC_LSN`). Les colonnes obsolètes `CDC_SCHEMA` et `CDC_TABLE` ont été retirées du code Python et du DDL.
 
-### Gain métier
-- **~-391 EUR/mois** (-83 %) sur le coût Snowflake MediCore en mode incremental : de 471 EUR/mois à ~80 EUR/mois.
-- **Ref_reload 18× plus court** : de 4h48 à ~16 min. Réduit drastiquement la fenêtre d'incident possible (veille machine, timeout, crash Docker).
+### Gain métier (cible plan, mesuré le 25/04 — voir entrée correspondante)
+- **Cible -391 EUR/mois (-83 %)** sur le coût Snowflake MediCore : de 471 EUR/mois à ~80 EUR/mois. **Mesuré 1er run : -356 EUR/mois (-76 %)**, écart résorbable par tuning clustering.
+- **Ref_reload 5 à 18× plus court** : de 4h48 à ~16 min cible (~53 min mesuré). Réduit drastiquement la fenêtre d'incident possible (veille machine, timeout, crash Docker).
 - **Rapport opérationnel disponible le soir** : consultable avant le coucher au lieu d'attendre le lendemain matin.
 
 ### Ce qui est différé
