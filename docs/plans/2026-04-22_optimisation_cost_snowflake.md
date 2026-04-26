@@ -1,10 +1,10 @@
 # Plan d'optimisation coût Snowflake
 
-> **Statut** : ✓ IMPLÉMENTÉ le 2026-04-23 — ✓ 1er run production mesuré le 2026-04-25 (voir §11)
+> **Statut** : ✓ IMPLÉMENTÉ le 2026-04-23 — ✓ Mesures stabilisées sur 4 jours post-L1+L5 (24-26/04, voir §11)
 > **Date proposition** : 2026-04-22
 > **Date validation** : 2026-04-23
-> **Objectif** : Réduire le coût Snowflake de ~471 EUR/mois à ~80 EUR/mois (-391 EUR/mois, -83 %)
-> **Résultat mesuré** : ~115 EUR/mois (-356 EUR/mois, -76 %) sur le 1er run prod. Cible -83 % atteignable après tuning clustering Snowflake (voir §11).
+> **Cible plan théorique** : 471 EUR/mois → 80 EUR/mois (-391 EUR/mois, -83 %)
+> **Réalité mesurée** : baseline 621 EUR/mois → ~290 EUR/mois (**-331 EUR/mois, -53 %**). Cumul possible avec clustering + DBT_EVERY_N=12 : -445 EUR/mois (-72 %). Voir §11.
 > **Fichiers impactés** : `pipelines/bulk_load.py`, `scripts/batch_loop.sh`, `scripts/bulk_maintenance.py`, `.env`, `CHANGELOG.md`, `docs/16_pipeline_maintenance.md`
 
 ## Table des matières
@@ -623,28 +623,58 @@ L'écart de 37 min est concentré sur **MEDIPRIX_FACTURES** (264 M lignes au tot
 
 ### 11.3 Coût mesuré vs cible
 
+> ⚠ **Correction 2026-04-26** : la 1ère synthèse rapportait "115 EUR/mois mesuré" issus d'une extrapolation fautive. Les vrais chiffres ci-dessous sont extraits de `SNOWFLAKE.ACCOUNT_USAGE.WAREHOUSE_METERING_HISTORY` sur les 4 jours stabilisés post-L1+L5 (24-26/04).
+
+#### Baseline mesuré (10 jours avant L1+L5, 13-22/04)
+
+  ┌─────────────────────────────────────────┬──────────────┐
+  │ Métrique                                │ Mesuré       │
+  ├─────────────────────────────────────────┼──────────────┤
+  │ Moyenne crédits/jour (10 jours)         │   ~7,5 cr/j  │
+  ├─────────────────────────────────────────┼──────────────┤
+  │ Coût mensuel extrapolé (×30)            │   225 cr/mois│
+  │                                         │   ~621 EUR   │
+  └─────────────────────────────────────────┴──────────────┘
+
+Note : le baseline théorique du plan original (471 EUR/mois) sous-estimait la réalité observée.
+
+#### Coût post-L1+L5 (extrapolé sur 4 jours stabilisés 24-26/04)
+
   ┌─────────────────────────────────────────┬──────────────┬───────────────┐
-  │ Calcul                                  │ Mesuré 25/04 │ Cible (plan)  │
+  │ Composante                              │ Mesuré       │ Cible (plan)  │
   ├─────────────────────────────────────────┼──────────────┼───────────────┤
-  │ Lundi (full)                            │    19 cr/mois│   19 cr/mois  │
+  │ Lundi (full reload + jour)              │   ~5,6 cr/j  │   ~5 cr/j     │
   ├─────────────────────────────────────────┼──────────────┼───────────────┤
-  │ Mar-Sam (incremental ~53 min vs 16 min) │    18 cr/mois│    5 cr/mois  │
+  │ Mar-Sam (incremental + jour)            │   ~4 cr/j    │   ~2,5 cr/j   │
   ├─────────────────────────────────────────┼──────────────┼───────────────┤
-  │ Dimanche (skip)                         │     0 cr/mois│    0 cr/mois  │
+  │ Dimanche (skip)                         │   ~0,5 cr/j  │   ~0 cr/j     │
   ├─────────────────────────────────────────┼──────────────┼───────────────┤
-  │ Sous-total ref_reload                   │    37 cr/mois│   24 cr/mois  │
-  │                                         │  ~102 EUR    │   ~66 EUR     │
+  │ **Total mensuel**                       │ **~105 cr**  │ **~55 cr**    │
+  │                                         │ **~290 EUR** │ **~150 EUR**  │
   ├─────────────────────────────────────────┼──────────────┼───────────────┤
-  │ Autres (CDC, dbt, Metabase, storage)    │   ~74 EUR    │   ~74 EUR     │
+  │ **Économie vs baseline mesuré (621 EUR)**│ **-331 EUR** │ **-471 EUR**  │
   ├─────────────────────────────────────────┼──────────────┼───────────────┤
-  │ **Total mensuel**                       │ **~115 EUR** │ **~80 EUR**   │
+  │ **Économie %**                          │  **-53 %**   │   **-76 %**   │
   ├─────────────────────────────────────────┼──────────────┼───────────────┤
-  │ **Économie vs avant (471 EUR)**         │ **-356 EUR** │ **-391 EUR**  │
-  ├─────────────────────────────────────────┼──────────────┼───────────────┤
-  │ **Économie %**                          │  **-76 %**   │   **-83 %**   │
-  ├─────────────────────────────────────────┼──────────────┼───────────────┤
-  │ **Économie annuelle**                   │ **-4 270 EUR**│ **-4 690 EUR**│
+  │ **Économie annuelle**                   │ **-3 970 EUR**│ **-5 650 EUR**│
   └─────────────────────────────────────────┴──────────────┴───────────────┘
+
+#### Découverte clé
+
+L1+L5 a optimisé le mode NUIT (ref_reload). Le poste dominant restant est désormais le **mode JOUR** (~67 % du coût). Pour atteindre la cible -76 %, il faut combiner avec :
+
+  ┌────────────────────────────────────────────┬─────────────────┬──────────────┐
+  │ Action complémentaire                      │ Effort          │ Gain estimé  │
+  ├────────────────────────────────────────────┼─────────────────┼──────────────┤
+  │ Clustering RAW_MEDIPRIX_FACTURES (§11.5)   │ 1 jour + 2 EUR  │ -90 EUR/mois │
+  │                                            │ + 1,5 EUR/mois  │              │
+  ├────────────────────────────────────────────┼─────────────────┼──────────────┤
+  │ DBT_EVERY_N=12 (dbt jour toutes les 2h)    │ 5 min, 0 EUR    │ -21 EUR/mois │
+  ├────────────────────────────────────────────┼─────────────────┼──────────────┤
+  │ Skip mode jour dimanche (déjà actif)       │ Fait 26/04      │ -3 EUR/mois  │
+  └────────────────────────────────────────────┴─────────────────┴──────────────┘
+
+Avec ces 3 leviers cumulés : **~290 - 90 - 21 - 3 = ~176 EUR/mois**, soit **-445 EUR/mois (-72 %)**.
 
 ### 11.4 Bénéfices fonctionnels confirmés
 

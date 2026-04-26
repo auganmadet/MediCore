@@ -5,21 +5,32 @@ Chaque entrée décrit **ce qui a changé** du point de vue métier et son impac
 
 ---
 
-## [2026-04-25] — Validation production L1+L5 : 1er run mesuré
+## [2026-04-26] — Calibration coût L1+L5 et chiffres de production
+
+### Correction des chiffres précédemment annoncés
+
+> ⚠ La 1ère synthèse (entrée 25/04) annonçait "115 EUR/mois mesuré (-76 %)". C'était une extrapolation incorrecte. Les chiffres ci-dessous sont issus de `SNOWFLAKE.ACCOUNT_USAGE.WAREHOUSE_METERING_HISTORY` sur 4 jours stabilisés post-L1+L5.
+
+### Coût mesuré réel
+
+- **Baseline mesuré (10 j avant L1+L5)** : ~7,5 cr/j en moyenne, soit **~621 EUR/mois** (le baseline théorique 471 EUR/mois du plan était sous-estimé).
+- **Post-L1+L5 stabilisé (extrapolé sur 4 j 24-26/04)** : ~105 cr/mois, soit **~290 EUR/mois**.
+- **Économie réelle : -331 EUR/mois (-53 %)**, soit **-3 970 EUR/an**.
+
+### Découverte clé
+
+Le poste dominant après L1+L5 est désormais le **mode JOUR** (~67 % du coût). Trois leviers complémentaires identifiés pour atteindre -72 % :
+- Clustering `RAW_MEDIPRIX_FACTURES` (1 jour, ~2 EUR setup + 1,5 EUR/mois maintenance, gain -90 EUR/mois)
+- `DBT_EVERY_N=12` (5 min, 0 EUR, gain -21 EUR/mois)
+- Skip mode jour dimanche (fait le 26/04, gain -3 EUR/mois)
 
 ### Mesures du 1er run production (nuit 24/25 avril, vendredi DOW=5)
 
-- **ref_reload incremental terminé en 53 min** (cible plan : 16 min). MEDIPRIX_FACTURES seule prend 37 min sur les 53. Cause anticipée en §6.3 du plan : clustering Snowflake mal dimensionné. Mitigation prévue : `ALTER TABLE RAW.RAW_MEDIPRIX_FACTURES CLUSTER BY (PHA_ID, FAC_DATE)` (1 jour de tuning).
+- **ref_reload incremental terminé en 53 min** (cible plan : 16 min). MEDIPRIX_FACTURES seule prend 37 min sur les 53. Cause anticipée en §6.3 du plan : clustering Snowflake mal dimensionné.
 - **dbt post-reload : 39 min** (target=prod pour la 1ère fois depuis mars suite au fix `ENV=dev → prod`). 18 modèles staging, 25 marts, 314 tests.
 - **Pipeline_maintenance : 11 min** (4 phases, 0 erreur bloquante).
 - **Dev auto-clone réussi** (~20 s) : `MEDICORE_DEV` resynchronisé depuis `MEDICORE_PROD`.
-- **Nuit complète terminée à 00h50 FR** (vs ~04h30 FR avant L1+L5).
-
-### Coût mesuré
-
-- **~115 EUR/mois mesuré** (-356 EUR/mois, -76 %) — vs cible plan 80 EUR/mois (-391 EUR/mois, -83 %).
-- **-4 270 EUR/an mesuré**, -4 690 EUR/an cible.
-- L'écart -7 points est concentré sur MEDIPRIX_FACTURES. L'ajout du clustering devrait permettre d'atteindre la cible -83 %.
+- **Nuit complète terminée à 00h50 FR** (vs ~05h30 FR avant L1+L5).
 
 ### Validation workflow CDC end-to-end
 

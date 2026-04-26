@@ -535,6 +535,19 @@ while true; do
   HHMM=$(date +%H%M)
   echo "$(date) - Debut cycle #${HHMM}"
 
+  # Dimanche mode jour : pharmacies fermees, aucune activite MySQL attendue.
+  # Skip le cycle complet (pas de CDC, pas d'audit, pas de connexion Snowflake)
+  # pour eviter de reveiller le warehouse inutilement (~17 EUR/mois sinon).
+  # Le mode nuit dominical reste actif (CDC pre-reload, audit purge, backup
+  # Metabase). Le ref_reload reste SKIP (DOW=0). Sleep 1h pour limiter le
+  # nombre de passes inutiles (vs 10 min en CDC_INTERVAL_MIN).
+  DOW=$(date +%w)  # 0=dim, 1=lun, ..., 6=sam
+  if [ "$DOW" = "0" ] && ! is_night; then
+    echo "Dimanche mode jour : skip cycle (pharmacies fermees) - sleep 1h"
+    sleep 3600
+    continue
+  fi
+
   # Generer un RUN_ID unique pour cette iteration (lineage operationnel)
   RUN_ID=$(python3 -c "import uuid; print(uuid.uuid4())")
   export RUN_ID
