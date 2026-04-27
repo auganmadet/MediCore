@@ -79,7 +79,7 @@ Répertoire : `.claude/dev-memories/`
 - **Guide embedding Mediprix** : voir `docs/14_embedding_metabase.md`
 - **Bilan RLS et options** : voir `docs/13_rls_bilan_et_options.md`
 - **Maintenance pipeline complète** : voir `docs/16_pipeline_maintenance.md` (architecture 4 niveaux : pre-night + post-checks inline + pipeline_maintenance)
-- **Optimisation coût Snowflake L1+L5** : voir `docs/plans/2026-04-22_optimisation_cost_snowflake.md` (incremental merge + skip dimanche, gain -391 EUR/mois)
+- **Optimisation coût Snowflake L1+L5** : voir `docs/plans/2026-04-22_optimisation_cost_snowflake.md` (incremental merge + skip dimanche, gain mesuré -317 EUR/mois soit -52 %, cible théorique -391 EUR/mois -83 %)
 
 ### Sécurité critique
 

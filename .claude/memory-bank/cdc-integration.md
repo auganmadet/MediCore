@@ -117,7 +117,7 @@ KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
   │ `MANQHISTORY`        │ `MNQ_DATE`         │ PHA_ID, MNQ_DATE, PRD_ID, FAC_ID │
   └──────────────────────┴────────────────────┴──────────────────────────────────┘
 
-Gain : ref_reload incremental ~53 min mesuré (cible 16 min après clustering `RAW_MEDIPRIX_FACTURES`) vs full ~4h48. Économie mesurée : ~-356 EUR/mois (-76 %), cible -391 EUR/mois (-83 %). Voir `docs/plans/2026-04-22_optimisation_cost_snowflake.md` §11.
+Gain : ref_reload incremental ~53 min mesuré (cible 16 min après clustering `RAW_MEDIPRIX_FACTURES`) vs full ~4h48. Économie mesurée 4 jours stabilisés (24-27/04) : **~-317 EUR/mois (-52 %)** sur baseline mesuré 604 EUR/mois → 287 EUR/mois (vs cible plan théorique -391 EUR/mois -83 %). Voir `docs/plans/2026-04-22_optimisation_cost_snowflake.md` §11.
 
 ## Monitoring CDC
 

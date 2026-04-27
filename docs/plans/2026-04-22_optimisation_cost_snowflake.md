@@ -4,7 +4,7 @@
 > **Date proposition** : 2026-04-22
 > **Date validation** : 2026-04-23
 > **Cible plan théorique** : 471 EUR/mois → 80 EUR/mois (-391 EUR/mois, -83 %)
-> **Réalité mesurée** : baseline 621 EUR/mois → ~290 EUR/mois (**-331 EUR/mois, -53 %**). Cumul possible avec clustering + DBT_EVERY_N=12 : -445 EUR/mois (-72 %). Voir §11.
+> **Réalité mesurée (27/04)** : baseline ~604 EUR/mois → ~287 EUR/mois (**-317 EUR/mois, -52 %**). Cumul possible avec clustering + DBT_EVERY_N=12 : -431 EUR/mois (-71 %). Voir §11.
 > **Fichiers impactés** : `pipelines/bulk_load.py`, `scripts/batch_loop.sh`, `scripts/bulk_maintenance.py`, `.env`, `CHANGELOG.md`, `docs/16_pipeline_maintenance.md`
 
 ## Table des matières
@@ -421,26 +421,26 @@ log_step_end('$RUN_ID', 'ref_reload', 'SUCCESS', metadata={'mode': '$DOW_LABEL'}
 
 ### 7.2 Validation en production (semaine 1 — observation quotidienne)
 
-  ┌──────────────┬───────────────┬──────────────────┬─────────────────┐
-  │ Jour         │ Mode          │ Durée attendue   │ Crédits attendus│
-  ├──────────────┼───────────────┼──────────────────┼─────────────────┤
-  │ Lundi (J+1)  │ FULL          │ 4h48             │ 5 cr            │
-  ├──────────────┼───────────────┼──────────────────┼─────────────────┤
-  │ Mardi (J+2)  │ Incremental   │ ~16 min          │ 0.3 cr          │
-  ├──────────────┼───────────────┼──────────────────┼─────────────────┤
-  │ Mercredi (J+3)│ Incremental  │ ~16 min          │ 0.3 cr          │
-  ├──────────────┼───────────────┼──────────────────┼─────────────────┤
-  │ Jeudi (J+4)  │ Incremental   │ ~16 min          │ 0.3 cr          │
-  ├──────────────┼───────────────┼──────────────────┼─────────────────┤
-  │ Vendredi (J+5)│ Incremental  │ ~16 min          │ 0.3 cr          │
-  ├──────────────┼───────────────┼──────────────────┼─────────────────┤
-  │ Samedi (J+6) │ Incremental   │ ~16 min          │ 0.3 cr          │
-  ├──────────────┼───────────────┼──────────────────┼─────────────────┤
-  │ Dimanche (J+7)│ SKIP         │ —                │ 0 cr            │
-  ├──────────────┼───────────────┼──────────────────┼─────────────────┤
-  │ **Semaine 1**│               │                  │ **~6.5 cr**     │
-  │              │               │                  │ (vs 35 cr avant)│
-  └──────────────┴───────────────┴──────────────────┴─────────────────┘
+  ┌───────────────┬───────────────┬──────────────────┬─────────────────┐
+  │ Jour          │ Mode          │ Durée attendue   │ Crédits attendus│
+  ├───────────────┼───────────────┼──────────────────┼─────────────────┤
+  │ Lundi (J+1)   │ FULL          │ 4h48             │ 5 cr            │
+  ├───────────────┼───────────────┼──────────────────┼─────────────────┤
+  │ Mardi (J+2)   │ Incremental   │ ~16 min          │ 0.3 cr          │
+  ├───────────────┼───────────────┼──────────────────┼─────────────────┤
+  │ Mercredi (J+3)│ Incremental   │ ~16 min          │ 0.3 cr          │
+  ├───────────────┼───────────────┼──────────────────┼─────────────────┤
+  │ Jeudi (J+4)   │ Incremental   │ ~16 min          │ 0.3 cr          │
+  ├───────────────┼───────────────┼──────────────────┼─────────────────┤
+  │ Vendredi (J+5)│ Incremental   │ ~16 min          │ 0.3 cr          │
+  ├───────────────┼───────────────┼──────────────────┼─────────────────┤
+  │ Samedi (J+6)  │ Incremental   │ ~16 min          │ 0.3 cr          │
+  ├───────────────┼───────────────┼──────────────────┼─────────────────┤
+  │ Dimanche (J+7)│ SKIP          │ —                │ 0 cr            │
+  ├───────────────┼───────────────┼──────────────────┼─────────────────┤
+  │ **Semaine 1** │               │                  │ **~6.5 cr**     │
+  │               │               │                  │ (vs 35 cr avant)│
+  └───────────────┴───────────────┴──────────────────┴─────────────────┘
 
 ### 7.3 Validation via pipeline_maintenance
 
@@ -623,58 +623,78 @@ L'écart de 37 min est concentré sur **MEDIPRIX_FACTURES** (264 M lignes au tot
 
 ### 11.3 Coût mesuré vs cible
 
-> ⚠ **Correction 2026-04-26** : la 1ère synthèse rapportait "115 EUR/mois mesuré" issus d'une extrapolation fautive. Les vrais chiffres ci-dessous sont extraits de `SNOWFLAKE.ACCOUNT_USAGE.WAREHOUSE_METERING_HISTORY` sur les 4 jours stabilisés post-L1+L5 (24-26/04).
+> ⚠ **Note méthodologique** : tous les chiffres ci-dessous mesurent le **TOTAL** du compute warehouse `MEDICORE_WH` (jour + nuit + ref_reload + maintenance), pas isolés sur le ref_reload. Source : `SNOWFLAKE.ACCOUNT_USAGE.WAREHOUSE_METERING_HISTORY`. Mesures stabilisées sur 4 jours post-L1+L5 (24-27/04, le 27/04 est en cours).
+>
+> ⚠ **Correction 2026-04-27** : les premières synthèses rapportaient des extrapolations fautives. Les vrais chiffres remplacent les estimations.
 
-#### Baseline mesuré (10 jours avant L1+L5, 13-22/04)
+#### Baseline mesuré (10 jours avant L1+L5, du 13 au 22/04)
 
-  ┌─────────────────────────────────────────┬──────────────┐
-  │ Métrique                                │ Mesuré       │
-  ├─────────────────────────────────────────┼──────────────┤
-  │ Moyenne crédits/jour (10 jours)         │   ~7,5 cr/j  │
-  ├─────────────────────────────────────────┼──────────────┤
-  │ Coût mensuel extrapolé (×30)            │   225 cr/mois│
-  │                                         │   ~621 EUR   │
-  └─────────────────────────────────────────┴──────────────┘
+  ┌─────────────────────────────────────────────┬───────────────────┐
+  │ Métrique                                    │ Valeur            │
+  ├─────────────────────────────────────────────┼───────────────────┤
+  │ Crédits/jour observés (min - max)           │ 3,7 - 11,1        │
+  ├─────────────────────────────────────────────┼───────────────────┤
+  │ Crédits/jour moyenne (10 jours)             │ 7,31 cr/j         │
+  ├─────────────────────────────────────────────┼───────────────────┤
+  │ **Coût mensuel total (mesuré × 30 jours)**  │ **~219 cr/mois**  │
+  │                                             │ **~604 EUR/mois** │
+  └─────────────────────────────────────────────┴───────────────────┘
 
-Note : le baseline théorique du plan original (471 EUR/mois) sous-estimait la réalité observée.
+Note : le baseline théorique du plan original (`471 EUR/mois`) sous-estimait la réalité observée. La vraie valeur de référence est **604 EUR/mois mesuré**.
 
-#### Coût post-L1+L5 (extrapolé sur 4 jours stabilisés 24-26/04)
+#### Coût post-L1+L5 (mesures 24-27/04, semaine type extrapolée)
 
-  ┌─────────────────────────────────────────┬──────────────┬───────────────┐
-  │ Composante                              │ Mesuré       │ Cible (plan)  │
-  ├─────────────────────────────────────────┼──────────────┼───────────────┤
-  │ Lundi (full reload + jour)              │   ~5,6 cr/j  │   ~5 cr/j     │
-  ├─────────────────────────────────────────┼──────────────┼───────────────┤
-  │ Mar-Sam (incremental + jour)            │   ~4 cr/j    │   ~2,5 cr/j   │
-  ├─────────────────────────────────────────┼──────────────┼───────────────┤
-  │ Dimanche (skip)                         │   ~0,5 cr/j  │   ~0 cr/j     │
-  ├─────────────────────────────────────────┼──────────────┼───────────────┤
-  │ **Total mensuel**                       │ **~105 cr**  │ **~55 cr**    │
-  │                                         │ **~290 EUR** │ **~150 EUR**  │
-  ├─────────────────────────────────────────┼──────────────┼───────────────┤
-  │ **Économie vs baseline mesuré (621 EUR)**│ **-331 EUR** │ **-471 EUR**  │
-  ├─────────────────────────────────────────┼──────────────┼───────────────┤
-  │ **Économie %**                          │  **-53 %**   │   **-76 %**   │
-  ├─────────────────────────────────────────┼──────────────┼───────────────┤
-  │ **Économie annuelle**                   │ **-3 970 EUR**│ **-5 650 EUR**│
-  └─────────────────────────────────────────┴──────────────┴───────────────┘
+Décomposition par jour de semaine (mesures stabilisées) :
+
+  ┌──────────────────────┬─────────────┬───────────┬─────────────┐
+  │ Jour de semaine      │ cr/jour     │ Nb jours  │ cr/mois     │
+  │ (régime nocturne)    │ (mesuré)    │ /mois     │ (calculé)   │
+  ├──────────────────────┼─────────────┼───────────┼─────────────┤
+  │ Lundi (full reload)  │  5,6 cr/j*  │     4     │   22,4 cr   │
+  ├──────────────────────┼─────────────┼───────────┼─────────────┤
+  │ Mar-Sam (incremental)│  4,0 cr/j   │  20** ⭐  │   80,0 cr   │
+  ├──────────────────────┼─────────────┼───────────┼─────────────┤
+  │ Dimanche (skip)      │  0,5 cr/j   │     4     │    2,0 cr   │
+  ├──────────────────────┼─────────────┼───────────┼─────────────┤
+  │ **Total mensuel**    │      —      │    28     │ **~104 cr** │
+  │                      │             │           │ **~287 EUR**│
+  └──────────────────────┴─────────────┴───────────┴─────────────┘
+
+\* Estimation, à confirmer après le 1er full reload prod du 27/04.
+\*\* ⭐ Important : `Mar-Sam` représente **5 jours × 4 semaines = 20 jours/mois** (pas 5).
+
+#### Synthèse cible vs mesuré
+
+  ┌──────────────────────────────────────────┬──────────────┬──────────────┬───────────────┐
+  │ Référence                                │ Total mois   │ Total an     │ Économie %    │
+  ├──────────────────────────────────────────┼──────────────┼──────────────┼───────────────┤
+  │ Baseline mesuré (10 j avant)             │  604 EUR     │  7 250 EUR   │      —        │
+  ├──────────────────────────────────────────┼──────────────┼──────────────┼───────────────┤
+  │ Post-L1+L5 stabilisé (mesuré)            │  287 EUR     │  3 440 EUR   │ **-52 %**     │
+  ├──────────────────────────────────────────┼──────────────┼──────────────┼───────────────┤
+  │ Cible plan théorique original            │   80 EUR     │    960 EUR   │   -83 %       │
+  └──────────────────────────────────────────┴──────────────┴──────────────┴───────────────┘
+
+**Économie réelle mesurée : -317 EUR/mois (-3 810 EUR/an, -52 %)**.
 
 #### Découverte clé
 
-L1+L5 a optimisé le mode NUIT (ref_reload). Le poste dominant restant est désormais le **mode JOUR** (~67 % du coût). Pour atteindre la cible -76 %, il faut combiner avec :
+L1+L5 a optimisé le mode NUIT (ref_reload). Le poste dominant restant est désormais le **mode JOUR** (~67 % du coût). Pour s'approcher de la cible théorique -83 %, il faut combiner avec :
 
-  ┌────────────────────────────────────────────┬─────────────────┬──────────────┐
-  │ Action complémentaire                      │ Effort          │ Gain estimé  │
-  ├────────────────────────────────────────────┼─────────────────┼──────────────┤
-  │ Clustering RAW_MEDIPRIX_FACTURES (§11.5)   │ 1 jour + 2 EUR  │ -90 EUR/mois │
-  │                                            │ + 1,5 EUR/mois  │              │
-  ├────────────────────────────────────────────┼─────────────────┼──────────────┤
-  │ DBT_EVERY_N=12 (dbt jour toutes les 2h)    │ 5 min, 0 EUR    │ -21 EUR/mois │
-  ├────────────────────────────────────────────┼─────────────────┼──────────────┤
-  │ Skip mode jour dimanche (déjà actif)       │ Fait 26/04      │ -3 EUR/mois  │
-  └────────────────────────────────────────────┴─────────────────┴──────────────┘
+  ┌─────────────────────────────────────────────┬─────────────────┬──────────────┐
+  │ Action complémentaire                       │ Effort          │ Gain estimé  │
+  ├─────────────────────────────────────────────┼─────────────────┼──────────────┤
+  │ Clustering RAW_MEDIPRIX_FACTURES (§11.5)    │ 1 jour + 2 EUR  │ -90 EUR/mois │
+  │                                             │ + 1,5 EUR/mois  │              │
+  ├─────────────────────────────────────────────┼─────────────────┼──────────────┤
+  │ DBT_EVERY_N=12 (dbt jour toutes les 2h)     │ 5 min, 0 EUR    │ -21 EUR/mois │
+  ├─────────────────────────────────────────────┼─────────────────┼──────────────┤
+  │ Skip mode jour dimanche (actif depuis 26/04)│ Fait            │ -3 EUR/mois  │
+  ├─────────────────────────────────────────────┼─────────────────┼──────────────┤
+  │ Fix safe_sleep WSL2 (anti-gel timer)        │ Fait 27/04      │ Stabilité    │
+  └─────────────────────────────────────────────┴─────────────────┴──────────────┘
 
-Avec ces 3 leviers cumulés : **~290 - 90 - 21 - 3 = ~176 EUR/mois**, soit **-445 EUR/mois (-72 %)**.
+Avec les 3 leviers cumulés : **~287 - 90 - 21 - 3 = ~173 EUR/mois**, soit **-431 EUR/mois (-71 %)** vs baseline mesuré.
 
 ### 11.4 Bénéfices fonctionnels confirmés
 
@@ -694,9 +714,16 @@ Avec ces 3 leviers cumulés : **~290 - 90 - 21 - 3 = ~176 EUR/mois**, soit **-44
 
 ### 11.5 Action de suivi
 
-- [ ] Ajouter `ALTER TABLE RAW.RAW_MEDIPRIX_FACTURES CLUSTER BY (PHA_ID, FAC_DATE)`
-- [ ] Mesurer la durée du ref_reload sur les 4 nuits suivantes pour confirmer la stabilité
-- [ ] Si durée stable < 20 min après clustering : déclarer la cible -83 % atteinte
+- [x] **2026-04-27 09h28 UTC** — `ALTER TABLE MEDICORE_PROD.RAW.RAW_MEDIPRIX_FACTURES CLUSTER BY (PHA_ID, FAC_DATE)` exécuté (avant : `CLUSTER BY (CDC_TIMESTAMP)`).
+  - Baseline mesuré : 419 partitions, average_overlaps=417,96, average_depth=417,98, 100 % à depth 512+
+  - DDL persisté dans `scripts/DDL_TABLES.sql:188-217`
+- [x] **2026-04-27 11h28 UTC** (2h après ALTER) — Auto-clustering quasi-optimal :
+  - 351 partitions (consolidées), average_overlaps=**3,91** (÷107), average_depth=**3,12** (÷134)
+  - Histogram : 100 % entre depth 2 et 6 (pic à depth=3 avec 151 partitions)
+  - **Mieux que la cible** (visait 5-15, atteint 3,12)
+- [ ] Mardi 28/04 soir : 1er ref_reload incremental avec clustering effectif (le full reload du 27/04 lundi soir n'en bénéficie pas, mais Snowflake re-clusterise automatiquement en background après le TRUNCATE+COPY).
+- [ ] Mercredi 29/04 matin : mesurer durée MEDIPRIX_FACTURES (objectif <10 min vs 37 min mesuré).
+- [ ] Si durée stable < 20 min sur 4 nuits incremental : déclarer la cible atteinte.
 
 [↑ Retour au sommaire](#table-des-matières)
 

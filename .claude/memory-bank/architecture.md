@@ -122,7 +122,7 @@ MySQL RDS (winstat)
 1. 20h30 FR : pre-night healthcheck (30 s)
 2. 21h30 FR : CDC pré-reload (quelques minutes) + post-check 2a
 3. 22h00 FR : audit purge + backup Metabase
-4. 23h00 FR : ref_reload (~53 min mesuré 25/04 en incremental, cible 16 min après clustering RAW_MEDIPRIX_FACTURES ; ~4h48 en full lundi)
+4. 23h00 FR : ref_reload (~53 min mesuré 25/04 en incremental ; clustering RAW_MEDIPRIX_FACTURES (PHA_ID, FAC_DATE) appliqué le 27/04, durée attendue 5-10 min sur MEDIPRIX, total ~16-22 min ; ~4h48 en full lundi)
 5. 23h59 FR : post-check 2b + REF_DONE_FLAG (heures basées sur run du 25/04)
 6. 00h00 FR : dbt post-reload (CDC flush + staging + marts + tests + freshness, ~39 min mesuré)
 7. 00h39 FR : pipeline_maintenance `--fix-safe` (~11 min) + rapport Teams + dev auto-clone (~20 s)

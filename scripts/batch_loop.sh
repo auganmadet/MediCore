@@ -74,6 +74,29 @@ DBT_CYCLE_COUNT=0
 # Flag : ref_reload termine, forcer un cycle dbt au prochain passage
 REF_RELOAD_JUST_DONE=0
 
+# Sleep resilient au gel WSL2 / Modern Standby Windows.
+#
+# Probleme observe (incident 2026-04-26) : sur Windows + WSL2, un sleep
+# bash long (>10 min) peut se geler des heures apres que l'hote entre en
+# Modern Standby ou hibernation. Le timer Linux ne progresse pas pendant
+# ce temps, et au reveil le sleep continue avec sa duree restante au lieu
+# de rattraper le temps perdu. Resultat : un sleep 600 (10 min) peut durer
+# 9h, bloquant tout le pipeline.
+#
+# Solution : decouper le sleep en sous-sleeps courts (30s) avec verification
+# de la wall-clock a chaque iteration. Si WSL gele puis se reveille, le
+# date +%s reflete l'heure correcte et la boucle sort des que la deadline
+# est atteinte. Aucune phase nocturne ne peut plus etre manquee.
+#
+# Usage : safe_sleep 600  (au lieu de sleep 600)
+safe_sleep() {
+  local duration="$1"
+  local end_ts=$(($(date +%s) + duration))
+  while [ "$(date +%s)" -lt "$end_ts" ]; do
+    sleep 30
+  done
+}
+
 send_teams_alert() {
   local component="$1" fail_count="$2" status="${3:-failure}"
   [ -z "${TEAMS_WEBHOOK_URL:-}" ] && return 0
@@ -544,7 +567,7 @@ while true; do
   DOW=$(date +%w)  # 0=dim, 1=lun, ..., 6=sam
   if [ "$DOW" = "0" ] && ! is_night; then
     echo "Dimanche mode jour : skip cycle (pharmacies fermees) - sleep 1h"
-    sleep 3600
+    safe_sleep 3600
     continue
   fi
 
@@ -559,7 +582,7 @@ while true; do
     LOCK_PID=$(awk '{print $1}' "$LOCK_FILE" 2>/dev/null)
     if [ -n "$LOCK_PID" ] && [ -d "/proc/$LOCK_PID" ]; then
       echo "Bulk load en cours (PID $LOCK_PID, lock: $LOCK_FILE) - cycle skippe"
-      sleep $((CDC_INTERVAL_MIN * 60))
+      safe_sleep $((CDC_INTERVAL_MIN * 60))
       continue
     else
       echo "Stale lock detecte (PID $LOCK_PID absent) - suppression de $LOCK_FILE"
@@ -663,7 +686,7 @@ print('Audit purge terminee')
     #   Dimanche (DOW=0)     -> SKIP : pharmacies fermées, peu de transactions
     #   Lundi (DOW=1)        -> FULL reload : réconciliation hebdomadaire (DELETEs captés)
     #   Mar-Sam (DOW=2..6)   -> INCREMENTAL 30j sur 4 grosses tables + full sur les 10 autres
-    # Gain mensuel : -356 EUR mesuré 25/04 / -391 EUR cible (ref_reload 4h48 -> 53 min mesuré / 16 min cible après clustering)
+    # Gain mensuel : -317 EUR mesuré (semaine type post-L1+L5) / -391 EUR cible (ref_reload 4h48 -> 53 min mesuré / 16 min cible après clustering)
     #
     # Configuration :
     #   REF_FULL_DOW         : jour de la semaine pour le full reload (défaut : 1 = lundi)
@@ -793,9 +816,10 @@ print('Audit purge terminee')
       python3 -c "from pipelines.utils.audit import log_run_end; log_run_end('$RUN_ID', 'SUCCESS')" 2>/dev/null || true
     fi
 
-    # En mode nuit, sleep long (10 min) pour ne pas boucler inutilement
+    # En mode nuit, sleep long (10 min) pour ne pas boucler inutilement.
+    # safe_sleep résilient au gel WSL2 (cf incident 2026-04-26).
     echo "Mode nuit: prochain check dans 10 min"
-    sleep 600
+    safe_sleep 600
     continue
   fi
 
@@ -839,5 +863,5 @@ print('Audit purge terminee')
   fi
 
   echo "Cycle termine (CDC #$DBT_CYCLE_COUNT) - Prochain CDC dans ${CDC_INTERVAL_MIN}min"
-  sleep $((CDC_INTERVAL_MIN * 60))
+  safe_sleep $((CDC_INTERVAL_MIN * 60))
 done

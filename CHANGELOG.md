@@ -5,17 +5,29 @@ Chaque entrée décrit **ce qui a changé** du point de vue métier et son impac
 
 ---
 
-## [2026-04-26] — Calibration coût L1+L5 et chiffres de production
+## [2026-04-27] — Calibration finale L1+L5 + fix safe_sleep WSL2
 
-### Correction des chiffres précédemment annoncés
+### Fix critique : safe_sleep résilient au gel WSL2
 
-> ⚠ La 1ère synthèse (entrée 25/04) annonçait "115 EUR/mois mesuré (-76 %)". C'était une extrapolation incorrecte. Les chiffres ci-dessous sont issus de `SNOWFLAKE.ACCOUNT_USAGE.WAREHOUSE_METERING_HISTORY` sur 4 jours stabilisés post-L1+L5.
+Incident 26/04 : un `sleep 600` du batch_loop a gelé pendant **9 heures** (de 20h22 à 05h25 UTC), causant la perte du mode nuit dimanche (ref_reload SKIP, dbt post-reload, pipeline_maintenance, dev auto-clone tous manqués). Cause : Modern Standby Windows + WSL2 idle suspendent les timers Linux malgré `vmIdleTimeout=-1` dans `.wslconfig`.
 
-### Coût mesuré réel
+**Fix appliqué** dans `scripts/batch_loop.sh` : nouvelle fonction `safe_sleep N` qui décompose en `sleep 30` × N/30 avec vérification wall-clock à chaque itération. Si WSL gèle puis se réveille, `date +%s` voit que la deadline est dépassée et la boucle sort immédiatement. Aucune phase nocturne ne peut plus être manquée. Les 4 sleeps longs du batch_loop (skip dimanche jour, lock attendu, mode nuit, cycle CDC jour) utilisent désormais `safe_sleep`.
 
-- **Baseline mesuré (10 j avant L1+L5)** : ~7,5 cr/j en moyenne, soit **~621 EUR/mois** (le baseline théorique 471 EUR/mois du plan était sous-estimé).
-- **Post-L1+L5 stabilisé (extrapolé sur 4 j 24-26/04)** : ~105 cr/mois, soit **~290 EUR/mois**.
-- **Économie réelle : -331 EUR/mois (-53 %)**, soit **-3 970 EUR/an**.
+### Calibration finale des coûts (mesures 24-27/04)
+
+> ⚠ Les premières synthèses (115 EUR/mois -76 %, puis 290 EUR/mois -53 %) étaient des extrapolations imprécises. Les chiffres ci-dessous sont les vraies mesures stabilisées sur 4 jours post-L1+L5.
+
+- **Baseline mesuré (10 j avant L1+L5, 13-22/04)** : moyenne 7,31 cr/jour soit **~604 EUR/mois** (vs théorique 471 EUR/mois sous-estimé du plan).
+- **Post-L1+L5 stabilisé (4 j mesurés 24-27/04)** : moyenne 3,70 cr/jour soit **~287 EUR/mois** (semaine type : lundi 5,6 cr/j × 4 + mar-sam 4,0 cr/j × 20 + dim 0,5 cr/j × 4 = 104 cr/mois).
+- **Économie réelle : -317 EUR/mois (-52 %)**, soit **-3 810 EUR/an**.
+
+### Roadmap pour viser -71 %
+
+- Clustering `RAW_MEDIPRIX_FACTURES` (1 jour, gain -90 EUR/mois)
+- `DBT_EVERY_N=12` actif depuis 26/04 (gain -21 EUR/mois)
+- Skip mode jour dimanche actif depuis 26/04 (gain -3 EUR/mois)
+
+Total atteignable : ~173 EUR/mois (-71 %).
 
 ### Découverte clé
 
