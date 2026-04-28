@@ -81,6 +81,7 @@ Répertoire : `.claude/dev-memories/`
 - **Maintenance pipeline complète** : voir `docs/16_pipeline_maintenance.md` (architecture 4 niveaux : pre-night + post-checks inline + pipeline_maintenance)
 - **Audit pré-nuit système** : `scripts/pre_night_audit.sh [--fix]` (Power Windows + WindowsUpdate + WSL2 + Docker + safe_sleep + flags). Voir `docs/17_pre_night_audit.md`. Mode `--fix` auto-corrige tout (1 prompt UAC pour les changements admin Windows).
 - **Optimisation coût Snowflake L1+L5** : voir `docs/plans/2026-04-22_optimisation_cost_snowflake.md` (incremental merge + skip dimanche, gain mesuré -317 EUR/mois soit -52 %, cible théorique -391 EUR/mois -83 %)
+- **Rapport coût Snowflake nocturne** : `scripts/snowflake_cost_report.py [--date YYYY-MM-DD] [--mode auto|full|incremental|skip] [--tarif 2.76] [--json] [--markdown PATH]` (décompose la nuit par phase via `WAREHOUSE_METERING_HISTORY` + `AUTOMATIC_CLUSTERING_HISTORY`, détecte automatiquement le mode via le jour de la semaine). Tarif Mediprix 2,76 €/cr. Baselines mesurées : FULL 27/04 post-clustering 5,452 €, INCR 25/04 PRÉ-clustering 4,595 € (borne haute), SKIP 26/04 PRÉ-clustering 0,099 €. **Mensuel nocturne fourchette ~100-125 €/mois** (borne haute mesurée 124 €, estimation post-clustering complet ~110 € après recalibration INCR le 29/04). Le clustering `RAW_MEDIPRIX_FACTURES` a 2 effets : re-clustering write (faible en INCR) + pruning read (MAJEUR partout, gain -75 % attendu sur MERGE qui lisent `RAW_MEDIPRIX_FACTURES`). Voir `docs/18_snowflake_cost_report.md`.
 
 ### Sécurité critique
 
