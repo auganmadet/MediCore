@@ -12,12 +12,23 @@ Mesure 4 indicateurs clés pour suivre l'effet du clustering au fil des nuits :
    depuis l'ALTER CLUSTER BY (2026-04-27 09:28 UTC). Mesuré via
    AUTOMATIC_CLUSTERING_HISTORY.
 
-Persistance : append dans ``reports/clustering_metrics.csv`` pour permettre une
-analyse temporelle (Excel, Sheet, dbt source).
+Persistance double :
+
+- ``reports/clustering_metrics.csv`` (UPSERT par measure_date) pour visualisation
+  rapide (Excel, Sheet, dbt source).
+- ``MEDICORE_PROD.AUDIT.CLUSTERING_METRICS_DAILY`` (MERGE INTO par measure_date)
+  pour requêtes SQL et rétention long terme.
+
+Alerte Teams si TEAMS_WEBHOOK_URL est définie et qu'un seuil est franchi :
+
+- ``merge_bulk_sec`` > 300 (ref_reload anormalement long)
+- ``avg_depth`` > 6 (clustering dégradé)
+- ``ac_credits_cumul`` augmente de > 0,1 cr depuis la veille (pic auto-clustering)
 
 Usage :
 
-    # Nuit J-2 par défaut (latence ACCOUNT_USAGE 45 min - 3 h)
+    # Nuit J-1 par défaut (= la nuit qui vient de finir, données ACCOUNT_USAGE
+    # disponibles à 09h après une nuit qui finit à 05h FR)
     python scripts/clustering_metrics_daily.py
 
     # Nuit spécifique
@@ -26,8 +37,11 @@ Usage :
     # Backfill historique (plage de dates)
     python scripts/clustering_metrics_daily.py --since 2026-04-22 --until 2026-04-29
 
-    # Sortie sans écriture CSV (vérification rapide)
+    # Sortie sans écriture (CSV + Snowflake) — vérification rapide
     python scripts/clustering_metrics_daily.py --date 2026-04-28 --no-write
+
+    # Désactiver l'alerte Teams pour un run de test
+    python scripts/clustering_metrics_daily.py --no-alert
 """
 
 import argparse
@@ -36,7 +50,8 @@ import json
 import logging
 import os
 import sys
-from datetime import date, datetime, timedelta
+import urllib.request
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -55,6 +70,15 @@ WAREHOUSE_NAME = os.getenv('SNOWFLAKE_WAREHOUSE_NAME', 'MEDICORE_WH')
 TABLE_NAME = 'RAW_MEDIPRIX_FACTURES'
 CLUSTER_KEY = '(PHA_ID, FAC_DATE)'
 CLUSTERING_START = '2026-04-27 09:28:00'
+
+# Persistance Snowflake (table de série temporelle)
+AUDIT_TABLE = 'MEDICORE_PROD.AUDIT.CLUSTERING_METRICS_DAILY'
+
+# Alerte Teams (webhook optionnel via env var)
+TEAMS_WEBHOOK_URL = os.getenv('TEAMS_WEBHOOK_URL', '').strip()
+ALERT_THRESHOLD_MERGE_BULK_SEC = 300.0
+ALERT_THRESHOLD_AVG_DEPTH = 6.0
+ALERT_THRESHOLD_AC_DELTA_CR = 0.1
 
 CSV_PATH = Path(__file__).resolve().parent.parent / 'reports' / 'clustering_metrics.csv'
 CSV_FIELDS = [
@@ -172,7 +196,7 @@ def collect_metrics(cur, day: date) -> Dict:
     costs = fetch_clustering_costs(cur)
     return {
         'measure_date':       day.isoformat(),
-        'collected_at':       datetime.utcnow().isoformat(timespec='seconds') + 'Z',
+        'collected_at':       datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
         'merge_bulk_sec':     bulk['sec'],
         'merge_bulk_rows':    bulk['rows'],
         'merge_stg_sec':      stg['sec'],
@@ -185,15 +209,181 @@ def collect_metrics(cur, day: date) -> Dict:
     }
 
 
-def append_csv(metrics: Dict, csv_path: Path) -> None:
-    """Append d'une ligne dans le CSV (création si absent, header inclus)."""
+def upsert_csv(metrics: Dict, csv_path: Path) -> None:
+    """UPSERT d'une ligne dans le CSV par ``measure_date`` (clé d'unicité).
+
+    Comportement :
+
+    - Toutes les lignes existantes avec la même ``measure_date`` sont supprimées
+      (déduplique au passage les éventuels doublons hérités d'anciennes exécutions).
+    - La nouvelle ligne est insérée à la fin.
+    - Le CSV final est trié par ``measure_date`` croissant pour rester lisible.
+    """
     csv_path.parent.mkdir(parents=True, exist_ok=True)
-    write_header = not csv_path.exists()
-    with csv_path.open('a', newline='', encoding='utf-8') as f:
+    by_date: Dict[str, Dict] = {}
+    if csv_path.exists():
+        with csv_path.open('r', newline='', encoding='utf-8') as f:
+            for row in csv.DictReader(f):
+                # Si plusieurs lignes existent pour la même date, on garde la plus
+                # récemment collectée (meilleure heuristique en cas de doublon).
+                key = row['measure_date']
+                if key not in by_date or row.get('collected_at', '') > by_date[key].get('collected_at', ''):
+                    by_date[key] = row
+    by_date[metrics['measure_date']] = metrics
+    rows = sorted(by_date.values(), key=lambda r: r['measure_date'])
+    with csv_path.open('w', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
-        if write_header:
-            writer.writeheader()
-        writer.writerow(metrics)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def upsert_snowflake(cur, metrics: Dict) -> None:
+    """MERGE INTO MEDICORE_PROD.AUDIT.CLUSTERING_METRICS_DAILY par measure_date.
+
+    Crée la table si absente. Idempotent : un re-run pour la même date écrase
+    les valeurs précédentes.
+    """
+    cur.execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS {AUDIT_TABLE} (
+            MEASURE_DATE DATE NOT NULL,
+            COLLECTED_AT TIMESTAMP_NTZ NOT NULL,
+            MERGE_BULK_SEC FLOAT,
+            MERGE_BULK_ROWS NUMBER,
+            MERGE_STG_SEC FLOAT,
+            MERGE_STG_ROWS NUMBER,
+            AVG_DEPTH FLOAT,
+            TOTAL_PARTITIONS NUMBER,
+            AC_CREDITS_CUMUL FLOAT,
+            AC_GB_RECLUSTERED FLOAT,
+            AC_RUNS_CUMUL NUMBER,
+            PRIMARY KEY (MEASURE_DATE)
+        )
+        """
+    )
+    cur.execute(
+        f"""
+        MERGE INTO {AUDIT_TABLE} t
+        USING (SELECT
+            %(measure_date)s::DATE        AS MEASURE_DATE,
+            %(collected_at)s::TIMESTAMP_NTZ AS COLLECTED_AT,
+            %(merge_bulk_sec)s            AS MERGE_BULK_SEC,
+            %(merge_bulk_rows)s           AS MERGE_BULK_ROWS,
+            %(merge_stg_sec)s             AS MERGE_STG_SEC,
+            %(merge_stg_rows)s            AS MERGE_STG_ROWS,
+            %(avg_depth)s                 AS AVG_DEPTH,
+            %(total_partitions)s          AS TOTAL_PARTITIONS,
+            %(ac_credits_cumul)s          AS AC_CREDITS_CUMUL,
+            %(ac_gb_reclustered)s         AS AC_GB_RECLUSTERED,
+            %(ac_runs_cumul)s             AS AC_RUNS_CUMUL
+        ) s
+        ON t.MEASURE_DATE = s.MEASURE_DATE
+        WHEN MATCHED THEN UPDATE SET
+            COLLECTED_AT = s.COLLECTED_AT,
+            MERGE_BULK_SEC = s.MERGE_BULK_SEC,
+            MERGE_BULK_ROWS = s.MERGE_BULK_ROWS,
+            MERGE_STG_SEC = s.MERGE_STG_SEC,
+            MERGE_STG_ROWS = s.MERGE_STG_ROWS,
+            AVG_DEPTH = s.AVG_DEPTH,
+            TOTAL_PARTITIONS = s.TOTAL_PARTITIONS,
+            AC_CREDITS_CUMUL = s.AC_CREDITS_CUMUL,
+            AC_GB_RECLUSTERED = s.AC_GB_RECLUSTERED,
+            AC_RUNS_CUMUL = s.AC_RUNS_CUMUL
+        WHEN NOT MATCHED THEN INSERT (
+            MEASURE_DATE, COLLECTED_AT, MERGE_BULK_SEC, MERGE_BULK_ROWS,
+            MERGE_STG_SEC, MERGE_STG_ROWS, AVG_DEPTH, TOTAL_PARTITIONS,
+            AC_CREDITS_CUMUL, AC_GB_RECLUSTERED, AC_RUNS_CUMUL
+        ) VALUES (
+            s.MEASURE_DATE, s.COLLECTED_AT, s.MERGE_BULK_SEC, s.MERGE_BULK_ROWS,
+            s.MERGE_STG_SEC, s.MERGE_STG_ROWS, s.AVG_DEPTH, s.TOTAL_PARTITIONS,
+            s.AC_CREDITS_CUMUL, s.AC_GB_RECLUSTERED, s.AC_RUNS_CUMUL
+        )
+        """,
+        metrics,
+    )
+
+
+def detect_anomalies(cur, metrics: Dict) -> List[str]:
+    """Détecte les anomalies par seuils + comparaison avec la veille.
+
+    Args:
+        cur: Curseur Snowflake (lit la mesure de la veille pour delta AC).
+        metrics: Métriques du jour à comparer.
+
+    Returns:
+        Liste de messages d'anomalie (vide si nominale).
+    """
+    issues: List[str] = []
+    if metrics.get('merge_bulk_sec') and metrics['merge_bulk_sec'] > ALERT_THRESHOLD_MERGE_BULK_SEC:
+        issues.append(
+            f"merge_bulk_sec = {metrics['merge_bulk_sec']:.1f} s "
+            f"(seuil {ALERT_THRESHOLD_MERGE_BULK_SEC:.0f} s)"
+        )
+    if metrics.get('avg_depth', 0) > ALERT_THRESHOLD_AVG_DEPTH:
+        issues.append(
+            f"avg_depth = {metrics['avg_depth']:.2f} "
+            f"(seuil {ALERT_THRESHOLD_AVG_DEPTH:.0f}) — clustering dégradé"
+        )
+    cur.execute(
+        f"SELECT AC_CREDITS_CUMUL FROM {AUDIT_TABLE} "
+        f"WHERE MEASURE_DATE < %s ORDER BY MEASURE_DATE DESC LIMIT 1",
+        (metrics['measure_date'],),
+    )
+    row = cur.fetchone()
+    if row is not None and row[0] is not None:
+        delta = float(metrics['ac_credits_cumul']) - float(row[0])
+        if delta > ALERT_THRESHOLD_AC_DELTA_CR:
+            issues.append(
+                f"ac_credits delta = +{delta:.3f} cr en 1 jour "
+                f"(seuil +{ALERT_THRESHOLD_AC_DELTA_CR} cr) — pic auto-clustering"
+            )
+    return issues
+
+
+def send_teams_alert(metrics: Dict, issues: List[str]) -> bool:
+    """Envoie une alerte Teams (Adaptive Card) si webhook défini et anomalies.
+
+    Returns:
+        True si envoyé, False sinon (webhook absent ou pas d'anomalie).
+    """
+    if not TEAMS_WEBHOOK_URL or not issues:
+        return False
+    title = f"Clustering RAW_MEDIPRIX_FACTURES — anomalie {metrics['measure_date']}"
+    body = "\n\n".join([f"- {i}" for i in issues])
+    text = (
+        f"**Mesure** : {metrics['measure_date']}\n\n"
+        f"**Anomalies détectées** :\n\n{body}\n\n"
+        f"**Métriques** : merge_bulk={metrics.get('merge_bulk_sec')}s, "
+        f"avg_depth={metrics['avg_depth']}, "
+        f"ac_credits_cumul={metrics['ac_credits_cumul']} cr"
+    )
+    payload = {
+        'type': 'message',
+        'attachments': [{
+            'contentType': 'application/vnd.microsoft.card.adaptive',
+            'content': {
+                'type': 'AdaptiveCard',
+                'version': '1.2',
+                'body': [
+                    {'type': 'TextBlock', 'text': title, 'weight': 'Bolder',
+                     'color': 'Attention', 'size': 'Medium'},
+                    {'type': 'TextBlock', 'text': text, 'wrap': True},
+                ],
+            },
+        }],
+    }
+    req = urllib.request.Request(
+        TEAMS_WEBHOOK_URL,
+        data=json.dumps(payload).encode('utf-8'),
+        headers={'Content-Type': 'application/json'},
+        method='POST',
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return resp.status in (200, 202)
+    except Exception as e:
+        logger.warning('Teams webhook échec : %s', e)
+        return False
 
 
 def _fmt_sec(v: Optional[float]) -> str:
@@ -218,13 +408,15 @@ def render_text(metrics: Dict) -> str:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description='Collecte quotidienne métriques clustering MEDIPRIX')
     parser.add_argument('--date', type=str, default=None,
-                        help='Date de la nuit (YYYY-MM-DD UTC). Défaut : J-2 (latence ACCOUNT_USAGE)')
+                        help='Date de la nuit (YYYY-MM-DD UTC). Défaut : J-1 (la nuit qui vient de finir)')
     parser.add_argument('--since', type=str, default=None,
                         help='Backfill : date de début (YYYY-MM-DD)')
     parser.add_argument('--until', type=str, default=None,
                         help='Backfill : date de fin (YYYY-MM-DD, inclus)')
     parser.add_argument('--no-write', action='store_true',
-                        help='Pas d\'écriture CSV (vérification rapide)')
+                        help='Pas d\'écriture (CSV ni Snowflake) — vérification rapide')
+    parser.add_argument('--no-alert', action='store_true',
+                        help='Désactive l\'alerte Teams (run de test)')
     parser.add_argument('--csv', type=str, default=str(CSV_PATH),
                         help=f'Chemin CSV (défaut {CSV_PATH})')
     return parser.parse_args()
@@ -246,13 +438,14 @@ def main() -> int:
 
     if args.since:
         since = date.fromisoformat(args.since)
-        until = date.fromisoformat(args.until) if args.until else date.today() - timedelta(days=2)
+        until = date.fromisoformat(args.until) if args.until else date.today() - timedelta(days=1)
         days = date_range(since, until)
     elif args.date:
         days = [date.fromisoformat(args.date)]
     else:
-        days = [date.today() - timedelta(days=2)]
+        days = [date.today() - timedelta(days=1)]
 
+    alerts_sent = 0
     conn = get_connection()
     cur = conn.cursor()
     try:
@@ -261,13 +454,23 @@ def main() -> int:
             metrics = collect_metrics(cur, day)
             print(render_text(metrics))
             if not args.no_write:
-                append_csv(metrics, csv_path)
+                upsert_csv(metrics, csv_path)
+                upsert_snowflake(cur, metrics)
+            if not args.no_alert and not args.no_write:
+                issues = detect_anomalies(cur, metrics)
+                if issues:
+                    logger.warning('Anomalies détectées (%s) : %s', day, ' | '.join(issues))
+                    if send_teams_alert(metrics, issues):
+                        alerts_sent += 1
     finally:
         cur.close()
         conn.close()
 
     if not args.no_write:
-        logger.info('Métriques sauvegardées : %s (%d ligne(s) ajoutée(s))', csv_path, len(days))
+        logger.info(
+            'Métriques sauvegardées : %s + %s (%d jour(s)) | %d alerte(s) Teams envoyée(s)',
+            csv_path, AUDIT_TABLE, len(days), alerts_sent,
+        )
     return 0
 
 

@@ -48,6 +48,7 @@ jobs:
           SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
           SNOWFLAKE_WAREHOUSE_NAME: ${{ secrets.SNOWFLAKE_WAREHOUSE_NAME }}
           SNOWFLAKE_DATABASE: MEDICORE_PROD
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
         run: python scripts/clustering_metrics_daily.py
 
       - name: Show last lines for visibility
