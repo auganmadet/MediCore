@@ -18,7 +18,7 @@ import os
 import sys
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Set, Tuple
 
 import mysql.connector
 import pandas as pd
@@ -70,35 +70,22 @@ REF_TABLES = [t for t in TABLE_MAPPING if t not in CDC_TABLES]
 # Cle = nom table MySQL ; valeurs :
 #   - date_col : colonne MySQL utilisee pour filtrer la fenetre N jours
 #   - pk_cols  : colonnes de la PK pour le MERGE INTO cote Snowflake
-#   - merge_extra_join (optionnel) : colonnes additionnelles a inclure dans la
-#     clause ON du MERGE pour aider le pruning quand la cible est clusterisee
-#     sur une colonne hors-PK (ex: MEDIPRIX_FACTURES clusteree sur FAC_DATE
-#     mais avec PK (PHA_ID, FAC_ID, FAC_TI)). N'a d'effet que si la colonne
-#     est immutable (sinon risque de doublon car une PK avec date modifiee ne
-#     matchera plus). Voir test d'immutabilite via Time Travel + bulk_maintenance.
 INCREMENTAL_TABLES: Dict[str, Dict[str, Any]] = {
     'MEDIPRIX_FACTURES': {
         'date_col': 'FAC_DATE',
         'pk_cols': ['PHA_ID', 'FAC_ID', 'FAC_TI'],
-        # FAC_DATE n'est pas dans la PK mais c'est la cle de clustering. On
-        # l'ajoute au ON pour activer le pruning. Validation immutabilite :
-        # 0 changement de FAC_DATE sur 266M rows en 23h (Time Travel 29/04).
-        'merge_extra_join': ['FAC_DATE'],
     },
     'STOCKHISTORY': {
         'date_col': 'STH_DATE',
         'pk_cols': ['PHA_ID', 'PRD_ID', 'STH_DATE'],
-        # STH_DATE deja dans la PK -> pruning natif, pas besoin d'extra join
     },
     'DAYBYDAY': {
         'date_col': 'DBD_DATE',
         'pk_cols': ['PHA_ID', 'DBD_DATE', 'PRD_ID'],
-        # DBD_DATE deja dans la PK -> pruning natif
     },
     'MANQHISTORY': {
         'date_col': 'MNQ_DATE',
         'pk_cols': ['PHA_ID', 'MNQ_DATE', 'PRD_ID', 'FAC_ID'],
-        # MNQ_DATE deja dans la PK -> pruning natif
     },
 }
 
@@ -424,8 +411,7 @@ def bulk_load_table(mysql_conn: Any, sf_conn: Any, mysql_table: str, sf_table: s
 
 def bulk_load_incremental_table(mysql_conn: Any, sf_conn: Any, mysql_table: str,
                                 sf_table: str, date_col: str, pk_cols: List[str],
-                                days_window: int, chunk_size: int,
-                                merge_extra_join: Optional[List[str]] = None) -> int:
+                                days_window: int, chunk_size: int) -> int:
     """Charge les N derniers jours depuis MySQL et MERGE dans Snowflake.
 
     Mode incremental : au lieu de TRUNCATE+reload toute la table, on lit
@@ -532,16 +518,10 @@ def bulk_load_incremental_table(mysql_conn: Any, sf_conn: Any, mysql_table: str,
     logger.info(f"  COPY INTO termine en {copy_time:.1f}s")
 
     # 4. MERGE INTO cible depuis staging
-    # merge_extra_join : colonnes additionnelles dans le ON pour activer le
-    # pruning du clustering quand la cible est clusterisee sur une colonne
-    # hors-PK (ex: MEDIPRIX_FACTURES). L'effet est conditionne a l'immutabilite
-    # de la colonne (sinon une PK avec valeur changee ne matche plus -> doublon).
-    extra_join_cols = list(merge_extra_join or [])
     pk_upper = {p.upper() for p in pk_cols}
     non_pk_cols = [c for c in sf_columns if c.upper() not in pk_upper]
 
-    join_cols_full = pk_cols + extra_join_cols
-    pk_join = ' AND '.join(f'tgt."{c}" = src."{c}"' for c in join_cols_full)
+    pk_join = ' AND '.join(f'tgt."{c}" = src."{c}"' for c in pk_cols)
     update_set = ', '.join(f'tgt."{c}" = src."{c}"' for c in non_pk_cols)
     insert_cols = ', '.join(f'"{c}"' for c in sf_columns)
     insert_vals = ', '.join(f'src."{c}"' for c in sf_columns)
@@ -552,10 +532,7 @@ def bulk_load_incremental_table(mysql_conn: Any, sf_conn: Any, mysql_table: str,
         f"WHEN MATCHED THEN UPDATE SET {update_set} "
         f"WHEN NOT MATCHED THEN INSERT ({insert_cols}) VALUES ({insert_vals})"
     )
-    if extra_join_cols:
-        logger.info(f"  MERGE INTO {sf_table} ON PK={pk_cols} + extra={extra_join_cols} (pruning)...")
-    else:
-        logger.info(f"  MERGE INTO {sf_table} ON PK={pk_cols}...")
+    logger.info(f"  MERGE INTO {sf_table} ON PK={pk_cols}...")
     merge_start = time.time()
     sf_cursor.execute(merge_sql)
     merge_result = sf_cursor.fetchone()
@@ -661,7 +638,6 @@ def main() -> None:
                         mysql_conn, sf_conn, mysql_table, sf_table,
                         conf['date_col'], conf['pk_cols'],
                         args.incremental_days, args.chunk_size,
-                        merge_extra_join=conf.get('merge_extra_join'),
                     )
                 else:
                     rows = bulk_load_table(mysql_conn, sf_conn, mysql_table, sf_table,
