@@ -84,9 +84,11 @@ CSV_PATH = Path(__file__).resolve().parent.parent / 'reports' / 'clustering_metr
 CSV_FIELDS = [
     'measure_date',          # Date d'analyse (jour de démarrage de la nuit en UTC)
     'collected_at',          # Timestamp de la mesure
-    'merge_bulk_sec',        # Durée MERGE INTO RAW_MEDIPRIX_FACTURES
+    'merge_bulk_sec',        # MERGE INTO RAW_MEDIPRIX_FACTURES (mode INCR mar-sam)
     'merge_bulk_rows',       # Rows produced par le MERGE bulk
-    'merge_stg_sec',         # Durée MERGE STAGING.stg_mediprix_factures
+    'copy_bulk_sec',         # COPY INTO RAW_MEDIPRIX_FACTURES (mode FULL lundi)
+    'copy_bulk_rows',        # Rows produced par le COPY bulk
+    'merge_stg_sec',         # MERGE STAGING.stg_mediprix_factures (dbt staging)
     'merge_stg_rows',        # Rows produced par le MERGE stg
     'avg_depth',             # SYSTEM$CLUSTERING_INFORMATION average_depth
     'total_partitions',      # Nombre de micro-partitions
@@ -181,11 +183,27 @@ def fetch_clustering_costs(cur) -> Dict:
 
 
 def collect_metrics(cur, day: date) -> Dict:
-    """Pipeline principal : collecte les 4 indicateurs pour la nuit du jour donné."""
-    bulk = fetch_merge_query(
+    """Pipeline principal : collecte les 5 indicateurs pour la nuit du jour donné.
+
+    Selon le mode du ref_reload (FULL le lundi, INCR mar-sam, SKIP dimanche), ce
+    sont des queries Snowflake différentes qui sont effectuées sur la table cible :
+
+    - **FULL (lundi)** : ``COPY INTO RAW_MEDIPRIX_FACTURES`` (chargement direct
+      après TRUNCATE) → ``copy_bulk_sec`` rempli, ``merge_bulk_sec`` vide.
+    - **INCR (mar-sam)** : ``COPY INTO ..._STG_INCR`` (table temporaire) puis
+      ``MERGE INTO RAW_MEDIPRIX_FACTURES`` (upsert) → ``merge_bulk_sec`` rempli,
+      ``copy_bulk_sec`` vide.
+    """
+    merge_bulk = fetch_merge_query(
         cur, day,
         query_pattern='%MERGE INTO RAW_MEDIPRIX_FACTURES%',
         exclude_pattern='%STAGING%',
+    )
+    # COPY INTO RAW_MEDIPRIX_FACTURES sans le STG_INCR temporaire du mode INCR
+    copy_bulk = fetch_merge_query(
+        cur, day,
+        query_pattern='%COPY INTO RAW_MEDIPRIX_FACTURES%',
+        exclude_pattern='%STG_INCR%',
     )
     stg = fetch_merge_query(
         cur, day,
@@ -197,8 +215,10 @@ def collect_metrics(cur, day: date) -> Dict:
     return {
         'measure_date':       day.isoformat(),
         'collected_at':       datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
-        'merge_bulk_sec':     bulk['sec'],
-        'merge_bulk_rows':    bulk['rows'],
+        'merge_bulk_sec':     merge_bulk['sec'],
+        'merge_bulk_rows':    merge_bulk['rows'],
+        'copy_bulk_sec':      copy_bulk['sec'],
+        'copy_bulk_rows':     copy_bulk['rows'],
         'merge_stg_sec':      stg['sec'],
         'merge_stg_rows':     stg['rows'],
         'avg_depth':          clustering['avg_depth'],
@@ -250,6 +270,8 @@ def upsert_snowflake(cur, metrics: Dict) -> None:
             COLLECTED_AT TIMESTAMP_NTZ NOT NULL,
             MERGE_BULK_SEC FLOAT,
             MERGE_BULK_ROWS NUMBER,
+            COPY_BULK_SEC FLOAT,
+            COPY_BULK_ROWS NUMBER,
             MERGE_STG_SEC FLOAT,
             MERGE_STG_ROWS NUMBER,
             AVG_DEPTH FLOAT,
@@ -261,6 +283,13 @@ def upsert_snowflake(cur, metrics: Dict) -> None:
         )
         """
     )
+    # Migrations idempotentes : ajoute les colonnes COPY_BULK_* si la table
+    # existait avant le 29/04/2026 sans elles.
+    for col, typ in [('COPY_BULK_SEC', 'FLOAT'), ('COPY_BULK_ROWS', 'NUMBER')]:
+        try:
+            cur.execute(f"ALTER TABLE {AUDIT_TABLE} ADD COLUMN {col} {typ}")
+        except snowflake.connector.errors.ProgrammingError:
+            pass  # colonne déjà présente
     cur.execute(
         f"""
         MERGE INTO {AUDIT_TABLE} t
@@ -269,6 +298,8 @@ def upsert_snowflake(cur, metrics: Dict) -> None:
             %(collected_at)s::TIMESTAMP_NTZ AS COLLECTED_AT,
             %(merge_bulk_sec)s            AS MERGE_BULK_SEC,
             %(merge_bulk_rows)s           AS MERGE_BULK_ROWS,
+            %(copy_bulk_sec)s             AS COPY_BULK_SEC,
+            %(copy_bulk_rows)s            AS COPY_BULK_ROWS,
             %(merge_stg_sec)s             AS MERGE_STG_SEC,
             %(merge_stg_rows)s            AS MERGE_STG_ROWS,
             %(avg_depth)s                 AS AVG_DEPTH,
@@ -282,6 +313,8 @@ def upsert_snowflake(cur, metrics: Dict) -> None:
             COLLECTED_AT = s.COLLECTED_AT,
             MERGE_BULK_SEC = s.MERGE_BULK_SEC,
             MERGE_BULK_ROWS = s.MERGE_BULK_ROWS,
+            COPY_BULK_SEC = s.COPY_BULK_SEC,
+            COPY_BULK_ROWS = s.COPY_BULK_ROWS,
             MERGE_STG_SEC = s.MERGE_STG_SEC,
             MERGE_STG_ROWS = s.MERGE_STG_ROWS,
             AVG_DEPTH = s.AVG_DEPTH,
@@ -291,10 +324,12 @@ def upsert_snowflake(cur, metrics: Dict) -> None:
             AC_RUNS_CUMUL = s.AC_RUNS_CUMUL
         WHEN NOT MATCHED THEN INSERT (
             MEASURE_DATE, COLLECTED_AT, MERGE_BULK_SEC, MERGE_BULK_ROWS,
+            COPY_BULK_SEC, COPY_BULK_ROWS,
             MERGE_STG_SEC, MERGE_STG_ROWS, AVG_DEPTH, TOTAL_PARTITIONS,
             AC_CREDITS_CUMUL, AC_GB_RECLUSTERED, AC_RUNS_CUMUL
         ) VALUES (
             s.MEASURE_DATE, s.COLLECTED_AT, s.MERGE_BULK_SEC, s.MERGE_BULK_ROWS,
+            s.COPY_BULK_SEC, s.COPY_BULK_ROWS,
             s.MERGE_STG_SEC, s.MERGE_STG_ROWS, s.AVG_DEPTH, s.TOTAL_PARTITIONS,
             s.AC_CREDITS_CUMUL, s.AC_GB_RECLUSTERED, s.AC_RUNS_CUMUL
         )
@@ -398,8 +433,9 @@ def render_text(metrics: Dict) -> str:
     """Format texte ligne pour affichage console."""
     return (
         f"{metrics['measure_date']} | "
-        f"merge_bulk={_fmt_sec(metrics['merge_bulk_sec'])} ({_fmt_rows(metrics['merge_bulk_rows'])}) | "
-        f"merge_stg={_fmt_sec(metrics['merge_stg_sec'])} ({_fmt_rows(metrics['merge_stg_rows'])}) | "
+        f"merge_bulk={_fmt_sec(metrics['merge_bulk_sec'])} | "
+        f"copy_bulk={_fmt_sec(metrics['copy_bulk_sec'])} | "
+        f"merge_stg={_fmt_sec(metrics['merge_stg_sec'])} | "
         f"avg_depth={metrics['avg_depth']:.4f} | "
         f"AC={metrics['ac_credits_cumul']:.3f}cr ({metrics['ac_gb_reclustered']:.1f}GB / {metrics['ac_runs_cumul']} runs)"
     )
