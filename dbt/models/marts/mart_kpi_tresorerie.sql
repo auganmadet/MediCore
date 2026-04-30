@@ -36,7 +36,7 @@ with tresorerie_mensuelle as (
         count(distinct date_jour)           as nb_jours_activite
     from {{ ref('fact_tresorerie') }}
     {% if is_incremental() %}
-    where date_jour >= dateadd('month', -2, current_date())
+    where date_jour >= dateadd('month', -2, date_trunc('month', current_date()))
     {% endif %}
     group by pharmacie_sk, date_trunc('month', date_jour)
 )
