@@ -19,7 +19,7 @@ with prix as (
         d.DBD_PAMP,
         d.DBD_PANET,
         coalesce(ph.pharmacie_sk, md5('-1')) as pharmacie_sk,
-        coalesce(prod.produit_sk, md5('-1' || '-' || '-1')) as produit_sk,
+        coalesce(prod.produit_sk, md5('-1' || '-' || d.PRD_ID::string)) as produit_sk,
         d.loaded_at,
         row_number() over (
           partition by d.PHA_ID, d.PRD_ID, d.DBD_DATE
