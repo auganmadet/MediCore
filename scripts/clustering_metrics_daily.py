@@ -246,7 +246,13 @@ def collect_metrics(cur, day: date) -> Dict:
     }
 
 
-def upsert_csv(metrics: Dict, csv_path: Path) -> None:
+SNAPSHOT_FIELDS = (
+    'avg_depth', 'total_partitions',
+    'ac_credits_cumul', 'ac_gb_reclustered', 'ac_runs_cumul',
+)
+
+
+def upsert_csv(metrics: Dict, csv_path: Path, preserve_snapshot: bool = True) -> None:
     """UPSERT d'une ligne dans le CSV par ``measure_date`` (clé d'unicité).
 
     Comportement :
@@ -255,9 +261,19 @@ def upsert_csv(metrics: Dict, csv_path: Path) -> None:
       (déduplique au passage les éventuels doublons hérités d'anciennes exécutions).
     - La nouvelle ligne est insérée à la fin.
     - Le CSV final est trié par ``measure_date`` croissant pour rester lisible.
+
+    Args:
+        metrics: Métriques à upserter.
+        csv_path: Chemin du CSV.
+        preserve_snapshot: Si True (défaut), préserve les valeurs snapshot
+            (avg_depth, total_partitions, ac_*) déjà présentes dans la ligne
+            existante. Évite qu'un backfill rétroactif n'écrase un snapshot
+            historique avec la valeur actuelle (qui n'a plus de sens pour une
+            date passée). Mettre à False pour forcer la mise à jour.
     """
     csv_path.parent.mkdir(parents=True, exist_ok=True)
     by_date: Dict[str, Dict] = {}
+    existing_for_date: Optional[Dict] = None
     if csv_path.exists():
         with csv_path.open('r', newline='', encoding='utf-8') as f:
             for row in csv.DictReader(f):
@@ -266,7 +282,18 @@ def upsert_csv(metrics: Dict, csv_path: Path) -> None:
                 key = row['measure_date']
                 if key not in by_date or row.get('collected_at', '') > by_date[key].get('collected_at', ''):
                     by_date[key] = row
-    by_date[metrics['measure_date']] = metrics
+        existing_for_date = by_date.get(metrics['measure_date'])
+
+    if preserve_snapshot and existing_for_date:
+        merged = dict(metrics)
+        for field in SNAPSHOT_FIELDS:
+            old_val = existing_for_date.get(field, '')
+            if old_val not in (None, '', '0', '0.0'):
+                merged[field] = old_val
+        by_date[metrics['measure_date']] = merged
+    else:
+        by_date[metrics['measure_date']] = metrics
+
     rows = sorted(by_date.values(), key=lambda r: r['measure_date'])
     with csv_path.open('w', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
@@ -274,11 +301,18 @@ def upsert_csv(metrics: Dict, csv_path: Path) -> None:
         writer.writerows(rows)
 
 
-def upsert_snowflake(cur, metrics: Dict) -> None:
+def upsert_snowflake(cur, metrics: Dict, preserve_snapshot: bool = True) -> None:
     """MERGE INTO MEDICORE_PROD.AUDIT.CLUSTERING_METRICS_DAILY par measure_date.
 
-    Crée la table si absente. Idempotent : un re-run pour la même date écrase
-    les valeurs précédentes.
+    Crée la table si absente.
+
+    Args:
+        cur: Curseur Snowflake.
+        metrics: Métriques à upserter.
+        preserve_snapshot: Si True (défaut), préserve les valeurs snapshot
+            existantes (avg_depth, total_partitions, ac_*) en cible. Évite qu'un
+            backfill n'écrase un snapshot historique avec la valeur actuelle.
+            Implémenté via ``COALESCE(t.col, s.col)`` dans le UPDATE.
     """
     cur.execute(
         f"""
@@ -307,6 +341,13 @@ def upsert_snowflake(cur, metrics: Dict) -> None:
             cur.execute(f"ALTER TABLE {AUDIT_TABLE} ADD COLUMN {col} {typ}")
         except snowflake.connector.errors.ProgrammingError:
             pass  # colonne déjà présente
+    # Avec preserve_snapshot=True, le UPDATE garde la valeur existante si elle
+    # n'est pas NULL (COALESCE(t.col, s.col)). Avec False, il écrase systéma-
+    # tiquement (s.col). Pour les colonnes "historiques" (sec/rows), toujours
+    # écraser car c'est le but du backfill.
+    snapshot_assign = (
+        "COALESCE(t.{0}, s.{0})" if preserve_snapshot else "s.{0}"
+    )
     cur.execute(
         f"""
         MERGE INTO {AUDIT_TABLE} t
@@ -334,11 +375,11 @@ def upsert_snowflake(cur, metrics: Dict) -> None:
             COPY_BULK_ROWS = s.COPY_BULK_ROWS,
             MERGE_STG_SEC = s.MERGE_STG_SEC,
             MERGE_STG_ROWS = s.MERGE_STG_ROWS,
-            AVG_DEPTH = s.AVG_DEPTH,
-            TOTAL_PARTITIONS = s.TOTAL_PARTITIONS,
-            AC_CREDITS_CUMUL = s.AC_CREDITS_CUMUL,
-            AC_GB_RECLUSTERED = s.AC_GB_RECLUSTERED,
-            AC_RUNS_CUMUL = s.AC_RUNS_CUMUL
+            AVG_DEPTH = {snapshot_assign.format("AVG_DEPTH")},
+            TOTAL_PARTITIONS = {snapshot_assign.format("TOTAL_PARTITIONS")},
+            AC_CREDITS_CUMUL = {snapshot_assign.format("AC_CREDITS_CUMUL")},
+            AC_GB_RECLUSTERED = {snapshot_assign.format("AC_GB_RECLUSTERED")},
+            AC_RUNS_CUMUL = {snapshot_assign.format("AC_RUNS_CUMUL")}
         WHEN NOT MATCHED THEN INSERT (
             MEASURE_DATE, COLLECTED_AT, MERGE_BULK_SEC, MERGE_BULK_ROWS,
             COPY_BULK_SEC, COPY_BULK_ROWS,
@@ -470,6 +511,11 @@ def parse_args() -> argparse.Namespace:
                         help='Pas d\'écriture (CSV ni Snowflake) — vérification rapide')
     parser.add_argument('--no-alert', action='store_true',
                         help='Désactive l\'alerte Teams (run de test)')
+    parser.add_argument('--no-preserve-snapshot', action='store_true',
+                        help='Force l\'écrasement des colonnes snapshot (avg_depth, '
+                             'total_partitions, ac_*) même si déjà présentes. Par '
+                             'défaut, un re-run sur date passée préserve le snapshot '
+                             'historique pour ne pas le polluer avec la valeur actuelle.')
     parser.add_argument('--csv', type=str, default=str(CSV_PATH),
                         help=f'Chemin CSV (défaut {CSV_PATH})')
     return parser.parse_args()
@@ -507,8 +553,9 @@ def main() -> int:
             metrics = collect_metrics(cur, day)
             print(render_text(metrics))
             if not args.no_write:
-                upsert_csv(metrics, csv_path)
-                upsert_snowflake(cur, metrics)
+                preserve = not args.no_preserve_snapshot
+                upsert_csv(metrics, csv_path, preserve_snapshot=preserve)
+                upsert_snowflake(cur, metrics, preserve_snapshot=preserve)
             if not args.no_alert and not args.no_write:
                 issues = detect_anomalies(cur, metrics)
                 if issues:
