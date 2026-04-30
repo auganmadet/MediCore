@@ -111,7 +111,7 @@ def get_connection() -> snowflake.connector.SnowflakeConnection:
 
 
 def fetch_merge_query(cur, day: date, query_pattern: str, exclude_pattern: Optional[str]) -> Dict:
-    """Récupère le MERGE le plus long de la journée matchant le pattern.
+    """Récupère la query la plus longue de la journée matchant le pattern.
 
     Args:
         cur: Curseur Snowflake (TIMEZONE='UTC' déjà set).
@@ -122,13 +122,30 @@ def fetch_merge_query(cur, day: date, query_pattern: str, exclude_pattern: Optio
 
     Returns:
         Dict {sec, rows, query_id} ou {sec=None, rows=None} si non trouvé.
+
+    Note sur le compteur ``rows`` :
+        Pour un MERGE, ``ROWS_PRODUCED`` est un compteur ambigu Snowflake (peut
+        inclure le scan de la cible, donne des valeurs absurdes ex 207 M sur 6,8 M
+        rows réellement traitées). On utilise donc ``ROWS_INSERTED + ROWS_UPDATED
+        + ROWS_DELETED`` qui reflète le vrai volume affecté.
+
+        Pour un COPY INTO, ces 3 colonnes sont NULL, donc on retombe sur
+        ``ROWS_PRODUCED`` qui est correct dans ce cas (= rows chargées).
     """
     start_window = datetime(day.year, day.month, day.day, 18, 0, 0)
     end_window = start_window + timedelta(hours=14)
     sql = """
         SELECT
             ROUND(TOTAL_ELAPSED_TIME/1000, 1) AS sec,
-            ROWS_PRODUCED,
+            COALESCE(
+                NULLIF(
+                    COALESCE(ROWS_INSERTED, 0) +
+                    COALESCE(ROWS_UPDATED, 0) +
+                    COALESCE(ROWS_DELETED, 0),
+                    0
+                ),
+                ROWS_PRODUCED
+            ) AS rows_affected,
             QUERY_ID
         FROM SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY
         WHERE WAREHOUSE_NAME = %s
