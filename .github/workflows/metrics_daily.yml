@@ -25,9 +25,15 @@ jobs:
     name: Collect clustering metrics
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo
+      # Checkout sur la branche de travail Architecture-Medicore (pas main).
+      # Raison : le code des scripts (clustering_metrics_daily.py, bulk_load.py,
+      # batch_loop.sh) vit sur Architecture-Medicore. main n'a que ce workflow
+      # pour permettre au cron GitHub Actions de tourner. Le commit auto du
+      # CSV par le bot va aussi sur Architecture-Medicore.
+      - name: Checkout repo (Architecture-Medicore)
         uses: actions/checkout@v4
         with:
+          ref: Architecture-Medicore
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
