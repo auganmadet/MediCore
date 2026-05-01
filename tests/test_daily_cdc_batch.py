@@ -537,9 +537,10 @@ class TestDLQ:
         
         cdc = MediCoreCDC.__new__(MediCoreCDC)
         cdc.sf_cursor = mock_snowflake_conn.cursor()
-        
+        cdc.dlq_cursor = mock_snowflake_conn.cursor()
+
         long_error = "x" * 5000
-        
+
         cdc._write_dlq("cdc_parse", "RAW_TEST", "topic", {"data": 1}, long_error)
         
         # Vérifier que execute a été appelé
@@ -561,12 +562,13 @@ class TestDLQ:
         
         cdc = MediCoreCDC.__new__(MediCoreCDC)
         cdc.sf_cursor = mock_snowflake_conn.cursor()
-        
+        cdc.dlq_cursor = mock_snowflake_conn.cursor()
+
         payload_with_datetime = {
             "PHA_ID": 1,
             "timestamp": datetime(2024, 1, 15, 12, 30, 0)
         }
-        
+
         cdc._write_dlq("cdc_parse", "RAW_TEST", "topic", payload_with_datetime, "error")
         
         # Ne doit pas lever d'exception
