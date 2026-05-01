@@ -41,7 +41,7 @@ ventes_generiques as (
     select
         pharmacie_sk,
         FOU_ID,
-        FOU_NOM,
+        max(FOU_NOM)                                        as FOU_NOM,
         is_generique,
         univers,
         date_trunc('month', date_vente)                     as mois,
@@ -56,7 +56,6 @@ ventes_generiques as (
     group by
         pharmacie_sk,
         FOU_ID,
-        FOU_NOM,
         is_generique,
         univers,
         date_trunc('month', date_vente)

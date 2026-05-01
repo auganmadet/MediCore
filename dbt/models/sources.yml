@@ -11,7 +11,7 @@ sources:
           error_after: {count: 24, period: hour}
         loaded_at_field: CDC_TIMESTAMP
         columns:
-          - name: cdc_operation
+          - name: CDC_OPERATION
             description: "Opération CDC Debezium (C=create, U=update, D=delete, R=read/snapshot, S=snapshot)"
             tests:
               - accepted_values:
@@ -30,6 +30,7 @@ sources:
             
       # EAN13 (3 colonnes)
       - name: RAW_EAN13
+        description: "Table de correspondance EAN13 par pharmacie et produit (PK: PHA_ID, PRD_ID)"
         freshness:
           warn_after: {count: 36, period: hour}
           error_after: {count: 48, period: hour}
@@ -39,6 +40,7 @@ sources:
             description: "ID pharmacie"
             tests: [not_null]
           - name: EAN_13
+            description: "Code-barres EAN13 du produit (13 chiffres)"
             tests: [not_null]
           - name: PRD_ID
             description: "ID produit"
@@ -87,6 +89,7 @@ sources:
 
       # HISTORY (40 colonnes)
       - name: RAW_HISTORY
+        description: "Historique de trésorerie journalier par pharmacie (PK: PHA_ID, Date). Ventilation des encaissements (espèces, chèques, CB, virements, mutuelles) et marges."
         freshness:
           warn_after: {count: 36, period: hour}
           error_after: {count: 48, period: hour}
@@ -95,98 +98,140 @@ sources:
           - name: PHA_ID
             description: "ID pharmacie"
             tests: [not_null]
-          - name: Date
+          - name: DATE
             description: "Date de l'historique (peut être NULL pour anciens enregistrements)"
-          - name: EspeceFRF
+          - name: ESPECEFRF
+            description: "Encaissements espèces en francs (historique pré-euro)"
             tests: [not_null]
-          - name: ChequeFRF
+          - name: CHEQUEFRF
+            description: "Encaissements chèques en francs (historique pré-euro)"
             tests: [not_null]
           - name: CB
+            description: "Encaissements carte bancaire"
             tests: [not_null]
-          - name: Centre
+          - name: CENTRE
+            description: "Encaissements centre de gestion"
             tests: [not_null]
-          - name: Differe_Positif
+          - name: DIFFERE_POSITIF
+            description: "Paiements différés positifs (créances clients)"
             tests: [not_null]
-          - name: nb_De_Factures
+          - name: NB_DE_FACTURES
+            description: "Nombre de factures du jour"
             tests: [not_null]
-          - name: nb_De_Subro
+          - name: NB_DE_SUBRO
+            description: "Nombre de subrogations (tiers payant)"
             tests: [not_null]
           - name: TVA_1
+            description: "Montant TVA taux 1 (2.1% — médicaments remboursables)"
             tests: [not_null]
           - name: TVA_2
+            description: "Montant TVA taux 2 (5.5% — dispositifs médicaux)"
             tests: [not_null]
           - name: TVA_3
+            description: "Montant TVA taux 3 (10% — parapharmacie)"
             tests: [not_null]
           - name: TVA_4
+            description: "Montant TVA taux 4 (20% — produits hors santé)"
             tests: [not_null]
           - name: TVA_5
+            description: "Montant TVA taux 5 (autre)"
             tests: [not_null]
-          - name: Marge_Rembt
+          - name: MARGE_REMBT
+            description: "Marge sur produits remboursables"
             tests: [not_null]
-          - name: Marge_NRembt
+          - name: MARGE_NREMBT
+            description: "Marge sur produits non remboursables"
             tests: [not_null]
-          - name: Remise_EnCompte
+          - name: REMISE_ENCOMPTE
+            description: "Remises portées en compte"
             tests: [not_null]
-          - name: Remise_EnLigne
+          - name: REMISE_ENLIGNE
+            description: "Remises en ligne (déduites directement)"
             tests: [not_null]
-          - name: EnCompte_Positif
+          - name: ENCOMPTE_POSITIF
+            description: "Mouvements en compte positifs (crédits)"
             tests: [not_null]
-          - name: Mutuelle
+          - name: MUTUELLE
+            description: "Encaissements mutuelles (tiers payant complémentaire)"
             tests: [not_null]
-          - name: EspeceEUR
+          - name: ESPECEEUR
+            description: "Encaissements espèces en euros"
             tests: [not_null]
-          - name: ChequeEUR
+          - name: CHEQUEEUR
+            description: "Encaissements chèques en euros"
             tests: [not_null]
-          - name: Virement
+          - name: VIREMENT
+            description: "Encaissements par virement"
             tests: [not_null]
-          - name: SubroPartAssure
+          - name: SUBROPARTASSURE
+            description: "Subrogation part assuré (reste à charge patient)"
             tests: [not_null]
-          - name: Controle
+          - name: CONTROLE
+            description: "Montant des contrôles de caisse"
             tests: [not_null]
-          - name: PointsFidel
+          - name: POINTSFIDEL
+            description: "Valeur des points fidélité utilisés"
             tests: [not_null]
-          - name: Particulier
+          - name: PARTICULIER
+            description: "Encaissements particuliers (hors circuit standard)"
             tests: [not_null]
-          - name: EnCompteBL_Positif
+          - name: ENCOMPTEBL_POSITIF
+            description: "Mouvements en compte BL positifs"
             tests: [not_null]
-          - name: Differe_Negatif
+          - name: DIFFERE_NEGATIF
+            description: "Paiements différés négatifs (remboursements)"
             tests: [not_null]
-          - name: EnCompte_Negatif
+          - name: ENCOMPTE_NEGATIF
+            description: "Mouvements en compte négatifs (débits)"
             tests: [not_null]
-          - name: EnCompteBL_Negatif
+          - name: ENCOMPTEBL_NEGATIF
+            description: "Mouvements en compte BL négatifs"
             tests: [not_null]
-          - name: CA_Retro_1
+          - name: CA_RETRO_1
+            description: "Chiffre d'affaires rétrocession niveau 1"
             tests: [not_null]
-          - name: CA_Retro_2
+          - name: CA_RETRO_2
+            description: "Chiffre d'affaires rétrocession niveau 2"
             tests: [not_null]
-          - name: CA_Retro_3
+          - name: CA_RETRO_3
+            description: "Chiffre d'affaires rétrocession niveau 3"
             tests: [not_null]
-          - name: CA_Retro_4
+          - name: CA_RETRO_4
+            description: "Chiffre d'affaires rétrocession niveau 4"
             tests: [not_null]
-          - name: CA_Retro_5
+          - name: CA_RETRO_5
+            description: "Chiffre d'affaires rétrocession niveau 5"
             tests: [not_null]
-          - name: DMPositif
+          - name: DMPOSITIF
+            description: "Dispositifs médicaux positifs"
             tests: [not_null]
-          - name: DMNegatif
+          - name: DMNEGATIF
+            description: "Dispositifs médicaux négatifs (retours)"
             tests: [not_null]
-          - name: DMRetroPositif
+          - name: DMRETROPOSITIF
+            description: "Dispositifs médicaux rétrocession positifs"
             tests: [not_null]
-          - name: DMRetroNegatif
+          - name: DMRETRONEGATIF
+            description: "Dispositifs médicaux rétrocession négatifs"
             tests: [not_null]
 
       # LOG (2 colonnes)
       - name: RAW_LOG
+        description: "Dernière synchronisation par pharmacie (PK: PHA_ID)"
         freshness:
           warn_after: {count: 36, period: hour}
           error_after: {count: 48, period: hour}
         loaded_at_field: CDC_TIMESTAMP
         columns:
           - name: PHA_ID
+            description: "ID pharmacie"
             tests: [not_null, unique]
           - name: DATE_SYNC
+            description: "Date/heure de la dernière synchronisation des données"
 
       # LPPR (6 colonnes)
       - name: RAW_LPPR
+        description: "Codes LPP (Liste des Produits et Prestations Remboursables) par produit et pharmacie"
         freshness:
           warn_after: {count: 36, period: hour}
           error_after: {count: 48, period: hour}
@@ -196,6 +241,7 @@ sources:
             description: "ID pharmacie"
             tests: [not_null]
           - name: PRD_ID
+            description: "ID produit"
             tests:
               - not_null
               - relationships:
@@ -204,16 +250,21 @@ sources:
                   config:
                     severity: warn
           - name: LPP_INDEX
+            description: "Index dans la liste LPP"
             tests: [not_null]
           - name: LPP_CODE
+            description: "Code LPP (Liste des Produits et Prestations Remboursables)"
             tests: [not_null]
           - name: LPP_QTE
+            description: "Quantité LPP"
             tests: [not_null]
           - name: LPP_ACTE_NOM
+            description: "Nom de l'acte LPP associé"
             tests: [not_null]
 
       # MANQHISTORY (7 colonnes)
       - name: RAW_MANQHISTORY
+        description: "Historique des ruptures de stock (demandes non servies). PK: PHA_ID, PRD_ID, MNQ_DATE"
         freshness:
           warn_after: {count: 36, period: hour}
           error_after: {count: 48, period: hour}
@@ -223,8 +274,10 @@ sources:
             description: "ID pharmacie"
             tests: [not_null]
           - name: MNQ_DATE
+            description: "Date de la rupture"
             tests: [not_null]
           - name: PRD_ID
+            description: "ID produit en rupture"
             tests:
               - not_null
               - relationships:
@@ -233,41 +286,58 @@ sources:
                   config:
                     severity: warn
           - name: FAC_ID
+            description: "ID facture associée à la demande non servie"
             tests: [not_null]
           - name: EN_LIGNES
+            description: "Nombre de lignes de commande impactées"
             tests: [not_null]
           - name: EN_BOITES
+            description: "Nombre de boîtes non servies"
             tests: [not_null]
           - name: EN_CLIENTS
+            description: "Nombre de clients impactés par la rupture"
             tests: [not_null]
 
       # MEDIPRIX_FACTURES (18 colonnes)
       - name: RAW_MEDIPRIX_FACTURES
+        description: "Factures détaillées Mediprix avec données opérateur et pharmacie (PK: id)"
         freshness:
           warn_after: {count: 36, period: hour}
           error_after: {count: 48, period: hour}
         loaded_at_field: CDC_TIMESTAMP
         columns:
-          - name: id
+          - name: ID
+            description: "Identifiant unique de la ligne de facture"
             tests: [not_null, unique]
           - name: PHA_ID
             description: "ID pharmacie"
             tests: [not_null]
           - name: FAC_ID
+            description: "ID facture"
             tests: [not_null]
           - name: FAC_TI
+            description: "Type d'identification (tiers payant)"
             tests: [not_null]
           - name: FAC_DATE
+            description: "Date de la facture"
           - name: FAC_HEURE
+            description: "Heure de la facture"
           - name: FAC_TVA
+            description: "Taux de TVA appliqué"
           - name: FAC_QUANTITE
             description: "Quantité facturée (peut être négative pour les retours)"
           - name: FAC_PAHT
+            description: "Prix d'achat HT"
           - name: FAC_PVHT
+            description: "Prix de vente HT"
           - name: FAC_PVTTC
+            description: "Prix de vente TTC"
           - name: FAC_PRIXPUBLIC
+            description: "Prix public (tarif référentiel)"
           - name: FAC_CODEREMBT
+            description: "Code de remboursement (RX/OTC/PARA)"
           - name: PRD_ID
+            description: "ID produit"
             tests:
               - not_null
               - relationships:
@@ -276,9 +346,13 @@ sources:
                   config:
                     severity: warn
           - name: PRD_EAN13
+            description: "Code-barres EAN13 du produit"
           - name: PRD_NOM
+            description: "Nom du produit"
           - name: ORD_OPERATEUR
+            description: "Nom de l'opérateur (vendeur) ayant réalisé la vente"
           - name: PHA_NOM
+            description: "Nom de la pharmacie (raison sociale)"
           
       # PRODUITS (23 colonnes)
       - name: RAW_PRODUITS
@@ -301,12 +375,13 @@ sources:
                   config:
                     severity: warn
           - name: PRD_EAN13
-            description: ""
+            description: "Code-barres EAN13 du produit"
           - name: PRD_NOM
-            description: ""
+            description: "Nom commercial du produit"
           - name: PRD_IDMAJPRD
-            description: ""
+            description: "ID de mise à jour produit (référence fournisseur)"
           - name: FOU_ID
+            description: "ID fournisseur principal"
             tests:
               - relationships:
                   to: ref('stg_fournisseurs')
@@ -314,42 +389,43 @@ sources:
                   config:
                     severity: warn
           - name: PRD_CODEREMBT
-            description: ""
+            description: "Code de remboursement (RX=remboursable, OTC=conseil, PARA=parapharmacie)"
           - name: PRD_CODEACTE
-            description: ""
+            description: "Code acte pharmaceutique associé"
           - name: PRD_FIRSTSTOCK
-            description: ""
+            description: "Stock initial au premier référencement"
           - name: PRD_TVA
-            description: ""
+            description: "Taux de TVA applicable"
           - name: PRD_NTVA
-            description: ""
+            description: "Numéro de tranche TVA (1 à 5)"
           - name: PRD_CREATE
-            description: ""
+            description: "Date de création du produit dans le référentiel"
           - name: PRD_STOCK
-            description: ""
+            description: "Stock actuel en unités"
           - name: PRD_PRIXTARIF
             description: "Prix tarif (peut être 0 ou négatif pour produits spéciaux)"
           - name: PRD_DERN_VENTE
-            description: ""
+            description: "Date de la dernière vente"
           - name: PRD_DERN_ACHAT
-            description: ""
+            description: "Date du dernier achat fournisseur"
           - name: PRD_FLAG3
-            description: ""
+            description: "Flag interne produit (classification WinStat)"
           - name: PRD_REFGEN
-            description: ""
+            description: "Référence générique (lien vers le produit princeps/générique)"
           - name: PRD_EN_STOCK
-            description: ""
+            description: "Quantité disponible en stock"
           - name: PRD_EN_COMMANDE
-            description: ""
+            description: "Quantité en commande fournisseur (non encore reçue)"
           - name: PRD_EN_PROMIS
-            description: ""
+            description: "Quantité promise (réservée pour des commandes clients)"
           - name: PRD_DELETED
-            description: ""
+            description: "Indicateur de suppression logique (0=actif, 1=supprimé)"
           - name: PRD_ONLYPROMIS
-            description: ""
+            description: "Indicateur produit uniquement en promis (pas de stock libre)"
 
       # PRODUITS_NEGATIFS (2 colonnes)
       - name: RAW_PRODUITS_NEGATIFS
+        description: "Produits ayant un stock négatif (anomalies d'inventaire)"
         freshness:
           warn_after: {count: 36, period: hour}
           error_after: {count: 48, period: hour}
@@ -363,6 +439,7 @@ sources:
           
       # STOCKHISTORY (9 colonnes)
       - name: RAW_STOCKHISTORY
+        description: "Historique des mouvements de stock par produit et pharmacie (PK: PHA_ID, PRD_ID, STH_DATE)"
         freshness:
           warn_after: {count: 36, period: hour}
           error_after: {count: 48, period: hour}
@@ -381,59 +458,63 @@ sources:
                   config:
                     severity: warn
           - name: STH_DATE
+            description: "Date du mouvement de stock"
             tests: [not_null]
           - name: STH_STOCKDELTA
+            description: "Variation de stock (positif=entrée, négatif=sortie)"
             tests: [not_null]
           - name: STH_STOCK
-            description: ""
+            description: "Stock après mouvement"
           - name: STH_PRIXTARIF
-            description: ""
+            description: "Prix tarif au moment du mouvement"
           - name: STH_PRIXPUBLIC
-            description: ""
+            description: "Prix public au moment du mouvement"
           - name: STH_PAMP
-            description: ""
+            description: "Prix d'Achat Moyen Pondéré (PAMP)"
           - name: STH_PANET
-            description: ""
+            description: "Prix d'achat net (après remises fournisseur)"
 
       # pharmacies (8 colonnes)
       - name: RAW_PHARMACIES
+        description: "Annuaire des pharmacies du groupement Mediprix (PK: id)"
         freshness:
           warn_after: {count: 36, period: hour}
           error_after: {count: 48, period: hour}
         loaded_at_field: CDC_TIMESTAMP
         columns:
-          - name: id
+          - name: ID
             description: "ID pharmacies"
             tests: [not_null, unique]
-          - name: adeli
-            description: ""
-          - name: name
-            description: ""
-          - name: phone
-            description: ""
-          - name: city
-            description: ""
-          - name: postal_code
-            description: ""
-          - name: parent_id
-            description: ""
-          - name: left_groupment
-            description: ""
+          - name: ADELI
+            description: "Numéro ADELI (identifiant national de la pharmacie)"
+          - name: NAME
+            description: "Nom de la pharmacie (raison sociale)"
+          - name: PHONE
+            description: "Numéro de téléphone"
+          - name: CITY
+            description: "Ville"
+          - name: POSTAL_CODE
+            description: "Code postal"
+          - name: PARENT_ID
+            description: "ID de la pharmacie parente (groupement)"
+          - name: LEFT_GROUPMENT
+            description: "Indicateur de sortie du groupement (0=membre, 1=sorti)"
             tests: [not_null]
           
       # pharmacies_erreur (3 colonnes)
       - name: RAW_PHARMACIES_ERREUR
+        description: "Erreurs de synchronisation par pharmacie (PK: id)"
         freshness:
           warn_after: {count: 36, period: hour}
           error_after: {count: 48, period: hour}
         loaded_at_field: CDC_TIMESTAMP
         columns:
-          - name: id
-            description: ""
-          - name: code_erreur
-            description: ""
-          - name: date_erreur
-            description: ""
+          - name: ID
+            description: "ID de la pharmacie en erreur"
+          - name: CODE_ERREUR
+            description: "Code d'erreur de synchronisation"
+          - name: DATE_ERREUR
+            description: "Date de l'erreur"
 
       # FACTURES (batch quotidien, ex-CDC)
       - name: RAW_FACTURES
@@ -443,7 +524,7 @@ sources:
           error_after: {count: 24, period: hour}
         loaded_at_field: CDC_TIMESTAMP
         columns:
-          - name: cdc_operation
+          - name: CDC_OPERATION
             description: "Opération CDC Debezium (C=create, U=update, D=delete, R=read/snapshot, S=snapshot)"
             tests:
               - accepted_values:
@@ -454,8 +535,10 @@ sources:
             description: "ID pharmacie"
             tests: [not_null]
           - name: FAC_ID
+            description: "ID facture"
             tests: [not_null]
           - name: FAC_TI
+            description: "Type d'identification (tiers payant)"
             tests: [not_null]
           - name: PRD_ID
             description: "ID produit"
@@ -469,7 +552,7 @@ sources:
           error_after: {count: 24, period: hour}
         loaded_at_field: CDC_TIMESTAMP
         columns:
-          - name: cdc_operation
+          - name: CDC_OPERATION
             description: "Opération CDC Debezium (C=create, U=update, D=delete, R=read/snapshot, S=snapshot)"
             tests:
               - accepted_values:
@@ -480,6 +563,7 @@ sources:
             description: "ID pharmacie"
             tests: [not_null]
           - name: FAC_ID
+            description: "ID facture (ordonnance)"
             tests: [not_null]
 
       # MODSTOCK (batch quotidien, ex-CDC)
@@ -490,7 +574,7 @@ sources:
           error_after: {count: 24, period: hour}
         loaded_at_field: CDC_TIMESTAMP
         columns:
-          - name: cdc_operation
+          - name: CDC_OPERATION
             description: "Opération CDC Debezium (C=create, U=update, D=delete, R=read/snapshot, S=snapshot)"
             tests:
               - accepted_values:
@@ -504,6 +588,7 @@ sources:
             description: "ID produit"
             tests: [not_null]
           - name: MOD_DATE
+            description: "Date du mouvement de stock"
             tests: [not_null]
 
       # PHARMACIE (batch quotidien, ex-CDC)
@@ -532,6 +617,7 @@ sources:
             description: "ID pharmacie"
             tests: [not_null]
           - name: DBD_DATE
+            description: "Date du jour (granularité journalière)"
             tests: [not_null]
           - name: PRD_ID
             description: "ID produit"

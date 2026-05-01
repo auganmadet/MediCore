@@ -22,12 +22,6 @@ ALTER TABLE MEDICORE_PROD.RAW.RAW_COMMANDES
   ADD COLUMN cdc_timestamp TIMESTAMP_NTZ;
 
 ALTER TABLE MEDICORE_PROD.RAW.RAW_COMMANDES
-  ADD COLUMN cdc_schema VARCHAR;
-
-ALTER TABLE MEDICORE_PROD.RAW.RAW_COMMANDES
-  ADD COLUMN cdc_table VARCHAR;
-
-ALTER TABLE MEDICORE_PROD.RAW.RAW_COMMANDES
   ADD COLUMN cdc_lsn VARCHAR;
   
 -- RAW_DAYBYDAY (PK: PHA_ID, DBD_DATE, PRD_ID)
@@ -191,6 +185,11 @@ CREATE OR REPLACE TABLE MEDICORE_PROD.RAW.RAW_MANQHISTORY (
 );
 
 -- RAW_MEDIPRIX_FACTURES (PK: PHA_ID, FAC_ID, FAC_TI)
+-- Clustering sur (PHA_ID, FAC_DATE) depuis 2026-04-27 : optimise le
+-- MERGE incremental nocturne (filtre WHERE FAC_DATE >= ...) et les
+-- requêtes Metabase filtrant par pharmacie. Avant : CLUSTER BY
+-- (CDC_TIMESTAMP) qui n'aidait pas le MERGE filtré par FAC_DATE.
+-- Voir docs/plans/2026-04-22_optimisation_cost_snowflake.md §11.5.
 CREATE OR REPLACE TABLE MEDICORE_PROD.RAW.RAW_MEDIPRIX_FACTURES (
     id NUMBER,
     PHA_ID NUMBER NOT NULL,
@@ -214,7 +213,7 @@ CREATE OR REPLACE TABLE MEDICORE_PROD.RAW.RAW_MEDIPRIX_FACTURES (
     cdc_timestamp TIMESTAMP_NTZ,
     cdc_lsn VARCHAR(255),
     PRIMARY KEY (PHA_ID, FAC_ID, FAC_TI)
-) CLUSTER BY (CDC_TIMESTAMP);
+) CLUSTER BY (PHA_ID, FAC_DATE);
 
 -- RAW_MODSTOCK (PK: PHA_ID, MOD_DATE, PRD_ID, MOD_TIMESTAMP)
 CREATE OR REPLACE TABLE MEDICORE_PROD.RAW.RAW_MODSTOCK (
@@ -431,6 +430,63 @@ CREATE TABLE IF NOT EXISTS MEDICORE_PROD.AUDIT.CDC_LAG_METRICS (
     CREATED_AT TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
     PRIMARY KEY (RUN_ID, TOPIC)
 );
+
+-- 1 ligne par jour par warehouse : historique consommation credits Snowflake
+-- Alimente par cost_monitoring.py depuis SNOWFLAKE.ACCOUNT_USAGE.WAREHOUSE_METERING_HISTORY.
+CREATE TABLE IF NOT EXISTS MEDICORE_PROD.AUDIT.SNOWFLAKE_CREDITS (
+    USAGE_DATE        DATE          NOT NULL,
+    WAREHOUSE_NAME    VARCHAR(100)  NOT NULL,
+    CREDITS_USED      NUMBER(12,4)  NOT NULL,
+    CREDITS_USED_CLOUD_SERVICES  NUMBER(12,4) DEFAULT 0,
+    CREDITS_REMAINING NUMBER(12,4)  NULL,
+    QUOTA_MONTHLY     NUMBER(12,2)  NULL,
+    PERIOD_START      DATE          NULL,
+    CREATED_AT        TIMESTAMP_NTZ NOT NULL DEFAULT CURRENT_TIMESTAMP(),
+    PRIMARY KEY (USAGE_DATE, WAREHOUSE_NAME)
+);
+
+COMMENT ON TABLE MEDICORE_PROD.AUDIT.SNOWFLAKE_CREDITS IS
+    'Historique quotidien de la consommation de credits Snowflake par warehouse. Alimente par cost_monitoring.py (phase healthcheck). ACCOUNT_USAGE a un delai de ~45 min ; les donnees sont eventually consistent.';
+
+-- ============================================================
+-- TABLES AUDIT : RLS (Row-Level Security) pharmacies
+-- ============================================================
+
+-- Source de vérité pour le provisionnement RLS pharmacies.
+-- Chaque pharmacie = 1 user Snowflake + 1 connexion Metabase + 1 collection.
+-- Le script provision_rls.py lit cette table pour détecter les nouvelles pharmacies.
+CREATE TABLE IF NOT EXISTS MEDICORE_PROD.AUDIT.RLS_PHARMACY_ACCESS (
+    PHA_ID            INTEGER       NOT NULL,
+    PHA_NOM           VARCHAR(200)  NOT NULL,
+    PHARMACIE_SK      VARCHAR(32)   NOT NULL,
+    SF_USERNAME       VARCHAR(50)   NOT NULL,
+    PROFIL            VARCHAR(20)   NOT NULL DEFAULT 'STANDARD',
+    DASHBOARDS        VARCHAR(500)  NULL,
+    IS_ACTIVE         BOOLEAN       NOT NULL DEFAULT TRUE,
+    MB_DATABASE_ID    INTEGER       NULL,
+    MB_GROUP_ID       INTEGER       NULL,
+    MB_COLLECTION_ID  INTEGER       NULL,
+    CREATED_AT        TIMESTAMP_NTZ NOT NULL DEFAULT CURRENT_TIMESTAMP(),
+    UPDATED_AT        TIMESTAMP_NTZ NOT NULL DEFAULT CURRENT_TIMESTAMP(),
+    PRIMARY KEY (PHA_ID)
+);
+
+COMMENT ON TABLE MEDICORE_PROD.AUDIT.RLS_PHARMACY_ACCESS IS
+    'Mapping pharmacie → user Snowflake + IDs Metabase pour le RLS. PROFIL=STANDARD (tous dashboards) ou RESTREINT (liste DASHBOARDS). PHARMACIE_SK = MD5(PHA_ID::STRING).';
+
+-- Traçabilité de chaque action du script de provisionnement RLS.
+CREATE TABLE IF NOT EXISTS MEDICORE_PROD.AUDIT.RLS_PROVISION_LOG (
+    LOG_ID            INTEGER       AUTOINCREMENT,
+    RUN_ID            VARCHAR(36)   NOT NULL,
+    PHA_ID            INTEGER       NOT NULL,
+    ACTION            VARCHAR(50)   NOT NULL,
+    DETAILS           VARCHAR(2000) NULL,
+    CREATED_AT        TIMESTAMP_NTZ NOT NULL DEFAULT CURRENT_TIMESTAMP(),
+    PRIMARY KEY (LOG_ID)
+);
+
+COMMENT ON TABLE MEDICORE_PROD.AUDIT.RLS_PROVISION_LOG IS
+    'Journal des actions provision_rls.py : NEW_PHARMACY_DETECTED, SF_USER_CREATED, MB_DATABASE_CREATED, etc.';
 
 -- ============================================================
 -- OWNERSHIP TRANSFER : Tables RAW → MEDICORE_RAW_WRITER

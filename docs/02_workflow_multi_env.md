@@ -1,11 +1,49 @@
 # Workflow Multi-Environnement MediCore
 
+## Table des matières
+
+1. [Objectif](#objectif)
+2. [Environnements](#environnements)
+3. [Schéma global](#schéma-global)
+4. [Workflow 1 — Données CDC en production](#workflow-1--données-cdc-en-production)
+5. [Initialiser MEDICORE_DEV (clone de production)](#initialiser-medicore_dev-clone-de-production) — prérequis Workflow 2
+   - [Quand cloner ?](#quand-cloner-)
+   - [Procédure](#procédure)
+   - [Vérification](#vérification)
+   - [Utilisation](#utilisation)
+6. [Initialiser MEDICORE_TEST (CI)](#initialiser-medicore_test-ci) — prérequis Workflow 2 (CI)
+   - [Quand créer ?](#quand-créer-)
+   - [Procédure](#procédure-1)
+   - [Vérification](#vérification-1)
+7. [Workflow 2 — Développement d'un nouveau modèle dbt](#workflow-2--développement-dun-nouveau-modèle-dbt)
+8. [Workflow 3 — Bulk load des tables référence](#workflow-3--bulk-load-des-tables-référence)
+9. [AUDIT — Lineage opérationnel](#audit--lineage-opérationnel)
+   - [Tables](#tables)
+   - [Rétention](#rétention)
+   - [Consultation](#consultation)
+   - [Tests par environnement](#tests-par-environnement)
+10. [SNAPSHOTS — Historisation SCD2 des dimensions](#snapshots--historisation-scd2-des-dimensions)
+    - [Tables](#tables-1)
+    - [Fonctionnement](#fonctionnement)
+    - [Exemple de consultation](#exemple-de-consultation)
+    - [Flux dans batch_loop.sh](#flux-dans-batch_loopsh)
+11. [GitHub Secrets (CI)](#github-secrets-ci)
+    - [Configuration](#configuration-2)
+12. [Branch protection (main)](#branch-protection-main)
+    - [Configuration](#configuration-3)
+    - [Flux résultant](#flux-résultant)
+13. [Règle d'or](#règle-dor)
+
+---
+
 ## Objectif
 
 Isoler les environnements de développement, de test et de production pour garantir
 que les modifications de code ne perturbent jamais les dashboards Metabase ni les
 données de production. Chaque environnement a sa propre database Snowflake, ses
 propres données et son propre usage.
+
+[↑ Retour au sommaire](#table-des-matières)
 
 ---
 
@@ -28,6 +66,8 @@ propres données et son propre usage.
   │               │ que les données de production.                                          │
   └───────────────┴─────────────────────────────────────────────────────────────────────────┘
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ---
 
 ## Schéma global
@@ -41,7 +81,7 @@ propres données et son propre usage.
 │  │ (WinStat)  │    └──────────┘    └──────────┘       temps réel, chaque boucle     │
 │  │            │                                                                     │
 │  │ 18 tables  │────────────────────────────────────── Workflow 3 : bulk load        │
-│  └────────────┘                                       14 tables ref. (03h00)        │
+│  └────────────┘                                       14 tables ref. (23h FR)       │
 └─────────────────────────────────────────────────────────────────────────────────────┘
          │                            │                            │
          ▼                            ▼                            ▼
@@ -52,7 +92,7 @@ propres données et son propre usage.
 │ Qui : développeur    │  │ Qui : GitHub CI      │  │  ┌────────────────────────────────────────────┐  │
 │ Quand : local        │  │ Quand : git push     │  │  │       batch_loop.sh (boucle 30 min)        │  │
 │                      │  │                      │  │  │                                            │  │
-│                      │  │                      │  │  │  WORKFLOW 1 (30 min) │ WORKFLOW 3 (03h00)  │  │
+│                      │  │                      │  │  │  WORKFLOW 1 (30 min) │ WORKFLOW 3 (23h FR) │  │
 │ ┌─────────────────┐  │  │ ┌─────────────────┐  │  │  │                      │                     │  │
 │ │ RAW             │  │  │ │ RAW             │  │  │  │  batch_loop.sh       │ batch_loop.sh       │  │
 │ │ (clone)         │  │  │ │ (seeds dbt)     │  │  │  │       │              │      │              │  │
@@ -109,6 +149,8 @@ propres données et son propre usage.
 └─────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ---
 
 ## Workflow 1 — Données CDC en production
@@ -150,65 +192,15 @@ modifiée ou créée dans MySQL RDS sur les 4 tables CDC (COMMANDES, FACTURES, O
 
 > **Seul MEDICORE_PROD est concerné.** DEV et TEST ne reçoivent jamais de données CDC.
 
----
-
-## Workflow 2 — Développement d'un nouveau modèle dbt
-
-Flux manuel, déclenché par le développeur quand il modifie un modèle dbt,
-un script Python ou toute autre partie du code.
-
-```
-1. Modifier le code
-   │  Exemple : ajouter une colonne dans mart_kpi_marge.sql
-   │
-   ▼
-2. dbt run --target dev
-   │  Écrit dans MEDICORE_DEV.STAGING / MEDICORE_DEV.MARTS
-   │  ❌ N'écrit PAS dans PROD
-   │  Les dashboards Metabase ne sont pas impactés
-   │
-   ▼
-3. Vérifier les résultats
-   │  Requêtes SQL sur MEDICORE_DEV pour valider
-   │  dbt test --target dev pour vérifier les contraintes
-   │
-   ▼
-4. git add + git commit + git push
-   │  Le code part sur GitHub (branche feature)
-   │
-   ▼
-5. GitHub Actions (CI) — automatique
-   │
-   ├──▶ dbt run --target test
-   │    → Exécute sur MEDICORE_TEST avec des seeds/fixtures
-   │
-   ├──▶ dbt test --target test
-   │    → Valide not_null, unique, relationships, accepted_values
-   │
-   ├──▶ flake8 (lint Python)
-   ├──▶ shellcheck (lint bash)
-   └──▶ docker build (compilation Docker)
-   │
-   ▼
-6. Tous les tests passent ?
-   │
-   ├── ✅ OUI → Pull Request → Review → Merge sur main
-   │              │
-   │              ▼
-   │         batch_loop.sh exécute dbt run --target prod
-   │         → MEDICORE_PROD mis à jour avec le nouveau code
-   │         → Metabase reflète les changements
-   │
-   └── ❌ NON → Corriger → Retour à l'étape 1
-```
-
-> **MEDICORE_DEV** sert au développeur pour itérer rapidement.
-> **MEDICORE_TEST** sert à la CI pour valider automatiquement.
-> **MEDICORE_PROD** n'est mis à jour qu'après merge sur main.
+[↑ Retour au sommaire](#table-des-matières)
 
 ---
 
 ## Initialiser MEDICORE_DEV (clone de production)
+
+> **Prérequis du Workflow 2** — L'environnement MEDICORE_DEV doit exister avant
+> de pouvoir développer avec `dbt run --target dev`. Cette section explique
+> comment le créer et le maintenir à jour.
 
 Le schéma RAW de l'environnement de développement est un **clone Snowflake** de la production.
 Snowflake utilise le zero-copy cloning : pas de duplication physique des données, uniquement
@@ -280,15 +272,141 @@ dbt test --target dev     # teste sur MEDICORE_DEV
 > supplémentaire que si les données du clone sont **modifiées** (dbt run crée de nouvelles
 > versions des tables STAGING et MARTS).
 
+[↑ Retour au sommaire](#table-des-matières)
+
+---
+
+## Initialiser MEDICORE_TEST (CI)
+
+> **Prérequis du Workflow 2 (CI)** — L'environnement MEDICORE_TEST doit exister pour que
+> GitHub Actions puisse exécuter `dbt seed + run + test` lors d'un `git push`.
+
+Contrairement à MEDICORE_DEV (clone de prod), MEDICORE_TEST est créée **vide** par
+`DDL_WH.sql` avec uniquement le schéma RAW. Les schémas STAGING et MARTS sont ensuite
+créés **automatiquement par dbt** lors du premier `dbt run --target test` en CI.
+Les données sont injectées à chaque run CI via `dbt seed --full-refresh`
+(fixtures reproductibles dans `dbt/seeds/`). Cela garantit des tests déterministes,
+indépendants de l'état de la production.
+
+### Quand créer ?
+
+  ┌─────────────────────────────────────┬──────────────────────────────────────────────────────────┐
+  │ Situation                           │ Action                                                   │
+  ├─────────────────────────────────────┼──────────────────────────────────────────────────────────┤
+  │ Première mise en place du projet    │ Exécuter DDL_WH.sql (crée tout)                          │
+  ├─────────────────────────────────────┼──────────────────────────────────────────────────────────┤
+  │ Database supprimée accidentellement │ Re-exécuter les commandes ci-dessous                     │
+  └─────────────────────────────────────┴──────────────────────────────────────────────────────────┘
+
+> En fonctionnement normal, MEDICORE_TEST n'a **jamais besoin d'être recréée**.
+> La CI fait `dbt seed --full-refresh` à chaque run, ce qui recrée les données à partir des seeds.
+
+### Procédure
+
+```sql
+-- Connexion Snowflake avec un rôle admin
+USE ROLE ACCOUNTADMIN;
+
+-- 1. Créer la database et le schéma RAW
+CREATE DATABASE IF NOT EXISTS MEDICORE_TEST;
+CREATE SCHEMA IF NOT EXISTS MEDICORE_TEST.RAW;
+
+-- 2. Créer le rôle dédié à la CI
+CREATE ROLE IF NOT EXISTS MEDICORE_TEST_EXECUTOR;
+GRANT ALL ON DATABASE MEDICORE_TEST TO ROLE MEDICORE_TEST_EXECUTOR;
+GRANT ALL ON ALL SCHEMAS IN DATABASE MEDICORE_TEST TO ROLE MEDICORE_TEST_EXECUTOR;
+GRANT USAGE ON WAREHOUSE MEDICORE_WH TO ROLE MEDICORE_TEST_EXECUTOR;
+
+-- 3. Hiérarchie : DBT_EXECUTOR hérite du rôle TEST
+GRANT ROLE MEDICORE_TEST_EXECUTOR TO ROLE MEDICORE_DBT_EXECUTOR;
+```
+
+> Ces commandes sont extraites de `scripts/DDL_WH.sql` (sections 3c et 13).
+> Si le projet est initialisé via `DDL_WH.sql`, cette étape est déjà faite.
+
+### Vérification
+
+```sql
+-- Vérifier que la database existe et que le rôle a les droits
+USE ROLE MEDICORE_TEST_EXECUTOR;
+USE DATABASE MEDICORE_TEST;
+SHOW SCHEMAS IN DATABASE MEDICORE_TEST;
+-- Attendu : RAW (initial), puis STAGING et MARTS après le premier dbt run en CI
+```
+
+> **Différence avec MEDICORE_DEV** : DEV est un clone complet de prod (données incluses).
+> TEST est créée vide (seul RAW existe au départ) — STAGING et MARTS sont créés par dbt,
+> et les données viennent des seeds dbt, injectées par la CI à chaque `git push`.
+
+[↑ Retour au sommaire](#table-des-matières)
+
+---
+
+## Workflow 2 — Développement d'un nouveau modèle dbt
+
+Flux manuel, déclenché par le développeur quand il modifie un modèle dbt,
+un script Python ou toute autre partie du code.
+
+```
+1. Modifier le code
+   │  Exemple : ajouter une colonne dans mart_kpi_marge.sql
+   │
+   ▼
+2. dbt run --target dev
+   │  Écrit dans MEDICORE_DEV.STAGING / MEDICORE_DEV.MARTS
+   │  ❌ N'écrit PAS dans PROD
+   │  Les dashboards Metabase ne sont pas impactés
+   │
+   ▼
+3. Vérifier les résultats
+   │  Requêtes SQL sur MEDICORE_DEV pour valider
+   │  dbt test --target dev pour vérifier les contraintes
+   │
+   ▼
+4. git add + git commit + git push
+   │  Le code part sur GitHub (branche feature)
+   │
+   ▼
+5. GitHub Actions (CI) — automatique
+   │
+   ├──▶ dbt run --target test
+   │    → Exécute sur MEDICORE_TEST avec des seeds/fixtures
+   │
+   ├──▶ dbt test --target test
+   │    → Valide not_null, unique, relationships, accepted_values
+   │
+   ├──▶ flake8 (lint Python)
+   ├──▶ shellcheck (lint bash)
+   └──▶ docker build (compilation Docker)
+   │
+   ▼
+6. Tous les tests passent ?
+   │
+   ├── ✅ OUI → Pull Request → Review → Merge sur main
+   │              │
+   │              ▼
+   │         batch_loop.sh exécute dbt run --target prod
+   │         → MEDICORE_PROD mis à jour avec le nouveau code
+   │         → Metabase reflète les changements
+   │
+   └── ❌ NON → Corriger → Retour à l'étape 1
+```
+
+> **MEDICORE_DEV** sert au développeur pour itérer rapidement.
+> **MEDICORE_TEST** sert à la CI pour valider automatiquement.
+> **MEDICORE_PROD** n'est mis à jour qu'après merge sur main.
+
+[↑ Retour au sommaire](#table-des-matières)
+
 ---
 
 ## Workflow 3 — Bulk load des tables référence
 
-Flux automatique quotidien (03h00) pour les 14 tables référence.
+Flux automatique quotidien (23h FR / 21h UTC) pour les 14 tables référence, avec pattern CLONE+SWAP.
 Concerne uniquement MEDICORE_PROD.
 
 ```
-1. batch_loop.sh         Détecte l'heure 03h00, orchestre :
+1. batch_loop.sh         Détecte l'heure 23h FR (21h UTC), orchestre :
        │
        ├──▶ bulk_load.py
        │    Pour chaque table référence :
@@ -307,6 +425,8 @@ Concerne uniquement MEDICORE_PROD.
        ▼
 2. Metabase              Données référence à jour dans les dashboards
 ```
+
+[↑ Retour au sommaire](#table-des-matières)
 
 ---
 
@@ -371,6 +491,8 @@ SELECT * FROM MEDICORE_PROD.AUDIT.CDC_LAG_METRICS ORDER BY CREATED_AT DESC LIMIT
 > `kafka_lag.py`). Elles n'ont pas de seed dbt car les données sont générées au runtime.
 > Les vues AUDIT sont de simples agrégations — le risque de bug est faible.
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ---
 
 ## SNAPSHOTS — Historisation SCD2 des dimensions
@@ -429,6 +551,8 @@ batch_loop.sh (chaque boucle 30 min)
     └── audit.py → AUDIT (lineage)
 ```
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ---
 
 ## GitHub Secrets (CI)
@@ -458,6 +582,8 @@ pour exécuter `dbt seed + run + test`. Les credentials sont stockés dans GitHu
 
 > Ne jamais documenter les **valeurs** des secrets — uniquement les noms et descriptions.
 > Les valeurs sont dans `.env` (non versionné) et GitHub Secrets (chiffrés).
+
+[↑ Retour au sommaire](#table-des-matières)
 
 ---
 
@@ -506,6 +632,8 @@ Développeur :
 
 > Sans branch protection, l'étape 6-7 est sautée — le code arrive directement en prod.
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ---
 
 ## Règle d'or
@@ -515,3 +643,13 @@ DEV  = je casse, je teste, je recommence  → aucun impact
 TEST = la CI valide automatiquement       → aucun impact
 PROD = seul batch_loop.sh écrit ici       → Metabase toujours stable
 ```
+
+[↑ Retour au sommaire](#table-des-matières)
+
+---
+
+## Voir aussi
+
+- [Architecture](01_ARCHITECTURE.md) — vue d'ensemble des composants et flux de données
+- [Opérations](03_operations.md) — exploitation quotidienne et monitoring
+- [Rotation des credentials](09_rotation_credentials.md) — rotation trimestrielle (lié aux GitHub Secrets)

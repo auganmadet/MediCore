@@ -1,4 +1,4 @@
-"""Ajoute les blocs 'Référence KPIs' dans docs/Dashboards.md."""
+"""Ajoute les blocs 'Référence KPIs' dans docs/06_Dashboards.md."""
 import re
 
 KPI_REFS = {
@@ -20,7 +20,7 @@ KPI_REFS = {
     "D16": "> **Référence KPIs** : §1.3 `fact_prix_journalier` + §1.4 `fact_stock_mouvement` — prix, marge unitaire, mouvements stock ([voir KPIs.md](KPIs.md#13-fact_prix_journalier--évolution-des-prix))",
 }
 
-with open('c:/Temp/MediCore/docs/Dashboards.md', 'r', encoding='utf-8') as f:
+with open('c:/Temp/MediCore/docs/06_Dashboards.md', 'r', encoding='utf-8') as f:
     content = f.read()
 
 # For each dashboard, insert the KPI ref block before "#### Filtres"
@@ -59,7 +59,7 @@ for dx, ref_text in KPI_REFS.items():
     content = content[:insert_pos] + ref_text + '\n\n' + content[insert_pos:]
     print(f'OK {dx}')
 
-with open('c:/Temp/MediCore/docs/Dashboards.md', 'w', encoding='utf-8') as f:
+with open('c:/Temp/MediCore/docs/06_Dashboards.md', 'w', encoding='utf-8') as f:
     f.write(content)
 
 print('\nDone')

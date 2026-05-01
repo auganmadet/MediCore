@@ -17,7 +17,7 @@ Réduire la consommation de contexte pour optimiser les coûts Cortex Code (AI_S
 
 | Fichier | Lignes | Alternative |
 |---------|--------|-------------|
-| `docs/KPIs.md` | ~1300 | Lire `.claude/memory-bank/data-model.md` |
+| `docs/05_KPIs.md` | ~1300 | Lire `.claude/memory-bank/data-model.md` |
 | `CHANGELOG.md` | ~270 | Lire uniquement les dernières entrées |
 | Modèles dbt volumineux | Variable | Utiliser `grep` pour trouver la config |
 
@@ -25,11 +25,11 @@ Réduire la consommation de contexte pour optimiser les coûts Cortex Code (AI_S
 
 ```bash
 # Mauvais : lire tout le fichier
-Read: docs/KPIs.md
+Read: docs/05_KPIs.md
 
 # Bon : chercher d'abord, lire ensuite si nécessaire
-Grep: "mart_kpi_univers" in docs/KPIs.md
-Read: docs/KPIs.md (offset=ligne_trouvée, limit=50)
+Grep: "mart_kpi_univers" in docs/05_KPIs.md
+Read: docs/05_KPIs.md (offset=ligne_trouvée, limit=50)
 ```
 
 ### 4. Memory Bank first

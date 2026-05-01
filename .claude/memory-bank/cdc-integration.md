@@ -90,19 +90,34 @@ KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
   ├─────────────────┼─────────────────┼────────────────────────────┤
   │ `cdc_timestamp` │ `source.ts_ms`  │ Horodatage event MySQL     │
   ├─────────────────┼─────────────────┼────────────────────────────┤
-  │ `cdc_schema`    │ `source.schema` │ Schéma source              │
-  ├─────────────────┼─────────────────┼────────────────────────────┤
-  │ `cdc_table`     │ `source.table`  │ Table source               │
-  ├─────────────────┼─────────────────┼────────────────────────────┤
   │ `cdc_lsn`       │ `source.pos`    │ Position binlog            │
   └─────────────────┴─────────────────┴────────────────────────────┘
 
 ## Bulk load référence (14 tables)
 
-- Exécution quotidienne à 03h00 via `batch_loop.sh`
-- `bulk_load.py --ref-only --truncate`
-- Flux : MySQL SELECT -> pandas DataFrame -> Parquet -> PUT @stage -> COPY INTO
-- TRUNCATE avant reload (tables référence = snapshot complet)
+- Exécution quotidienne à 23h FR (21h UTC) via `batch_loop.sh` avec logique hebdomadaire (depuis 2026-04-23) :
+  - **Dimanche (DOW=0)** : SKIP (pharmacies fermées).
+  - **Lundi (DOW=1)** : FULL reload (`bulk_load.py --ref-only --truncate`) avec pattern CLONE+SWAP sur les 14 tables.
+  - **Mardi→Samedi (DOW=2..6)** : mode INCREMENTAL (`bulk_load.py --ref-only --truncate --incremental-days 30`) sur 4 tables candidates + TRUNCATE classique sur les 10 autres.
+- Flux classique (full) : MySQL SELECT → pandas DataFrame → Parquet → PUT @stage → COPY INTO.
+- Flux incremental : filtre MySQL `WHERE date_col >= CURDATE() - INTERVAL 30 DAY` → MERGE INTO via table staging `_STG_INCR`.
+- CLONE+SWAP avant TRUNCATE en mode full (rollback automatique si count=0).
+
+### 4 tables candidates incremental (`INCREMENTAL_TABLES`)
+
+  ┌──────────────────────┬────────────────────┬──────────────────────────────────┐
+  │ Table MySQL          │ Colonne date       │ Clé primaire                     │
+  ├──────────────────────┼────────────────────┼──────────────────────────────────┤
+  │ `MEDIPRIX_FACTURES`  │ `FAC_DATE`         │ PHA_ID, FAC_ID, FAC_TI           │
+  ├──────────────────────┼────────────────────┼──────────────────────────────────┤
+  │ `STOCKHISTORY`       │ `STH_DATE`         │ PHA_ID, PRD_ID, STH_DATE         │
+  ├──────────────────────┼────────────────────┼──────────────────────────────────┤
+  │ `DAYBYDAY`           │ `DBD_DATE`         │ PHA_ID, DBD_DATE, PRD_ID         │
+  ├──────────────────────┼────────────────────┼──────────────────────────────────┤
+  │ `MANQHISTORY`        │ `MNQ_DATE`         │ PHA_ID, MNQ_DATE, PRD_ID, FAC_ID │
+  └──────────────────────┴────────────────────┴──────────────────────────────────┘
+
+Gain : ref_reload incremental ~53 min mesuré (cible 16 min après clustering `RAW_MEDIPRIX_FACTURES`) vs full ~4h48. Économie mesurée 4 jours stabilisés (24-27/04) : **~-317 EUR/mois (-52 %)** sur baseline mesuré 604 EUR/mois → 287 EUR/mois (vs cible plan théorique -391 EUR/mois -83 %). Voir `docs/plans/2026-04-22_optimisation_cost_snowflake.md` §11.
 
 ## Monitoring CDC
 

@@ -3,13 +3,17 @@ set -euo pipefail
 
 echo "🚀 MediCore Entrypoint - $(date) - ENV: $ENV"
 
+# Fix permissions dbt (fichiers créés par root au build Docker)
+mkdir -p /app/dbt/logs /app/dbt/target /app/dbt/dbt_packages
+rm -f /app/dbt/logs/dbt.log 2>/dev/null || true
+
 # Env vars Snowflake
 export SNOWFLAKE_ACCOUNT=${SNOWFLAKE_ACCOUNT:-}
 export SNOWFLAKE_USER=${SNOWFLAKE_USER:-}
 export SNOWFLAKE_PASSWORD=${SNOWFLAKE_PASSWORD:-}
-export SNOWFLAKE_ROLE_NAME=${SNOWFLAKE_ROLE_NAME:-MEDIcore_DBT_EXECUTOR}
-export SNOWFLAKE_DATABASE=${SNOWFLAKE_DATABASE:-MEDIcore}
-export SNOWFLAKE_WAREHOUSE_NAME=${SNOWFLAKE_WAREHOUSE_NAME:-MEDIcore_WH}
+export SNOWFLAKE_ROLE_NAME=${SNOWFLAKE_ROLE_NAME:-MEDICORE_DBT_EXECUTOR}
+export SNOWFLAKE_DATABASE=${SNOWFLAKE_DATABASE:-MEDICORE_PROD}
+export SNOWFLAKE_WAREHOUSE_NAME=${SNOWFLAKE_WAREHOUSE_NAME:-MEDICORE_WH}
 
 echo "✅ SNOWFLAKE_ACCOUNT=${SNOWFLAKE_ACCOUNT:0:8}***"
 
@@ -33,10 +37,14 @@ echo "✅ Snowflake credentials OK"
 # Nettoyage lock file residuel (si bulk_load.py a crash lors du run precedent)
 rm -f /tmp/bulk_load.lock /tmp/ref_bulk_done_today
 
-# dbt deps (installe dbt_utils et autres packages si absents du cache)
+# dbt deps (seulement si packages absents — installés au build Docker)
 export DBT_PROFILES_DIR=${DBT_PROFILES_DIR:-/app/dbt}
-echo "📦 dbt deps..."
-dbt deps --project-dir /app/dbt --target ${ENV:-dev}
+if [ ! -d /app/dbt/dbt_packages/dbt_utils ]; then
+  echo "📦 dbt deps..."
+  dbt deps --project-dir /app/dbt --target ${ENV:-dev}
+else
+  echo "✅ dbt_packages déjà installés"
+fi
 
 # Launch batch (BATCH_INTERVAL_MIN est determine par batch_loop.sh selon ENV)
 echo "🔄 Launching batch loop - ENV: ${ENV:-dev}"

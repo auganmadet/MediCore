@@ -5,6 +5,9 @@
 # Logs applicatifs
 logs/
 
+# Backups (dumps PostgreSQL Metabase)
+backups/
+
 # Artefacts dbt
 dbt/target/
 dbt/dbt_packages/
@@ -26,6 +29,7 @@ __pycache__/
 .idea/
 *.code-workspace
 .claude/settings.local.json
+.claude/scheduled_tasks.lock
 
 # Environnements / venv locaux
 .venv/

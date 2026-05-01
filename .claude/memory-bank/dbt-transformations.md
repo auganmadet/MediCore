@@ -100,7 +100,7 @@ orpheline (`-1`, `'INCONNU'`) via `UNION ALL`.
 | `mart_kpi_ca_evolution` | Calculs YTD et 12DM rolling — historique complet requis |
 | `mart_kpi_synthese_pharmacie` | Agrège depuis marts non-incrémentaux |
 
-Calculs agrégés sur les faits, documentés dans `docs/KPIs.md`.
+Calculs agrégés sur les faits, documentés dans `docs/05_KPIs.md`.
 
 ## Macros
 

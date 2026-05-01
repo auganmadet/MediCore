@@ -5,6 +5,106 @@ Chaque entrée décrit **ce qui a changé** du point de vue métier et son impac
 
 ---
 
+## [2026-04-27] — Calibration finale L1+L5 + fix safe_sleep WSL2
+
+### Fix critique : safe_sleep résilient au gel WSL2
+
+Incident 26/04 : un `sleep 600` du batch_loop a gelé pendant **9 heures** (de 20h22 à 05h25 UTC), causant la perte du mode nuit dimanche (ref_reload SKIP, dbt post-reload, pipeline_maintenance, dev auto-clone tous manqués). Cause : Modern Standby Windows + WSL2 idle suspendent les timers Linux malgré `vmIdleTimeout=-1` dans `.wslconfig`.
+
+**Fix appliqué** dans `scripts/batch_loop.sh` : nouvelle fonction `safe_sleep N` qui décompose en `sleep 30` × N/30 avec vérification wall-clock à chaque itération. Si WSL gèle puis se réveille, `date +%s` voit que la deadline est dépassée et la boucle sort immédiatement. Aucune phase nocturne ne peut plus être manquée. Les 4 sleeps longs du batch_loop (skip dimanche jour, lock attendu, mode nuit, cycle CDC jour) utilisent désormais `safe_sleep`.
+
+### Calibration finale des coûts (mesures 24-27/04)
+
+> ⚠ Les premières synthèses (115 EUR/mois -76 %, puis 290 EUR/mois -53 %) étaient des extrapolations imprécises. Les chiffres ci-dessous sont les vraies mesures stabilisées sur 4 jours post-L1+L5.
+
+- **Baseline mesuré (10 j avant L1+L5, 13-22/04)** : moyenne 7,31 cr/jour soit **~604 EUR/mois** (vs théorique 471 EUR/mois sous-estimé du plan).
+- **Post-L1+L5 stabilisé (4 j mesurés 24-27/04)** : moyenne 3,70 cr/jour soit **~287 EUR/mois** (semaine type : lundi 5,6 cr/j × 4 + mar-sam 4,0 cr/j × 20 + dim 0,5 cr/j × 4 = 104 cr/mois).
+- **Économie réelle : -317 EUR/mois (-52 %)**, soit **-3 810 EUR/an**.
+
+### Roadmap pour viser -71 %
+
+- Clustering `RAW_MEDIPRIX_FACTURES` (1 jour, gain -90 EUR/mois)
+- `DBT_EVERY_N=12` actif depuis 26/04 (gain -21 EUR/mois)
+- Skip mode jour dimanche actif depuis 26/04 (gain -3 EUR/mois)
+
+Total atteignable : ~173 EUR/mois (-71 %).
+
+### Découverte clé
+
+Le poste dominant après L1+L5 est désormais le **mode JOUR** (~67 % du coût). Trois leviers complémentaires identifiés pour atteindre -72 % :
+- Clustering `RAW_MEDIPRIX_FACTURES` (1 jour, ~2 EUR setup + 1,5 EUR/mois maintenance, gain -90 EUR/mois)
+- `DBT_EVERY_N=12` (5 min, 0 EUR, gain -21 EUR/mois)
+- Skip mode jour dimanche (fait le 26/04, gain -3 EUR/mois)
+
+### Mesures du 1er run production (nuit 24/25 avril, vendredi DOW=5)
+
+- **ref_reload incremental terminé en 53 min** (cible plan : 16 min). MEDIPRIX_FACTURES seule prend 37 min sur les 53. Cause anticipée en §6.3 du plan : clustering Snowflake mal dimensionné.
+- **dbt post-reload : 39 min** (target=prod pour la 1ère fois depuis mars suite au fix `ENV=dev → prod`). 18 modèles staging, 25 marts, 314 tests.
+- **Pipeline_maintenance : 11 min** (4 phases, 0 erreur bloquante).
+- **Dev auto-clone réussi** (~20 s) : `MEDICORE_DEV` resynchronisé depuis `MEDICORE_PROD`.
+- **Nuit complète terminée à 00h50 FR** (vs ~05h30 FR avant L1+L5).
+
+### Validation workflow CDC end-to-end
+
+Test injection 5 lignes CDC (PHA_ID=99999) le 24 avril 21h14 FR via `scripts/cdc_test_injection.py --insert` : MySQL RDS → Debezium → Kafka → daily_cdc_batch.py → Snowflake RAW (`cdc_operation='I'`) → STAGING (dédup PK) → MARTS (FACT_COMMANDES, FACT_VENTES, FACT_STOCK_MOUVEMENT date 2026-04-24). Workflow complet validé.
+
+Voir `docs/plans/2026-04-22_optimisation_cost_snowflake.md` §11 pour les chiffres détaillés.
+
+---
+
+## [2026-04-23] — Optimisation coût Snowflake L1+L5 : incremental merge + skip dimanche
+
+### Ajouts
+- **Incremental merge sur 4 tables référence volumineuses** (MEDIPRIX_FACTURES 264 M, STOCKHISTORY 147 M, DAYBYDAY 47 M, MANQHISTORY 3 M) : chaque nuit de semaine hors lundi, seules les données des 30 derniers jours sont chargées depuis MySQL et mergées dans Snowflake (`bulk_load.py --incremental-days 30`). Les 10 autres tables référence restent en TRUNCATE+reload classique.
+- **Logique hebdomadaire dans `batch_loop.sh`** : dimanche → skip complet (pharmacies fermées), lundi → full reload (réconciliation hebdomadaire pour capturer DELETEs), mardi→samedi → incremental 30 jours glissants.
+- **Enchaînement immédiat dbt post-reload + pipeline_maintenance** : avec l'incremental, le ref_reload est attendu à ~16 min (cible plan, mesuré 53 min sur 1er run prod du 25/04, voir entrée du 2026-04-25) au lieu de 4h48. Les phases dbt et maintenance ne sont plus bloquées sur 04h UTC mais s'enchaînent dès `REF_DONE_FLAG`, avec un sleep de 10 min entre chaque cycle nuit. Rapport Teams disponible dès 23h50 FR (cible) / 00h45 FR (mesuré) au lieu de 04h40 FR.
+- **Pre-night healthcheck** (`scripts/pre_night_healthcheck.py --fix`) : exécuté à 20h30 FR, 14 checks infrastructure + config (H1-H7 + N2-N8) avec corrections automatiques (H2/H3/H4/H6 + N2/N3/N5/N6/N7/N8). Crée `/tmp/pre_night_ok` si OK, alerte Teams critique sinon. Garde l'ensemble du cycle nocturne si l'infra n'est pas prête.
+- **Post-checks inline `batch_loop.sh`** : 2a après CDC pré-reload (warning si lag élevé), 2b après ref_reload (bloquant si tables vides ou `_BACKUP` résiduel → empêche dbt post-reload de tourner sur des données corrompues).
+- **Plan d'optimisation détaillé** : `docs/plans/2026-04-22_optimisation_cost_snowflake.md` (12 leviers analysés, Solution = L1+L5, critères de validation et plan de rollback).
+
+### Modifications
+- **`pipelines/bulk_load.py`** : nouvelle constante `INCREMENTAL_TABLES` + fonction `bulk_load_incremental_table` qui charge les N derniers jours et MERGE INTO sur la PK. Argument CLI `--incremental-days N`. Le code reste backwards-compatible : sans l'argument, comportement TRUNCATE+reload inchangé.
+- **`scripts/batch_loop.sh`** : variables de configuration `REF_FULL_DOW=1`, `REF_INCREMENTAL_DAYS=30`, `REF_SKIP_DOW=0` pour piloter la logique hebdomadaire. Fonction `is_ref_reload_window()` gère le wrap minuit (21h-02h). Post-checks 2a/2b intégrés.
+- **`scripts/pipeline_maintenance.py`** : retrait de la Phase 1 Healthcheck (H1-H7 maintenant couverts par pre-night à 20h30 FR). Script allégé à 4 phases : CDC, Bulk Load, dbt, Metabase.
+- **`scripts/bulk_maintenance.py`** : B4 tolère désormais 1 % d'écart MySQL/Snowflake (env var `B4_TOLERANCE_PCT`). Justification : en mode incremental, des écarts <1 % sont attendus pendant la semaine (modifs >30j non captées), le full du lundi ramène à 0 %.
+- **`.env`** : `REF_TIMEOUT_SEC=21600` (6h au lieu de 5h par défaut) — filet de sécurité intermédiaire pour absorber les nuits lentes (contention Docker Desktop). Observé : MEDIPRIX_FACTURES peut passer de 3h37 à 4h18 selon la charge machine.
+- **`docker-compose.yml`** : volumes `./scripts:/app/scripts` et `./.env:/app/.env` ajoutés pour permettre aux scripts de surveillance d'éditer le `.env` (fix N3) et d'être testés sans rebuild image.
+
+### Corrections
+- **Bug wrap minuit `is_ref_reload_window`** : l'ancienne condition `HOUR >= 21 && HOUR < 02` était toujours fausse. Réécrite avec `||` pour gérer la fenêtre 21h-02h.
+- **Bug CDC consumer SQL compilation error (`COM_PAHTNET`)** : le hardcoding des colonnes DECIMAL de COMMANDES appliquait ces colonnes à toutes les tables CDC (ORDERS, FACTURES, MODSTOCK), générant un INSERT avec colonnes inexistantes. Remplacé par mapping `CDC_DECIMAL_COLUMNS` paramétré par table, avec guard `if col in data`.
+- **Consumer CDC bloqué en boucle infinie row-by-row** : ajout d'un circuit-breaker `FALLBACK_MAX_CONSECUTIVE_FAILS=10` qui arrête le fallback après N échecs systémiques consécutifs avec la même erreur.
+- **Session Snowflake expirée non gérée** : ajout de `SNOWFLAKE_AUTH_EXPIRED_CODES` + `_reconnect_main()` / `_reconnect_dlq()` pour reconnexion automatique (codes 390114, 390116, 390111).
+- **Commit Kafka inconditionnel** : le commit d'offset se faisait même en cas d'échec du flush Snowflake, entraînant perte silencieuse de données. Corrigé : `if flush_ok: consumer.commit()`.
+- **Config Debezium drift** : `topic.prefix` était devenu `winstat` alors que le code attendait `winstat_rds.winstat`. Connector recréé avec config conforme à `setup.sh` (4 tables include.list, snapshot.mode=schema_only).
+- **Schéma CDC uniforme** : les 4 tables RAW CDC ont désormais 3 colonnes métadata identiques (`CDC_OPERATION`, `CDC_TIMESTAMP`, `CDC_LSN`). Les colonnes obsolètes `CDC_SCHEMA` et `CDC_TABLE` ont été retirées du code Python et du DDL.
+
+### Gain métier (cible plan, mesuré le 25/04 — voir entrée correspondante)
+- **Cible -391 EUR/mois (-83 %)** sur le coût Snowflake MediCore : de 471 EUR/mois à ~80 EUR/mois. **Mesuré 1er run : -356 EUR/mois (-76 %)**, écart résorbable par tuning clustering.
+- **Ref_reload 5 à 18× plus court** : de 4h48 à ~16 min cible (~53 min mesuré). Réduit drastiquement la fenêtre d'incident possible (veille machine, timeout, crash Docker).
+- **Rapport opérationnel disponible le soir** : consultable avant le coucher au lieu d'attendre le lendemain matin.
+
+### Ce qui est différé
+- **L4 Metabase caching** : à activer quand la production pleine démarrera (269 pharmacies actives, gain estimé -150 à -500 EUR/mois).
+- **L7 Optimisation `mart_kpi_dormant`** : modèle qui prend 7 min seul, différé car non bloquant (gain ~75 EUR/mois).
+
+---
+
+## [2026-04-22] — Lineage données RAW → KPI documenté
+
+### Ajouts
+- **Section 3 « Lineage des données (RAW → KPI) »** dans `docs/05_KPIs.md` : trace le parcours de chaque table RAW jusqu'aux KPIs (6 sous-sections : schéma global, vue amont, propagation via dimensions, analyse d'impact par criticité, vue aval par KPI, alimentation CDC vs bulk). Permet de répondre instantanément à deux questions opérationnelles : « si RAW_X est indisponible, quels KPIs sont impactés ? » et « quelles sources alimentent le KPI Y ? ».
+
+### Modifications
+- **Renumérotation sections `docs/05_KPIs.md`** : Axes d'analyse 3 → 4, Classification commerciale 4 → 5 (avec ses sous-sections 4.1-4.11 → 5.1-5.11), KPIs manquants 5 → 6. Table des matières mise à jour.
+
+### Constat
+- **100% des tables RAW** (18/18) contribuent à au moins un KPI métier. Aucune table orpheline.
+- **RAW_FACTURES est la table pivot** (10 KPIs directs via fact_ventes).
+- **RAW_PHARMACIE / RAW_PHARMACIES** impliquées dans 20/21 KPIs par propagation via dim_pharmacie.
+
+---
+
 ## [2026-03-24] — Tests singular, démasquage PII, CI complète
 
 ### Ajouts
@@ -71,8 +171,8 @@ Chaque entrée décrit **ce qui a changé** du point de vue métier et son impac
 
 ### Ajouts
 - **Filtres cascadés (linked filters)** : les filtres Fournisseur, Opérateur, Univers, Statut dormant et Mois sont désormais liés au filtre Pharmacie sur 14 dashboards. Sélectionner une pharmacie restreint automatiquement les valeurs proposées dans les autres filtres aux données existantes.
-- **Documentation entités Metabase** (`docs/Dashboards.md`) : clarification des entités (collection, question/card, dashboard), différence MBQL vs SQL natif, types de visualisation, stockage PostgreSQL, export API et tableau des filtres cascadés.
-- **Guide d'ouverture des accès** (`docs/Dashboards.md` §9) : procédure pas à pas pour donner accès aux dashboards par service (groupes, comptes, permissions collections/données, réseau, email SMTP).
+- **Documentation entités Metabase** (`docs/06_Dashboards.md`) : clarification des entités (collection, question/card, dashboard), différence MBQL vs SQL natif, types de visualisation, stockage PostgreSQL, export API et tableau des filtres cascadés.
+- **Guide d'ouverture des accès** (`docs/06_Dashboards.md` §9) : procédure pas à pas pour donner accès aux dashboards par service (groupes, comptes, permissions collections/données, réseau, email SMTP).
 
 ---
 
@@ -80,7 +180,7 @@ Chaque entrée décrit **ce qui a changé** du point de vue métier et son impac
 
 ### Ajouts
 - **Filtres D11 Produits dormants** : 4 filtres globaux (Pharmacie, Statut dormant, Univers, Fournisseur) reliés aux 6 questions du dashboard.
-- **Guide utilisateur Metabase** (`docs/Dashboards.md`) : mode d'emploi complet pour créer les dashboards via l'interface web, avec D11 en exemple détaillé pas à pas.
+- **Guide utilisateur Metabase** (`docs/06_Dashboards.md`) : mode d'emploi complet pour créer les dashboards via l'interface web, avec D11 en exemple détaillé pas à pas.
 
 ---
 
@@ -96,7 +196,7 @@ Chaque entrée décrit **ce qui a changé** du point de vue métier et son impac
 ## [2026-03-09] — Exposition BI avec Metabase
 
 ### Ajouts
-- **Metabase** : ajout de l'outil BI open-source au stack Docker pour visualiser les 15 KPIs, 8 faits et 3 dimensions du schéma MARTS sur des dashboards interactifs (`http://localhost:3000`).
+- **Metabase** : ajout de l'outil BI open-source au stack Docker pour visualiser les 21 KPIs, 8 faits et 3 dimensions du schéma MARTS sur des dashboards interactifs (`http://localhost:3001`).
 - **PostgreSQL 16** : base metadata dédiée à Metabase (dashboards, questions sauvegardées, comptes utilisateurs). Persistée via volume Docker.
 - **Documentation opérationnelle** : guide de configuration Snowflake dans Metabase, dashboards suggérés couvrant les 26/26 tables MARTS.
 
@@ -165,14 +265,14 @@ Chaque entrée décrit **ce qui a changé** du point de vue métier et son impac
 - **mart_kpi_synthese_pharmacie** : vue consolidée de tous les KPIs principaux au niveau pharmacie/mois. Inclut CA + evolution, marge + taux, valeur stock, ratio stock/CA annuel, CA générique + taux, % dormants 6m/12m. Aucun calcul requis côté application.
 
 ### Documentation
-- **docs/KPIs.md** : ajout de 6 nouvelles sections (2.10-2.15) documentant les marts KPI avec formules, grain et utilités métier :
+- **docs/05_KPIs.md** : ajout de 6 nouvelles sections (2.10-2.15) documentant les marts KPI avec formules, grain et utilités métier :
   - mart_kpi_ca_evolution — Evolution CA vs A-1
   - mart_kpi_generique — Génériques et Parts de Marché Labo
   - mart_kpi_remise_labo — Remise Pondérée par Laboratoire
   - mart_kpi_univers — KPIs par Univers (Dashboard)
   - mart_kpi_dormant — Produits Sans Vente
   - mart_kpi_synthese_pharmacie — Vue Dashboard Consolidée
-- **docs/KPIs.md section 4.4** : documentation des 3 KPIs NON DISPO avec structures de données requises :
+- **docs/05_KPIs.md section 4.4** : documentation des 3 KPIs NON DISPO avec structures de données requises :
   - Cartes de fidélité (source: API Mediplace, table `mediplace.client`)
   - Montant de challenges Medila (source: API Mediplace, table `mediplace.challenge_vente`)
   - CA par catégorie de marché (source: référentiel catégories à créer)
@@ -204,7 +304,7 @@ Chaque entrée décrit **ce qui a changé** du point de vue métier et son impac
 
 ### Ajouts
 - **CI/CD GitHub Actions** : pipeline de validation automatique (lint Python, validation syntaxe dbt, build Docker, ShellCheck bash) + déploiement continu vers GitHub Container Registry (GHCR). L'image Docker est automatiquement publiée sur `ghcr.io/auganmadet/medicore` (tags SHA + latest) après passage des 4 jobs CI sur `main`.
-- **Guide opérationnel** : documentation `docs/operations.md` avec architecture batch, variables d'environnement, commandes utiles et procédures de diagnostic.
+- **Guide opérationnel** : documentation `docs/03_operations.md` avec architecture batch, variables d'environnement, commandes utiles et procédures de diagnostic.
 - **Tests marts** : `dbt test --select tag:marts` exécuté après les tests staging dans le batch loop, avec compteur d'échecs et alertes Teams.
 - **Timeout par phase** : chaque phase du batch loop est limitée par `PHASE_TIMEOUT_SEC` (défaut 30 min) pour éviter les blocages.
 - **Arrêt graceful** : le batch loop intercepte SIGTERM/SIGINT et termine proprement après la phase en cours (compatible `docker compose stop`).
@@ -298,7 +398,7 @@ Chaque entrée décrit **ce qui a changé** du point de vue métier et son impac
 
 ### Ajouts
 - **Alerting Teams** : webhook Microsoft Teams pour les alertes pipeline. Compteur d'échecs consécutifs par phase (CDC, dbt staging, dbt marts, dbt test, reference reload). Alerte après 3 échecs + notification de recovery.
-- **Rechargement quotidien des 14 tables de référence** : TRUNCATE + bulk reload à 03h00, avec `FORCE = TRUE` sur COPY INTO pour contourner le cache de metadata Snowflake.
+- **Rechargement quotidien des 14 tables de référence** : CLONE+SWAP + bulk reload à 23h FR (21h UTC), avec `FORCE = TRUE` sur COPY INTO pour contourner le cache de metadata Snowflake.
 - **Clustering keys** : ajout de `CLUSTER BY` sur les tables RAW volumineuses pour accélérer les requêtes dbt.
 
 ---

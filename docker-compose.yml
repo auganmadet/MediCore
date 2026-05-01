@@ -8,7 +8,7 @@ services:
     env_file:
       - .env
     environment:
-      - ENV=dev
+      - ENV=${ENV:-prod}
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092  # listener INTERNAL (pas EXTERNAL/localhost)
       - SNOWFLAKE_ACCOUNT=${SNOWFLAKE_ACCOUNT}
       - SNOWFLAKE_USER=${SNOWFLAKE_USER}
@@ -21,8 +21,11 @@ services:
     volumes:
       - ./dbt:/app/dbt
       - ./pipelines:/app/pipelines
+      - ./scripts:/app/scripts
       - ./logs:/app/logs
       - ./tests:/app/tests
+      - ./backups:/app/backups
+      - ./.env:/app/.env
       - dbt_cache:/home/appuser/.dbt
     depends_on:
       # healthcheck Docker
@@ -201,21 +204,42 @@ services:
       MB_DB_PASS: ${METABASE_DB_PASSWORD:-metabase_dev}
       MB_JETTY_PORT: 3000
       # SMTP pour emails d'invitation et alertes
-      MB_EMAIL_SMTP_HOST: ${MB_EMAIL_SMTP_HOST:-smtp.office365.com}
+      MB_EMAIL_SMTP_HOST: ${MB_EMAIL_SMTP_HOST:-smtp.gmail.com}
       MB_EMAIL_SMTP_PORT: ${MB_EMAIL_SMTP_PORT:-587}
       MB_EMAIL_SMTP_SECURITY: ${MB_EMAIL_SMTP_SECURITY:-tls}
       MB_EMAIL_SMTP_USERNAME: ${MB_EMAIL_SMTP_USERNAME:-}
       MB_EMAIL_SMTP_PASSWORD: ${MB_EMAIL_SMTP_PASSWORD:-}
       MB_EMAIL_FROM_ADDRESS: ${MB_EMAIL_FROM_ADDRESS:-metabase@mediprix.fr}
       MB_EMAIL_FROM_NAME: ${MB_EMAIL_FROM_NAME:-MediCore BI}
-      MB_SITE_URL: ${MB_SITE_URL:-http://192.168.0.37:3000}
+      MB_SITE_URL: ${MB_SITE_URL:-http://192.168.0.37:3001}
     ports:
-      - "0.0.0.0:3000:3000"
+      - "0.0.0.0:3001:3000"
     networks:
       - medicore_net
     restart: unless-stopped
     mem_limit: 2g
     cpus: 1
+
+  # 📚 dbt Docs (Data Catalog sur Snowflake, accessible réseau local)
+  dbt_docs:
+    image: python:3.11-slim
+    container_name: dbt_docs
+    volumes:
+      - ./dbt/target:/app/target:ro
+    ports:
+      - "0.0.0.0:8082:8080"
+    networks:
+      - medicore_net
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.25
+    working_dir: /app/target
+    command: python -m http.server 8080
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
 volumes:
   dbt_cache:

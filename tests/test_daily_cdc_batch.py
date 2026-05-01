@@ -48,21 +48,19 @@ class TestParseDebeziumEvent:
         Comportement attendu :
             - cdc_operation = 'I' (Insert)
             - Données extraites de payload.after
-            - Métadonnées CDC ajoutées (cdc_timestamp, cdc_schema, cdc_table, cdc_lsn)
+            - Métadonnées CDC ajoutées (cdc_timestamp, cdc_lsn)
         """
         from pipelines.daily_cdc_batch import MediCoreCDC
-        
+
         # Créer instance sans connexion Snowflake
         cdc = MediCoreCDC.__new__(MediCoreCDC)
-        
+
         result = cdc._parse_debezium_event(sample_debezium_create_event)
-        
+
         # Vérifications
         assert result["cdc_operation"] == "I", "CREATE doit mapper vers 'I' (Insert)"
         assert result["PHA_ID"] == 1, "PHA_ID doit être extrait de 'after'"
         assert result["PRD_ID"] == 42, "PRD_ID doit être extrait de 'after'"
-        assert result["cdc_table"] == "COMMANDES", "cdc_table doit venir de source.table"
-        assert result["cdc_schema"] == "winstat", "cdc_schema doit venir de source.db"
         assert "cdc_timestamp" in result, "cdc_timestamp doit être présent"
         assert "cdc_lsn" in result, "cdc_lsn (position binlog) doit être présent"
 
@@ -335,32 +333,30 @@ class TestDateConversion:
 class TestCDCMetadata:
     """
     Tests des métadonnées CDC ajoutées aux events.
-    
+
     Chaque event parsé doit contenir :
         - cdc_operation: I/U/D
         - cdc_timestamp: datetime du changement
-        - cdc_schema: base de données source
-        - cdc_table: table source
         - cdc_lsn: position dans le binlog
     """
 
     def test_cdc_metadata_fields_present(self, sample_debezium_create_event):
         """
         Vérifie que tous les champs CDC sont présents après parsing.
-        
+
         Ces métadonnées sont essentielles pour :
             - Déduplication (cdc_timestamp)
-            - Traçabilité (cdc_lsn, cdc_table)
+            - Traçabilité (cdc_lsn)
             - Filtrage des deletes en staging (cdc_operation)
         """
         from pipelines.daily_cdc_batch import MediCoreCDC
-        
+
         cdc = MediCoreCDC.__new__(MediCoreCDC)
-        
+
         result = cdc._parse_debezium_event(sample_debezium_create_event)
-        
-        required_fields = ["cdc_operation", "cdc_timestamp", "cdc_schema", "cdc_table", "cdc_lsn"]
-        
+
+        required_fields = ["cdc_operation", "cdc_timestamp", "cdc_lsn"]
+
         for field in required_fields:
             assert field in result, f"Champ CDC manquant: {field}"
 
@@ -541,9 +537,10 @@ class TestDLQ:
         
         cdc = MediCoreCDC.__new__(MediCoreCDC)
         cdc.sf_cursor = mock_snowflake_conn.cursor()
-        
+        cdc.dlq_cursor = mock_snowflake_conn.cursor()
+
         long_error = "x" * 5000
-        
+
         cdc._write_dlq("cdc_parse", "RAW_TEST", "topic", {"data": 1}, long_error)
         
         # Vérifier que execute a été appelé
@@ -565,12 +562,13 @@ class TestDLQ:
         
         cdc = MediCoreCDC.__new__(MediCoreCDC)
         cdc.sf_cursor = mock_snowflake_conn.cursor()
-        
+        cdc.dlq_cursor = mock_snowflake_conn.cursor()
+
         payload_with_datetime = {
             "PHA_ID": 1,
             "timestamp": datetime(2024, 1, 15, 12, 30, 0)
         }
-        
+
         cdc._write_dlq("cdc_parse", "RAW_TEST", "topic", payload_with_datetime, "error")
         
         # Ne doit pas lever d'exception

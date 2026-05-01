@@ -113,8 +113,8 @@ def log_lag_to_audit(run_id: str, lag_by_topic: Dict[str, int]) -> None:
             account=os.getenv('SNOWFLAKE_ACCOUNT'),
             user=os.getenv('SNOWFLAKE_USER'),
             password=os.getenv('SNOWFLAKE_PASSWORD'),
-            database=os.getenv('SNOWFLAKE_DATABASE', 'MEDIcore'),
-            warehouse=os.getenv('SNOWFLAKE_WAREHOUSE_NAME', 'MEDIcore_WH'),
+            database=os.getenv('SNOWFLAKE_DATABASE', 'MEDICORE_PROD'),
+            warehouse=os.getenv('SNOWFLAKE_WAREHOUSE_NAME', 'MEDICORE_WH'),
             schema='AUDIT',
         )
         cursor = conn.cursor()

@@ -14,9 +14,10 @@ RUN pip install --no-cache-dir --user -r requirements.txt
 # Second stage : sans les fichiers de build
 FROM python:3.11-slim
 
-# Installer git + curl dans l'image finale (git: dbt deps, curl: alertes Teams webhook)
+# Installer git + curl + postgresql-client dans l'image finale
+# git: dbt deps, curl: alertes Teams webhook, postgresql-client: pg_dump backup Metabase
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends git curl && \
+    apt-get install -y --no-install-recommends git curl postgresql-client && \
     rm -rf /var/lib/apt/lists/*
 
 # Utilisateur non-root pour le runtime
@@ -32,13 +33,16 @@ COPY --chown=appuser:appuser . .
 RUN chmod +x scripts/*.sh
 
 # Repertoires de travail pour dbt et logs
-RUN mkdir -p /home/appuser/.dbt /app/logs && \
-    chown -R appuser:appuser /home/appuser/.dbt /app/logs
+RUN mkdir -p /home/appuser/.dbt /app/logs /app/dbt/logs /app/dbt/target /app/dbt/dbt_packages && \
+    chown -R appuser:appuser /home/appuser/.dbt /app/logs /app/dbt/logs /app/dbt/target /app/dbt/dbt_packages
 
 # Expose ports (dbt docs)
 EXPOSE 8080
 
 USER appuser
+
+# Installer les dépendances dbt en tant que appuser (permissions correctes)
+RUN cd /app/dbt && dbt deps --target dev 2>/dev/null || true
 
 # Snowflake connection Healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

@@ -1,5 +1,22 @@
 # Architecture MediCore
 
+## Table des matières
+
+1. [Vue d'ensemble : Architecture data](#vue-densemble--architecture-data-slide-7---docsmedicore_presentationpptx)
+2. [Flux de données global](#flux-de-données-global)
+3. [Layers Snowflake](#layers-snowflake)
+   - [RAW Layer](#raw-layer)
+   - [STAGING Layer](#staging-layer)
+   - [MARTS Layer](#marts-layer)
+   - [Pourquoi Kafka plutôt qu'une connexion directe ?](#pourquoi-kafka-plutot-quune-connexion-directe-)
+   - [Composants Snowflake DWH](#composants-snowflake-dwh)
+   - [Couche Exposition](#couche-exposition)
+4. [Services Docker](#services-docker)
+5. [Monitoring](#monitoring)
+6. [Fichiers clés](#fichiers-clés)
+
+---
+
 ## Vue d'ensemble : Architecture data (slide 7 - docs\MediCore_Presentation.pptx)
 
 ```
@@ -13,7 +30,7 @@
 │              │    │ ┌───────▼──────────┐   │    │ │  RAW  │  │ │ STAGING │    │    MARTS      │   │    │    │ ┌──────────────────┐ │
 │ ┌──────────┐ │    │ │ Kafka            │───┼───>│ │       ┼─>│ │ 18 mod. ┼───>│  3 DIM        │   ┼────┼───>│ │ Tableau          │ │
 │ │ 4 tables │ │    │ │ 4 topics         │   │    │ │ 18    │  │ │ dedup   │    │  8 FAITS      │   │    │    │ │ visualisation    │ │
-│ │   CDC    │─┼───>│ └───────┬──────────┘   │    │ │tables │  │ │ + PII   │    │  15 KPIs      │   │    │    │ └──────────────────┘ │
+│ │   CDC    │─┼───>│ └───────┬──────────┘   │    │ │tables │  │ │ + PII   │    │  21 KPIs      │   │    │    │ └──────────────────┘ │
 │ └──────────┘ │    │ ┌───────▼──────────┐   │    │ │brutes │  │ └─────────┘    └───────────────┘   │    │    │ ┌──────────────────┐ │
 │              │    │ │ Python CDC       │   │    │ │       │  │                                    │    │    │ │ Metabase         │ │
 │ ┌──────────┐ │    │ │ micro-batch 500  │───┼───>│ │       │  └────────────────────────────────────┘    │    │ │ self-service BI  │ │
@@ -30,6 +47,8 @@
 
 
 ```
+
+[↑ Retour au sommaire](#table-des-matières)
 
 ## Flux de données global
 
@@ -89,11 +108,13 @@
 
 ```
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ## Layers Snowflake
 
 ### RAW Layer
 - Données brutes depuis CDC (Kafka) et bulk load (MySQL SELECT)
-- Colonnes metadata : CDC_OPERATION, CDC_TIMESTAMP, CDC_SCHEMA, CDC_TABLE, CDC_LSN
+- Colonnes metadata : CDC_OPERATION, CDC_TIMESTAMP, CDC_LSN
 - CLUSTER BY (CDC_TIMESTAMP) sur les 4 tables CDC
 - Aucune transformation
 
@@ -120,7 +141,7 @@
 
 - **RAW** (BRONZE) : donnees brutes sans transformation — c'est le principe ELT
 - **STAGING** (SILVER) : deduplication CDC + masquage PII (MD5)
-- **MARTS** (GOLD) : star schema — 3 DIM, 8 FAITS, 15 KPIs
+- **MARTS** (GOLD) : star schema — 3 DIM, 8 FAITS, 21 KPIs
 - **AUDIT** : tables PIPELINE_RUNS, STEP_RUNS et DBT_MODEL_RUNS — tracabilite a chaque execution. Quand un KPI semble faux, on remonte au RUN_ID pour identifier si c'est un probleme d'ingestion ou de transformation
 - **SNAPSHOTS** : SCD2 (Slowly Changing Dimension Type 2). Quand une dimension change (pharmacie qui change de nom, produit qui change de fournisseur), l'ancienne valeur est conservee avec une date de fin. Les ventes de fevrier s'affichent avec l'ancien nom, celles de mars avec le nouveau
 
@@ -136,11 +157,13 @@
   │                  │ Inconvenient : cout eleve (~70$/utilisateur/mois).           │
   ├──────────────────┼──────────────────────────────────────────────────────────────┤
   │ Metabase         │ Open-source, self-hosted, SQL natif, gratuit.                │
-  │                  │ Deploye dans le stack Docker (`localhost:3000`).             │
+  │                  │ Deploye dans le stack Docker (`localhost:3001`).             │
   ├──────────────────┼──────────────────────────────────────────────────────────────┤
   │ API / Exports    │ Integration KPIs dans ERP, CRM, applications metier.         │
   │                  │ Exports CSV/Excel pour partenaires (labos, groupements).     │
   └──────────────────┴──────────────────────────────────────────────────────────────┘
+
+[↑ Retour au sommaire](#table-des-matières)
 
 ## Services Docker
 
@@ -165,6 +188,9 @@
   │ metabase           │ metabase/metabase:v0.58.7         │ BI dashboards (Snowflake MARTS)   │ -                            │
   └────────────────────┴───────────────────────────────────┴───────────────────────────────────┴──────────────────────────────┘
 ```
+
+[↑ Retour au sommaire](#table-des-matières)
+
 ## Monitoring
 
 - **Teams webhook** : alertes échec (seuil consécutif) + recovery
@@ -172,6 +198,8 @@
 - **dbt test** : not_null, unique, relationships, expression_is_true (severity warn)
 - **Docker healthcheck** : depends_on condition: service_healthy
 - **Lag Kafka** : alerte si lag > seuil N fois consécutives
+
+[↑ Retour au sommaire](#table-des-matières)
 
 ## Fichiers clés
 
@@ -193,3 +221,12 @@
   │ scripts/DDL_TABLES.sql           │ 18 tables RAW + AUDIT schema + ANALYST grants                  │
   └──────────────────────────────────┴────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## Voir aussi
+
+- [Workflow multi-environnement](02_workflow_multi_env.md) — flux DEV/TEST/PROD et CI/CD
+- [Opérations](03_operations.md) — exploitation quotidienne et monitoring
+
+[↑ Retour au sommaire](#table-des-matières)

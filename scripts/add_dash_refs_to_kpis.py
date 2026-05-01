@@ -1,4 +1,4 @@
-"""Ajoute les blocs 'Dashboard' dans docs/KPIs.md pour chaque modèle."""
+"""Ajoute les blocs 'Dashboard' dans docs/05_KPIs.md pour chaque modèle."""
 import re
 
 # Mapping: section header pattern -> dashboard reference
@@ -40,7 +40,7 @@ FACT_REFS = {
 
 ALL_REFS = {**DASH_REFS, **FACT_REFS}
 
-with open('c:/Temp/MediCore/docs/KPIs.md', 'r', encoding='utf-8') as f:
+with open('c:/Temp/MediCore/docs/05_KPIs.md', 'r', encoding='utf-8') as f:
     content = f.read()
 
 count = 0
@@ -66,7 +66,7 @@ for header, ref_text in ALL_REFS.items():
     count += 1
     print(f'OK: {header}')
 
-with open('c:/Temp/MediCore/docs/KPIs.md', 'w', encoding='utf-8') as f:
+with open('c:/Temp/MediCore/docs/05_KPIs.md', 'w', encoding='utf-8') as f:
     f.write(content)
 
 print(f'\nDone: {count} références ajoutées')

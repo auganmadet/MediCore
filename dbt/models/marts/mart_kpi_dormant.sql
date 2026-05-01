@@ -80,11 +80,11 @@ select
     case
         when coalesce(dv.derniere_vente_fact, ps.derniere_vente) is null
             then 'JAMAIS_VENDU'
-        when datediff('day', coalesce(dv.derniere_vente_fact, ps.derniere_vente), current_date()) > 365
+        when datediff('day', coalesce(dv.derniere_vente_fact, ps.derniere_vente), current_date()) >= 365
             then 'DORMANT_12M'
-        when datediff('day', coalesce(dv.derniere_vente_fact, ps.derniere_vente), current_date()) > 180
+        when datediff('day', coalesce(dv.derniere_vente_fact, ps.derniere_vente), current_date()) >= 180
             then 'DORMANT_6M'
-        when datediff('day', coalesce(dv.derniere_vente_fact, ps.derniere_vente), current_date()) > 90
+        when datediff('day', coalesce(dv.derniere_vente_fact, ps.derniere_vente), current_date()) >= 90
             then 'DORMANT_3M'
         else 'ACTIF'
     end                                                 as statut_dormant,
@@ -92,13 +92,13 @@ select
     -- Flags binaires pour filtrage
     case
         when coalesce(dv.derniere_vente_fact, ps.derniere_vente) is null
-            or datediff('day', coalesce(dv.derniere_vente_fact, ps.derniere_vente), current_date()) > 180
+            or datediff('day', coalesce(dv.derniere_vente_fact, ps.derniere_vente), current_date()) >= 180
         then true else false
     end                                                 as is_dormant_6m,
 
     case
         when coalesce(dv.derniere_vente_fact, ps.derniere_vente) is null
-            or datediff('day', coalesce(dv.derniere_vente_fact, ps.derniere_vente), current_date()) > 365
+            or datediff('day', coalesce(dv.derniere_vente_fact, ps.derniere_vente), current_date()) >= 365
         then true else false
     end                                                 as is_dormant_12m,
 

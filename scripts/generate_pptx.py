@@ -556,7 +556,7 @@ def add_architecture_slide():
     _add_component_box(slide, Inches(8.35), Inches(3.52), Inches(1.25), Inches(0.42),
                        "8 FAITS", "", RED)
     _add_component_box(slide, Inches(8.35), Inches(3.99), Inches(1.25), Inches(0.42),
-                       "15 KPIs", "", RED)
+                       "21 KPIs", "", RED)
 
     # ── Sous-groupe dbt en bas (AUDIT + SNAPSHOTS) ──
     # Couvre la largeur de RAW à Transformation dbt sans les contenir
@@ -727,7 +727,7 @@ add_notes(s, "Voici l'architecture complète de Medicore.\n"
 "Puis dbt transforme les données : les modèles staging (ou SILVER) dédupliquent et "
 "masquent les données PII\n"
 "Les modèles marts (ou GOLD) construisent le star schema pour donner en sortie "
-"3 DIM, 8 FAITS et 15 KPIs.\n\n"
+"3 DIM, 8 FAITS et 21 KPIs.\n\n"
 "L'AUDIT et les SNAPSHOTS sont deux composants essentiels des modèles dbt. L'AUDIT "
 "comprenant les tables PIPELINE_RUNS, STEP_RUNS et DBT_MODEL_RUNS — permet la "
 "traçabilité à chaque exécution du pipeline. Quand un KPI semble faux, on remonte "
@@ -832,7 +832,7 @@ s = add_two_column_slide(
         "Parquet : écriture par chunks 500K rows",
         "Snowflake : PUT vers stage interne",
         "COPY INTO : avec FORCE=TRUE",
-        "Rechargement : TRUNCATE + reload à 03h00",
+        "Rechargement : CLONE+SWAP + reload à 23h FR",
         "Mémoire : gc.collect() après chaque chunk",
         "Volume : 920M+ lignes chargées au total",
     ],
@@ -965,7 +965,7 @@ s = add_content_slide("Marts : star schema et KPIs", [
     "8 tables de faits :",
     "  - fact_ventes, fact_commandes, fact_prix_journalier, fact_stock_mouvement",
     "  - fact_stock_valorisation, fact_ruptures, fact_tresorerie, fact_operateur",
-    "15 KPIs métier :",
+    "21 KPIs métier :",
     "  - Marge, écoulement, ABC (Pareto), stock, stock valorisation",
     "  - Ruptures, trésorerie, opérateur, qualité des données",
     "Snapshots SCD2 : historisation pharmacie, produit, fournisseur",
@@ -1008,7 +1008,7 @@ add_notes(s, "Les modèles Marts s'appuyent sur les données de la couche SILVER
 "8. fact_operateur : performance des vendeurs (nombre de ventes, panier moyen)\n\n"
 "Chaque fait référence les 3 dimensions via LEFT JOIN + COALESCE(sk, -1) pour ne "
 "jamais perdre de lignes même si la dimension est incomplète.\n\n"
-"Les 15 KPIs couvrent les principaux axes d'analyse. Notamment le KPI opérateur "
+"Les 21 KPIs couvrent les principaux axes d'analyse. Notamment le KPI opérateur "
 "(fact_operateur) qui mesure la performance de chaque vendeur en pharmacie via le "
 "nombre de ventes, panier moyen, CA généré. C'est un levier managérial concret : "
 "le titulaire peut identifier ses meilleurs vendeurs et adapter ses formations.\n\n"
@@ -1052,7 +1052,7 @@ add_notes(s, "Le batch_loop.sh est volontairement simple — un script bash plut
 "— parce que l'orchestration est linéaire : 7 phases séquentielles. Pas besoin d'un "
 "DAG complexe pour l'instant.\n\n"
 "Les 7 phases dans l'ordre :\n"
-"1. ref_reload — rechargement quotidien des 14 tables de référence à 03h00. TRUNCATE "
+"1. ref_reload — rechargement quotidien des 14 tables de référence à 23h FR. CLONE+SWAP "
 "+ bulk load complet. Ne s'exécute qu'une fois par jour.\n"
 "2. cdc_batch — consommation des événements Kafka sur les 4 tables CDC. Micro-batch "
 "de 500 events ou timeout 30s. C'est la phase la plus fréquente.\n"
@@ -1084,7 +1084,7 @@ add_notes(s, "Le batch_loop.sh est volontairement simple — un script bash plut
 "selon le type : les tables CDC doivent être fraîches à moins de 12h (warning) ou "
 "24h (erreur), car elles sont alimentées toutes les 5-30 minutes. Les tables "
 "référence ont des seuils plus larges — 36h warning, 48h erreur — car elles ne sont "
-"rechargées qu'une fois par jour à 03h00. Si une table dépasse le seuil, l'équipe "
+"rechargées qu'une fois par jour à 23h FR. Si une table dépasse le seuil, l'équipe "
 "est alertée via Teams.")
 
 # --- SECTION 6 ---
@@ -1137,7 +1137,7 @@ s = add_two_column_slide(
     "Implémenté et opérationnel",
     [
         "Pipeline ELT complet : 18 tables ingérées",
-        "Star schema : 3 dim, 8 faits, 15 KPIs",
+        "Star schema : 3 dim, 8 faits, 21 KPIs",
         "CDC temps réel : Debezium/Kafka (4 tables)",
         "Bulk quotidien : 14 tables référentiel",
         "Masquage PII : automatique via macro dbt",
@@ -1158,7 +1158,7 @@ s = add_two_column_slide(
     bullet_size=15,
 )
 add_notes(s, "À gauche, tout ce qui est implémenté et fonctionnel. Le pipeline complet "
-"ingère les 18 tables, le star schema produit 3 dim, 8 faits et 15 KPIs, le CDC "
+"ingère les 18 tables, le star schema produit 3 dim, 8 faits et 21 KPIs, le CDC "
 "tourne en temps réel, le batch Bulk load tourne quotidiennement, le masquage PII "
 "est automatique, le lineage audit trace chaque exécution, et le CI/CD déploie "
 "automatiquement.\n\n"

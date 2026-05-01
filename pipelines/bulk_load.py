@@ -18,7 +18,7 @@ import os
 import sys
 import time
 from datetime import datetime
-from typing import Any, List, Set, Tuple
+from typing import Any, Dict, List, Set, Tuple
 
 import mysql.connector
 import pandas as pd
@@ -61,6 +61,34 @@ TABLE_MAPPING = {
 CDC_TABLES = ['COMMANDES', 'FACTURES', 'ORDERS', 'MODSTOCK']
 REF_TABLES = [t for t in TABLE_MAPPING if t not in CDC_TABLES]
 
+# Tables candidates au mode incremental (grosses tables avec index sur date_col).
+# Utilisees quand bulk_load.py est lance avec --incremental-days N : seuls les N
+# derniers jours sont lus depuis MySQL puis MERGE dans Snowflake (au lieu du
+# TRUNCATE+INSERT complet). Les tables absentes de ce mapping restent en mode
+# classique meme avec --incremental-days.
+#
+# Cle = nom table MySQL ; valeurs :
+#   - date_col : colonne MySQL utilisee pour filtrer la fenetre N jours
+#   - pk_cols  : colonnes de la PK pour le MERGE INTO cote Snowflake
+INCREMENTAL_TABLES: Dict[str, Dict[str, Any]] = {
+    'MEDIPRIX_FACTURES': {
+        'date_col': 'FAC_DATE',
+        'pk_cols': ['PHA_ID', 'FAC_ID', 'FAC_TI'],
+    },
+    'STOCKHISTORY': {
+        'date_col': 'STH_DATE',
+        'pk_cols': ['PHA_ID', 'PRD_ID', 'STH_DATE'],
+    },
+    'DAYBYDAY': {
+        'date_col': 'DBD_DATE',
+        'pk_cols': ['PHA_ID', 'DBD_DATE', 'PRD_ID'],
+    },
+    'MANQHISTORY': {
+        'date_col': 'MNQ_DATE',
+        'pk_cols': ['PHA_ID', 'MNQ_DATE', 'PRD_ID', 'FAC_ID'],
+    },
+}
+
 
 def get_mysql_conn() -> mysql.connector.MySQLConnection:
     """Connexion MySQL RDS avec timeout eleve pour bulk load.
@@ -95,8 +123,8 @@ def get_snowflake_conn() -> snowflake.connector.SnowflakeConnection:
         user=os.getenv('SNOWFLAKE_USER'),
         password=os.getenv('SNOWFLAKE_PASSWORD'),
         role=os.getenv('SNOWFLAKE_ROLE_NAME', 'MEDICORE_RAW_WRITER'),
-        database=os.getenv('SNOWFLAKE_DATABASE', 'MEDIcore'),
-        warehouse=os.getenv('SNOWFLAKE_WAREHOUSE_NAME', 'MEDIcore_WH'),
+        database=os.getenv('SNOWFLAKE_DATABASE', 'MEDICORE_PROD'),
+        warehouse=os.getenv('SNOWFLAKE_WAREHOUSE_NAME', 'MEDICORE_WH'),
         schema='RAW',
         insecure_mode=True  # Bypass OCSP pour PUT vers S3 stage
     )
@@ -220,7 +248,16 @@ def bulk_load_table(mysql_conn: Any, sf_conn: Any, mysql_table: str, sf_table: s
     # Curseur Snowflake réutilisé (évite fuite mémoire : 1 cursor par chunk = OOM)
     sf_cursor = sf_conn.cursor()
 
+    # Pattern CLONE+SWAP : backup zero-copy avant TRUNCATE, rollback si echec
+    backup_table = f"{sf_table}_BACKUP"
+    has_backup = False
     if truncate:
+        try:
+            sf_cursor.execute(f"CREATE OR REPLACE TABLE {backup_table} CLONE {sf_table}")
+            has_backup = True
+            logger.info(f"  CLONE {sf_table} -> {backup_table}")
+        except Exception as e:
+            logger.warning(f"  CLONE echoue (premiere execution?) : {e}")
         sf_cursor.execute(f"TRUNCATE TABLE {sf_table}")
         logger.info(f"  TRUNCATE {sf_table}")
 
@@ -300,13 +337,11 @@ def bulk_load_table(mysql_conn: Any, sf_conn: Any, mysql_table: str, sf_table: s
         # Renommer colonnes MySQL → casing Snowflake
         df.columns = [sf_col_upper_map.get(c.upper(), c.upper()) for c in df.columns]
 
-        # Ajouter métadonnées CDC
+        # Ajouter métadonnées CDC (3 colonnes : alignement avec les 4 tables RAW_* CDC)
         now = datetime.now()
         cdc_metadata = {
             'CDC_OPERATION': 'S',
             'CDC_TIMESTAMP': now,
-            'CDC_SCHEMA': 'winstat',
-            'CDC_TABLE': mysql_table,
             'CDC_LSN': None,
         }
         for col_upper, value in cdc_metadata.items():
@@ -347,10 +382,175 @@ def bulk_load_table(mysql_conn: Any, sf_conn: Any, mysql_table: str, sf_table: s
     logger.info(f"  COPY INTO {sf_table} depuis {stage_path} ({chunk_num} fichiers)...")
     copy_time = _copy_into_and_cleanup(sf_cursor, sf_table, stage_path, chunk_num, force)
     logger.info(f"  COPY INTO termine en {copy_time:.1f}s")
+
+    # Pattern CLONE+SWAP : verification post-load + cleanup ou rollback
+    if has_backup and truncate:
+        if total_rows > 0:
+            # Load OK -> supprimer le backup
+            try:
+                sf_cursor.execute(f"DROP TABLE IF EXISTS {backup_table}")
+                logger.info(f"  Backup {backup_table} supprime (load OK)")
+            except Exception:
+                pass
+        else:
+            # Load vide -> rollback : SWAP le backup en place
+            logger.warning(f"  {sf_table} vide apres load — rollback depuis {backup_table}")
+            try:
+                sf_cursor.execute(f"ALTER TABLE {backup_table} SWAP WITH {sf_table}")
+                sf_cursor.execute(f"DROP TABLE IF EXISTS {backup_table}")
+                logger.info(f"  Rollback OK — {sf_table} restaure depuis le backup")
+            except Exception as e:
+                logger.error(f"  Rollback echoue : {e}")
+
     sf_cursor.close()
 
     elapsed = time.time() - start
     logger.info(f"  {sf_table}: {total_rows} rows en {elapsed:.1f}s ({chunk_num} fichiers Parquet)")
+    return total_rows
+
+
+def bulk_load_incremental_table(mysql_conn: Any, sf_conn: Any, mysql_table: str,
+                                sf_table: str, date_col: str, pk_cols: List[str],
+                                days_window: int, chunk_size: int) -> int:
+    """Charge les N derniers jours depuis MySQL et MERGE dans Snowflake.
+
+    Mode incremental : au lieu de TRUNCATE+reload toute la table, on lit
+    uniquement les lignes MySQL dont date_col >= CURDATE() - N days, puis on
+    MERGE dans la table cible sur la PK (UPDATE si match, INSERT sinon).
+
+    Flux :
+      1. CREATE OR REPLACE TABLE {sf_table}_STG_INCR LIKE {sf_table}
+      2. SELECT MySQL filtre sur date_col -> chunks Parquet -> stage
+      3. COPY INTO staging
+      4. MERGE INTO cible FROM staging (sur pk_cols)
+      5. DROP staging
+
+    Args:
+        mysql_conn: Connexion MySQL active.
+        sf_conn: Connexion Snowflake active.
+        mysql_table: Nom de la table MySQL source.
+        sf_table: Nom de la table Snowflake cible.
+        date_col: Colonne MySQL servant au filtre (ex: 'FAC_DATE').
+        pk_cols: Colonnes de la clef primaire pour le MERGE.
+        days_window: Fenetre glissante en jours (ex: 30).
+        chunk_size: Lignes par fichier Parquet.
+
+    Returns:
+        Nombre total de lignes lues depuis MySQL (= charges en staging).
+    """
+    logger.info(f"{'='*60}")
+    logger.info(f"Loading INCREMENTAL {mysql_table} -> {sf_table} "
+                f"(fenetre {days_window}j sur {date_col})...")
+    start = time.time()
+
+    sf_cursor = sf_conn.cursor()
+    staging_table = f"{sf_table}_STG_INCR"
+
+    # 1. Creer la table staging temporaire (meme schema que la cible, sans donnees)
+    sf_cursor.execute(f"CREATE OR REPLACE TABLE {staging_table} LIKE {sf_table}")
+    logger.info(f"  CREATE OR REPLACE {staging_table} LIKE {sf_table}")
+
+    # Colonnes Snowflake (casing exact + types BOOLEAN)
+    sf_columns, sf_bool_columns = get_snowflake_columns(sf_conn, sf_table)
+    sf_col_upper_map = {c.upper(): c for c in sf_columns}
+    sf_col_set = set(sf_columns)
+
+    stage_path = f"@{STAGE_NAME}/{staging_table}/"
+    sf_cursor.execute(f"REMOVE {stage_path}")
+
+    # 2. Lire MySQL avec WHERE sur date (index presume sur date_col)
+    where_clause = f"`{date_col}` >= DATE_SUB(CURDATE(), INTERVAL {days_window} DAY)"
+    cursor_mysql = mysql_conn.cursor(buffered=False)
+    cursor_mysql.execute(f"SELECT * FROM `{mysql_table}` WHERE {where_clause}")
+    col_names = [desc[0] for desc in cursor_mysql.description]
+
+    total_rows = 0
+    chunk_num = 0
+
+    while True:
+        rows = cursor_mysql.fetchmany(chunk_size)
+        if not rows:
+            break
+        chunk_num += 1
+        chunk_start = time.time()
+
+        df = pd.DataFrame(rows, columns=col_names)
+        df.columns = [sf_col_upper_map.get(c.upper(), c.upper()) for c in df.columns]
+
+        # Metadonnees CDC (alignees avec bulk_load_table : source = snapshot)
+        now = datetime.now()
+        cdc_metadata = {'CDC_OPERATION': 'S', 'CDC_TIMESTAMP': now, 'CDC_LSN': None}
+        for col_upper, value in cdc_metadata.items():
+            sf_col_name = sf_col_upper_map.get(col_upper)
+            if sf_col_name and sf_col_name in sf_col_set:
+                df[sf_col_name] = value
+
+        for bc in sf_bool_columns:
+            if bc in df.columns:
+                df[bc] = df[bc].astype(bool)
+
+        valid_cols = [c for c in df.columns if c in sf_col_set]
+        df = df[valid_cols]
+
+        file_size_mb = _write_chunk_to_stage(sf_cursor, df, staging_table, stage_path, chunk_num)
+        total_rows += len(df)
+        chunk_time = time.time() - chunk_start
+        logger.info(f"  Chunk {chunk_num}: {len(df)} rows, {file_size_mb:.1f} Mo, "
+                    f"PUT {chunk_time:.1f}s | Total: {total_rows}")
+
+        del df, rows
+        gc.collect()
+
+    cursor_mysql.close()
+
+    if total_rows == 0:
+        logger.info(f"  Aucune ligne sur les {days_window} derniers jours — MERGE skippe")
+        try:
+            sf_cursor.execute(f"DROP TABLE IF EXISTS {staging_table}")
+        except Exception:  # pylint: disable=broad-except
+            pass
+        sf_cursor.close()
+        return 0
+
+    # 3. COPY INTO staging (FORCE=TRUE car table fraichement creee)
+    logger.info(f"  COPY INTO {staging_table} depuis {stage_path} ({chunk_num} fichiers)...")
+    copy_time = _copy_into_and_cleanup(sf_cursor, staging_table, stage_path, chunk_num, force=True)
+    logger.info(f"  COPY INTO termine en {copy_time:.1f}s")
+
+    # 4. MERGE INTO cible depuis staging
+    pk_upper = {p.upper() for p in pk_cols}
+    non_pk_cols = [c for c in sf_columns if c.upper() not in pk_upper]
+
+    pk_join = ' AND '.join(f'tgt."{c}" = src."{c}"' for c in pk_cols)
+    update_set = ', '.join(f'tgt."{c}" = src."{c}"' for c in non_pk_cols)
+    insert_cols = ', '.join(f'"{c}"' for c in sf_columns)
+    insert_vals = ', '.join(f'src."{c}"' for c in sf_columns)
+
+    merge_sql = (
+        f"MERGE INTO {sf_table} tgt "
+        f"USING {staging_table} src ON {pk_join} "
+        f"WHEN MATCHED THEN UPDATE SET {update_set} "
+        f"WHEN NOT MATCHED THEN INSERT ({insert_cols}) VALUES ({insert_vals})"
+    )
+    logger.info(f"  MERGE INTO {sf_table} ON PK={pk_cols}...")
+    merge_start = time.time()
+    sf_cursor.execute(merge_sql)
+    merge_result = sf_cursor.fetchone()
+    merge_time = time.time() - merge_start
+    # Snowflake renvoie (rows_inserted, rows_updated) selon la version du driver
+    logger.info(f"  MERGE termine en {merge_time:.1f}s — result={merge_result}")
+
+    # 5. DROP staging
+    try:
+        sf_cursor.execute(f"DROP TABLE IF EXISTS {staging_table}")
+        logger.info(f"  DROP {staging_table}")
+    except Exception as e:  # pylint: disable=broad-except
+        logger.warning(f"  DROP {staging_table} echoue (non bloquant): {e}")
+
+    sf_cursor.close()
+    elapsed = time.time() - start
+    logger.info(f"  {sf_table}: {total_rows} rows en staging, merge en {elapsed:.1f}s "
+                f"({chunk_num} fichiers Parquet)")
     return total_rows
 
 
@@ -381,6 +581,10 @@ def main() -> None:
     parser.add_argument('--ref-only', action='store_true', help='14 tables reference uniquement')
     parser.add_argument('--chunk-size', type=int, default=500000, help='Lignes par fichier Parquet (defaut: 500000)')
     parser.add_argument('--truncate', action='store_true', help='TRUNCATE TABLE avant insertion')
+    parser.add_argument('--incremental-days', type=int, default=None,
+                        help='Si fourni, les tables eligibles (INCREMENTAL_TABLES) sont '
+                             'chargees en MERGE sur les N derniers jours au lieu de '
+                             'TRUNCATE+INSERT. Les autres tables restent en mode classique.')
     parser.add_argument('--run-id', default=None, help='Pipeline run ID pour audit')
     args = parser.parse_args()
 
@@ -427,7 +631,18 @@ def main() -> None:
             mysql_conn = None
             try:
                 mysql_conn = get_mysql_conn()
-                rows = bulk_load_table(mysql_conn, sf_conn, mysql_table, sf_table, args.chunk_size, args.truncate, force=args.truncate)
+                # Mode incremental pour les tables eligibles si --incremental-days fourni
+                if args.incremental_days and mysql_table in INCREMENTAL_TABLES:
+                    conf = INCREMENTAL_TABLES[mysql_table]
+                    rows = bulk_load_incremental_table(
+                        mysql_conn, sf_conn, mysql_table, sf_table,
+                        conf['date_col'], conf['pk_cols'],
+                        args.incremental_days, args.chunk_size,
+                    )
+                else:
+                    rows = bulk_load_table(mysql_conn, sf_conn, mysql_table, sf_table,
+                                           args.chunk_size, args.truncate,
+                                           force=args.truncate)
                 grand_total += rows
                 results.append((sf_table, rows))
             except (RuntimeError, mysql.connector.errors.Error, snowflake.connector.errors.Error, OSError) as e:

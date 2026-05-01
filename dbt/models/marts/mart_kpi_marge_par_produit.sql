@@ -1,8 +1,6 @@
 {{
     config(
-        materialized='incremental',
-        unique_key=['pharmacie_sk', 'produit_sk'],
-        incremental_strategy='merge',
+        materialized='table',
         schema='MARTS',
         tags=['marts', 'kpi', 'marge', 'agrege']
     )
@@ -28,9 +26,6 @@ with marge as (
     from {{ ref('mart_kpi_marge') }} m
     inner join {{ ref('dim_produit') }} p
         on m.produit_sk = p.produit_sk
-    {% if is_incremental() %}
-    where m.date_jour >= dateadd('month', -2, current_date())
-    {% endif %}
     group by m.pharmacie_sk, m.produit_sk, p.PRD_NOM, p.univers
 )
 

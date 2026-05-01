@@ -9,7 +9,7 @@ globs: "pipelines/**/*.py,dbt/models/staging/**/*.sql"
 - Filtre deletes : `WHERE cdc_operation != 'D'` dans staging
 - Métadonnées CDC préservées dans RAW : `cdc_operation`, `cdc_timestamp`, `cdc_lsn`
 - DLQ (`_DLQ`) pour events malformés ou non traitables
-- Bulk load référence : `TRUNCATE` + reload quotidien (03h00)
+- Bulk load référence : CLONE+SWAP + reload quotidien (23h FR / 21h UTC)
 - Incremental staging : `cdc_timestamp >= max(loaded_at)` pour éviter les retraitements
 - Commit Kafka manuel après flush Snowflake réussi
 - `diagnose_recover.py` pour diagnostic et reprise en cas d'incident

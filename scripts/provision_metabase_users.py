@@ -31,7 +31,7 @@ if len(sys.argv) < 2:
     sys.exit(1)
 
 TOKEN = sys.argv[1]
-BASE = 'http://localhost:3000/api'
+BASE = 'http://localhost:3001/api'
 CSV_PATH = os.path.join(os.path.dirname(__file__), '..', 'config', 'metabase_users.csv')
 # Mot de passe temporaire (utilisé uniquement si SMTP non configuré)
 # Si SMTP est configuré, Metabase envoie un email d'invitation et
@@ -415,7 +415,7 @@ def main():
                 print(f'         Email d\'invitation envoyé automatiquement par Metabase')
             else:
                 print(f'         SMTP non configuré — communiquer manuellement :')
-                print(f'         URL : http://192.168.0.37:3000')
+                print(f'         URL : http://192.168.0.37:3001')
                 print(f'         Mot de passe temporaire : {DEFAULT_PASSWORD}')
             created_count += 1
 

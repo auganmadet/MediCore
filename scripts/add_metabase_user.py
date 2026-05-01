@@ -42,7 +42,7 @@ PRENOM = sys.argv[3]
 NOM = sys.argv[4]
 SERVICE = sys.argv[5]
 
-BASE = 'http://localhost:3000/api'
+BASE = 'http://localhost:3001/api'
 
 # Collections parentes (contiennent Cards/ et Dashboards/)
 PARENT_COLLS = {

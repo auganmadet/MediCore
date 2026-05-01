@@ -54,7 +54,7 @@ Répertoire : `.claude/dev-memories/`
   ├───────────────────────────────────┼───────────────────────────────────────────────────────┤
   │ `dbt/models/marts/fact_*.sql`     │ 8 faits (ventes, commandes, stock, ruptures...)       │
   ├───────────────────────────────────┼───────────────────────────────────────────────────────┤
-  │ `dbt/models/marts/mart_kpi_*.sql` │ 15 KPIs métier (marge, écoulement, ABC, stock...)     │
+  │ `dbt/models/marts/mart_kpi_*.sql` │ 21 KPIs métier (marge, écoulement, ABC, stock...)     │
   ├───────────────────────────────────┼───────────────────────────────────────────────────────┤
   │ `dbt/macros/pii_masking.sql`      │ Macros masquage PII (MD5)                             │
   ├───────────────────────────────────┼───────────────────────────────────────────────────────┤
@@ -62,6 +62,26 @@ Répertoire : `.claude/dev-memories/`
   ├───────────────────────────────────┼───────────────────────────────────────────────────────┤
   │ `scripts/setup.sh`                │ Setup initial (Docker + DDL + Debezium)               │
   └───────────────────────────────────┴───────────────────────────────────────────────────────┘
+
+### Metabase BI & Embedding
+
+- **Metabase v0.58.7** + PostgreSQL 16, accès `http://localhost:3001`
+- 16 dashboards (D1-D16), 98 cartes, embedding signé (JWT) pour les pharmaciens
+- **Siège** (IT, Marketing, RH, Achats) : accès direct Metabase, filtrage par collections
+- **Pharmaciens** : dashboards via iframes (signed embedding), filtre pharmacie verrouillé par JWT
+- **Mini-app test** : `embed_app/` (Flask, port 5000) — simule l'intégration Mediprix
+- **Surveillance à 4 niveaux** (depuis 2026-04-23) : pre-night (20h30) → post-CDC (~21h35) → post-ref_reload bloquant (~23h16) → pipeline_maintenance (~23h47)
+- **Pre-night healthcheck** : `scripts/pre_night_healthcheck.py --fix` (14 checks H1-H7 + N2-N8, corrections auto)
+- **Maintenance post-exécution** : `scripts/pipeline_maintenance.py --fix-safe` (4 phases : CDC, Bulk, dbt, Metabase ; enchaîne après dbt post-reload)
+- **Orchestrateur Metabase** : `scripts/metabase_maintenance.py` (P1-P10, appelé par pipeline_maintenance)
+- **Provisionnement pharmacies** : `scripts/provision_rls.py` (groupe + collection + permissions, détection auto)
+- **10 problèmes identifiés** (P1-P10) : voir `docs/15_metabase_checklist_depannage.md`
+- **Guide embedding Mediprix** : voir `docs/14_embedding_metabase.md`
+- **Bilan RLS et options** : voir `docs/13_rls_bilan_et_options.md`
+- **Maintenance pipeline complète** : voir `docs/16_pipeline_maintenance.md` (architecture 4 niveaux : pre-night + post-checks inline + pipeline_maintenance)
+- **Audit pré-nuit système** : `scripts/pre_night_audit.sh [--fix]` (Power Windows + WindowsUpdate + WSL2 + Docker + safe_sleep + flags). Voir `docs/17_pre_night_audit.md`. Mode `--fix` auto-corrige tout (1 prompt UAC pour les changements admin Windows).
+- **Optimisation coût Snowflake L1+L5** : voir `docs/plans/2026-04-22_optimisation_cost_snowflake.md` (incremental merge + skip dimanche, gain mesuré -317 EUR/mois soit -52 %, cible théorique -391 EUR/mois -83 %)
+- **Rapport coût Snowflake nocturne** : `scripts/snowflake_cost_report.py [--date YYYY-MM-DD] [--mode auto|full|incremental|skip] [--tarif 2.76] [--json] [--markdown PATH]` (décompose la nuit par phase via `WAREHOUSE_METERING_HISTORY` + `AUTOMATIC_CLUSTERING_HISTORY`, détecte automatiquement le mode via le jour de la semaine). Tarif Mediprix 2,76 €/cr. Baselines mesurées : FULL 27/04 post-clustering 5,452 €, INCR 25/04 PRÉ-clustering 4,595 € (borne haute), SKIP 26/04 PRÉ-clustering 0,099 €. **Mensuel nocturne fourchette ~100-125 €/mois** (borne haute mesurée 124 €, estimation post-clustering complet ~110 € après recalibration INCR le 29/04). Le clustering `RAW_MEDIPRIX_FACTURES` a 2 effets : re-clustering write (faible en INCR) + pruning read (MAJEUR partout, gain -75 % attendu sur MERGE qui lisent `RAW_MEDIPRIX_FACTURES`). Voir `docs/18_snowflake_cost_report.md`.
 
 ### Sécurité critique
 

@@ -1,16 +1,51 @@
 # Guide de provisionnement des utilisateurs Metabase
 
+## Table des matières
+
+1. [Objectif](#objectif)
+2. [Prérequis](#prérequis)
+3. [Fichiers concernés](#fichiers-concernés)
+4. [Éditer le fichier CSV](#1-éditer-le-fichier-csv)
+   - [Format](#format)
+   - [Colonnes](#colonnes)
+   - [Règles](#règles)
+5. [Obtenir un session token](#2-obtenir-un-session-token)
+6. [Lancer le provisionnement](#3-lancer-le-provisionnement)
+   - [Exemple de sortie](#exemple-de-sortie)
+7. [Comportement idempotent](#4-comportement-idempotent)
+8. [Gouvernance des collections](#5-gouvernance-des-collections)
+   - [Structure résultante](#structure-résultante)
+   - [Droits par service](#droits-par-service)
+9. [Cas d'usage courants](#6-cas-dusage-courants)
+   - [Ajouter un nouvel utilisateur](#ajouter-un-nouvel-utilisateur)
+   - [Désactiver un utilisateur](#désactiver-un-utilisateur-départ-changement-de-poste)
+   - [Ajouter un nouveau service](#ajouter-un-nouveau-service)
+   - [Changer un utilisateur de service](#changer-un-utilisateur-de-service)
+10. [Connexion utilisateur](#7-connexion-utilisateur)
+    - [URL d'accès](#url-daccès)
+    - [Première connexion — avec SMTP](#première-connexion--avec-smtp-recommandé)
+    - [Configuration SMTP](#configuration-smtp)
+    - [Première connexion — sans SMTP](#première-connexion--sans-smtp-fallback)
+    - [Accès réseau](#accès-réseau)
+11. [Dépannage](#8-dépannage)
+
+---
+
 ## Objectif
 
 Gérer les comptes utilisateurs Metabase de manière centralisée via un fichier CSV et un script idempotent. Chaque utilisateur est associé à un service qui détermine ses droits d'accès.
+
+[↑ Retour au sommaire](#table-des-matières)
 
 ---
 
 ## Prérequis
 
-- Metabase en cours d'exécution (`http://localhost:3000`)
+- Metabase en cours d'exécution (`http://localhost:3001`)
 - Un **session token** administrateur (voir [Obtenir un token](#obtenir-un-session-token))
 - Python 3.10+ (aucune dépendance externe)
+
+[↑ Retour au sommaire](#table-des-matières)
 
 ---
 
@@ -23,6 +58,8 @@ Gérer les comptes utilisateurs Metabase de manière centralisée via un fichier
   ├──────────────────────────────────────────┼──────────────────────────────────────────────────────────┤
   │ `scripts/provision_metabase_users.py`    │ Script de provisionnement (idempotent)                   │
   └──────────────────────────────────────────┴──────────────────────────────────────────────────────────┘
+
+[↑ Retour au sommaire](#table-des-matières)
 
 ---
 
@@ -61,6 +98,8 @@ lucie.ritzenthaler@mediprix.fr,Lucie,Ritzenthaler,Communication,oui
 - Le champ `service` est libre : chaque valeur distincte crée un groupe et des sous-collections
 - Le champ `actif` accepte : `oui`, `true`, `1`, `yes` (actif) ou toute autre valeur (inactif)
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ---
 
 ## 2. Obtenir un session token
@@ -75,12 +114,14 @@ console.log(JSON.parse(localStorage.getItem('metabase.CURRENT_USER')))
 Ou via l'API :
 
 ```bash
-curl -X POST http://localhost:3000/api/session \
+curl -X POST http://localhost:3001/api/session \
   -H "Content-Type: application/json" \
   -d '{"username":"admin@mediprix.fr","password":"votre_mot_de_passe"}'
 ```
 
 Le token est dans la réponse : `{"id":"abc-123-def-456"}`.
+
+[↑ Retour au sommaire](#table-des-matières)
 
 ---
 
@@ -124,6 +165,8 @@ RÉSUMÉ
   Services : IT, Communication
 ```
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ---
 
 ## 4. Comportement idempotent
@@ -149,6 +192,8 @@ Le script peut être relancé autant de fois que nécessaire sans effet de bord.
   ├─────────────────────────────────────┼──────────────────────────────────────────────────────────┤
   │ Cartes/dashboards orphelins         │ Déplacés automatiquement dans Admin/                     │
   └─────────────────────────────────────┴──────────────────────────────────────────────────────────┘
+
+[↑ Retour au sommaire](#table-des-matières)
 
 ---
 
@@ -197,6 +242,8 @@ MediCore BI/                              view pour tous
   │ Administration Metabase              │ bloqué  │ Réservé à l'administrateur                  │
   └──────────────────────────────────────┴─────────┴─────────────────────────────────────────────┘
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ---
 
 ## 6. Cas d'usage courants
@@ -224,6 +271,8 @@ MediCore BI/                              view pour tous
 3. Relancer le script
 4. L'utilisateur conserve son historique dans l'ancien service (lecture seule)
 
+[↑ Retour au sommaire](#table-des-matières)
+
 ---
 
 ## 7. Connexion utilisateur
@@ -232,7 +281,7 @@ MediCore BI/                              view pour tous
 
 Metabase est accessible sur le réseau local à l'adresse :
 
-**`http://192.168.0.37:3000`**
+**`http://192.168.0.37:3001`**
 
 > Cette URL est valable pour tous les postes connectés au même réseau local.
 > Si l'IP du serveur change, mettre à jour cette documentation.
@@ -296,7 +345,7 @@ MB_EMAIL_SMTP_USERNAME=metabase@mediprix.fr
 MB_EMAIL_SMTP_PASSWORD=abcdefghijklmnop
 MB_EMAIL_FROM_ADDRESS=metabase@mediprix.fr
 MB_EMAIL_FROM_NAME=MediCore BI
-MB_SITE_URL=http://192.168.0.37:3000
+MB_SITE_URL=http://192.168.0.37:3001
 ```
 
 > **Important** : `MB_EMAIL_SMTP_PASSWORD` est le mot de passe d'application (16 caractères),
@@ -312,7 +361,7 @@ ses settings SMTP dans sa base PostgreSQL. Il faut donc les configurer **via l'A
 TOKEN=$(python -c "
 import urllib.request, json
 data = json.dumps({'username':'admin@mediprix.fr','password':'xxx'}).encode()
-req = urllib.request.Request('http://localhost:3000/api/session', data=data, headers={'Content-Type':'application/json'})
+req = urllib.request.Request('http://localhost:3001/api/session', data=data, headers={'Content-Type':'application/json'})
 print(json.loads(urllib.request.urlopen(req).read())['id'])
 ")
 
@@ -328,11 +377,11 @@ mapping = {
   'email-smtp-password': os.getenv('MB_EMAIL_SMTP_PASSWORD',''),
   'email-from-address': os.getenv('MB_EMAIL_FROM_ADDRESS',''),
   'email-from-name': os.getenv('MB_EMAIL_FROM_NAME','MediCore BI'),
-  'site-url': os.getenv('MB_SITE_URL','http://192.168.0.37:3000'),
+  'site-url': os.getenv('MB_SITE_URL','http://192.168.0.37:3001'),
 }
 import json; print(json.dumps(mapping['$KEY']))
   ")
-  curl -s -X PUT "http://localhost:3000/api/setting/$KEY" \
+  curl -s -X PUT "http://localhost:3001/api/setting/$KEY" \
     -H "X-Metabase-Session: $TOKEN" \
     -H "Content-Type: application/json" \
     -d "{\"value\": $VALUE}"
@@ -347,7 +396,7 @@ Ou plus simplement, utiliser l'interface Metabase :
 Via l'API :
 
 ```bash
-curl -X POST http://localhost:3000/api/email/test \
+curl -X POST http://localhost:3001/api/email/test \
   -H "X-Metabase-Session: $TOKEN" \
   -H "Content-Type: application/json" -d '{}'
 ```
@@ -385,7 +434,7 @@ Bonjour [Prénom],
 
 Ton compte Metabase MediCore est créé. Voici tes accès :
 
-  URL       : http://192.168.0.37:3000
+  URL       : http://192.168.0.37:3001
   Email     : [son email]
   Mot de passe temporaire : Medicore2026!
 
@@ -406,7 +455,7 @@ de ton service (ex: Cards/IT/, Dashboards/IT/).
   ┌─────────────────────────────┬─────────────────────────────────────────────────────────────────┐
   │ Situation                   │ Action                                                          │
   ├─────────────────────────────┼─────────────────────────────────────────────────────────────────┤
-  │ Même réseau local           │ `http://192.168.0.37:3000` — aucune config supplémentaire       │
+  │ Même réseau local           │ `http://192.168.0.37:3001` — aucune config supplémentaire       │
   ├─────────────────────────────┼─────────────────────────────────────────────────────────────────┤
   │ VPN d'entreprise            │ S'assurer que le VPN route vers le réseau 192.168.1.0/24        │
   ├─────────────────────────────┼─────────────────────────────────────────────────────────────────┤
@@ -425,7 +474,7 @@ netsh advfirewall firewall add rule name="Metabase" dir=in action=allow protocol
 > Sans cette règle, les autres postes du réseau ne peuvent pas accéder à Metabase
 > même si Docker expose le port sur `0.0.0.0:3000`.
 
-**IP fixe (recommandé)** : l'URL `http://192.168.0.37:3000` dépend d'une IP attribuée par DHCP — elle peut changer. Demander à l'admin réseau de réserver l'IP dans le routeur :
+**IP fixe (recommandé)** : l'URL `http://192.168.0.37:3001` dépend d'une IP attribuée par DHCP — elle peut changer. Demander à l'admin réseau de réserver l'IP dans le routeur :
 
   ┌──────────────────┬──────────────────────────────────────────┐
   │ Paramètre        │ Valeur                                   │
@@ -439,6 +488,8 @@ netsh advfirewall firewall add rule name="Metabase" dir=in action=allow protocol
 
 > Le hostname (`http://DESKTOP-FKLPKRA:3000`) ne fonctionne pas sur le réseau Mediprix
 > car la résolution de nom NetBIOS/mDNS est désactivée. Utiliser l'IP fixe (demande auprès de l'Admin Sys).
+
+[↑ Retour au sommaire](#table-des-matières)
 
 ---
 
@@ -460,8 +511,16 @@ netsh advfirewall firewall add rule name="Metabase" dir=in action=allow protocol
   │ Erreur "Permission denied"           │ Vérifier que le token utilisé est celui d'un admin       │
   ├──────────────────────────────────────┼──────────────────────────────────────────────────────────┤
   │ L'utilisateur ne peut pas accéder    │ Vérifier : 1) même réseau local 2) pare-feu Windows      │
-  │ à http://192.168.0.37:3000           │ port 3000 ouvert 3) Docker en cours d'exécution          │
+  │ à http://192.168.0.37:3001           │ port 3000 ouvert 3) Docker en cours d'exécution          │
   ├──────────────────────────────────────┼──────────────────────────────────────────────────────────┤
   │ "Connection refused" depuis un       │ Vérifier que le bind est `0.0.0.0:3000:3000` dans        │
   │ autre poste                          │ `docker-compose.yml` (pas `127.0.0.1`)                   │
   └──────────────────────────────────────┴──────────────────────────────────────────────────────────┘
+
+[↑ Retour au sommaire](#table-des-matières)
+
+---
+
+## Voir aussi
+
+- [Dashboards](06_Dashboards.md) — guide utilisateur pour créer les dashboards Metabase

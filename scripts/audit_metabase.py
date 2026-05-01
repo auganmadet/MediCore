@@ -10,7 +10,7 @@ TOKEN = sys.argv[1]
 def api_get(path):
     """GET sur l'API Metabase."""
     req = urllib.request.Request(
-        'http://localhost:3000/api/' + path,
+        'http://localhost:3001/api/' + path,
         headers={'X-Metabase-Session': TOKEN}
     )
     return json.loads(urllib.request.urlopen(req, timeout=60).read())
@@ -20,7 +20,7 @@ def api_post(path, data):
     """POST sur l'API Metabase."""
     body = json.dumps(data).encode('utf-8')
     req = urllib.request.Request(
-        'http://localhost:3000/api/' + path, data=body, method='POST',
+        'http://localhost:3001/api/' + path, data=body, method='POST',
         headers={'X-Metabase-Session': TOKEN, 'Content-Type': 'application/json; charset=utf-8'}
     )
     return json.loads(urllib.request.urlopen(req, timeout=120).read())
