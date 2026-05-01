@@ -13,10 +13,11 @@ with ventes as (
         pharmacie_sk,
         produit_sk,
         date_vente,
-        quantite_vendue,
-        ca_ht,
-        ca_ttc
+        sum(quantite_vendue)                                  as quantite_vendue,
+        sum(ca_ht)                                            as ca_ht,
+        sum(ca_ttc)                                           as ca_ttc
     from {{ ref('fact_ventes') }}
+    group by pharmacie_sk, produit_sk, date_vente
 ),
 
 prix as (
