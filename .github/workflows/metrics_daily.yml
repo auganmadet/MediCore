@@ -4,9 +4,11 @@ name: Daily clustering metrics
 # Lance scripts/clustering_metrics_daily.py avec les secrets Snowflake injectés,
 # puis commite le CSV mis à jour.
 #
-# Schedule : 07h07 UTC = 09h07 CEST (été) / 08h07 CET (hiver). Minute :07 pour
-# éviter les pics ronds sur l'API Snowflake (latence ACCOUNT_USAGE 45 min - 3 h
-# largement absorbée pour une nuit qui finit ~04h FR).
+# Schedule : 13h42 UTC = 15h42 CEST (été) / 14h42 CET (hiver). Minute :42 et
+# heure 13 (milieu d'après-midi) choisis hors des pics GitHub Actions free tier
+# (les schedules à 7h-9h UTC subissaient des retards systématiques de 1h-2h+
+# pouvant déclencher un skip). La latence ACCOUNT_USAGE Snowflake (45 min - 3 h)
+# reste largement absorbée pour une nuit qui finit ~04h FR.
 #
 # IMPORTANT : le cron GitHub Actions utilise la branche par défaut (`main`).
 # Tant que ce workflow n'est pas mergé dans main, seul `workflow_dispatch`
@@ -14,7 +16,7 @@ name: Daily clustering metrics
 
 on:
   schedule:
-    - cron: '7 7 * * *'
+    - cron: '42 13 * * *'
   workflow_dispatch:
 
 permissions:
