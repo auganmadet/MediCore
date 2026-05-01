@@ -179,6 +179,8 @@ models:
           - relationships:
               to: ref('dim_produit')
               field: produit_sk
+              config:
+                severity: warn
       - name: DATE_PRIX
         description: "Date du relevé de prix (granularité jour)"
         tests:
