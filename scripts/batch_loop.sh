@@ -593,7 +593,9 @@ while true; do
   # Reset flags et compteurs quotidiens au debut du mode nuit (19h UTC = 21h FR)
   # Filet de securite : nettoie TOUS les flags de la nuit precedente meme si la
   # fenetre 14h UTC a ete manquee (safe_sleep long, container redemarre, etc.).
-  if [ "$HOUR" = "19" ] && [ "$(date +%M)" -lt "10" ]; then
+  # Fenetre elargie a 30 min : un cycle batch_loop tourne ~10 min, et l'incident
+  # du 01/05 (cycle a 19:10:14 = MINUTE=10) prouvait que MINUTE<10 etait trop etroit.
+  if [ "$HOUR" = "19" ] && [ "$(date +%M)" -lt "30" ]; then
     rm -f "$REF_DONE_FLAG" "$NIGHT_CDC_DONE_FLAG" "$POST_RELOAD_DBT_DONE_FLAG" \
           "$MB_PROV_DONE_FLAG" "$DEV_CLONE_DONE_FLAG" \
           "$PRE_NIGHT_OK_FLAG" "$PRE_NIGHT_DONE_FLAG"
@@ -605,7 +607,8 @@ while true; do
   # Reset anticipe du flag pre_night_done en milieu de journee (14h UTC = 16h FR)
   # Permet la re-execution manuelle du pre_night_healthcheck dans l'apres-midi
   # avant 18h30 UTC. Le reset 19h UTC ci-dessus reste le filet de securite.
-  if [ "$HOUR" = "14" ] && [ "$(date +%M)" -lt "10" ]; then
+  # Fenetre elargie a 30 min : meme raison que le reset 19h UTC ci-dessus.
+  if [ "$HOUR" = "14" ] && [ "$(date +%M)" -lt "30" ]; then
     rm -f "$PRE_NIGHT_DONE_FLAG"
   fi
 
